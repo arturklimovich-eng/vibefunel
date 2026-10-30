@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export type ProviderId = 'stripe' | 'solidgate' | 'mock';
 export type PaymentStatus = 'pending' | 'succeeded' | 'failed';
-export type PublicPaymentStatus = PaymentStatus | 'needs_review' | 'processing';
+export type PaymentRevocation = 'refunded' | 'disputed';
+export type PublicPaymentStatus = PaymentStatus | 'needs_review' | 'processing' | PaymentRevocation;
 export type ProviderStatus = 'ready' | 'not_configured';
 
 export const paymentReasonSchema = z.enum([
@@ -23,11 +24,32 @@ const REVIEW_REASONS: ReadonlySet<PaymentReason> = new Set<PaymentReason>([
   'funnel_missing',
 ]);
 
+const ACCESS_SUSPENDING_DISPUTES: ReadonlySet<string> = new Set([
+  'needs_response',
+  'under_review',
+  'lost',
+]);
+
+export function revocationOf(payment: {
+  amount: number;
+  amountRefunded: number;
+  disputeStatus: string | null;
+}): PaymentRevocation | null {
+  if (payment.disputeStatus !== null && ACCESS_SUSPENDING_DISPUTES.has(payment.disputeStatus)) {
+    return 'disputed';
+  }
+  if (payment.disputeStatus === 'charge_refunded') return 'refunded';
+  if (payment.amount > 0 && payment.amountRefunded >= payment.amount) return 'refunded';
+  return null;
+}
+
 export function toPublicPaymentStatus(
   status: PaymentStatus,
   reason: PaymentReason | null,
   found: boolean,
+  revoked: PaymentRevocation | null = null,
 ): PublicPaymentStatus {
+  if (status === 'succeeded' && revoked !== null) return revoked;
   if (status === 'pending' && found) return 'processing';
   if (status === 'failed' && reason !== null && REVIEW_REASONS.has(reason)) return 'needs_review';
   return status;

@@ -4,13 +4,14 @@ import { requireSupabaseEnv } from '@/lib/storage-mode';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import type {
   AdjustmentResult,
+  FunnelPayment,
   PaymentStore,
   StaleDeferred,
   RecordResult,
   StatusDetail,
   StatusQuery,
 } from './store';
-import { paymentReasonSchema } from './types';
+import { paymentReasonSchema, revocationOf } from './types';
 import type { PaymentAdjustment, PaymentEvent } from './types';
 
 const statusSchema = z.enum(['pending', 'succeeded', 'failed']);
@@ -20,6 +21,29 @@ const statusRowSchema = z.object({
   reason: paymentReasonSchema.nullable(),
   updated_at: z.string(),
 });
+const accessRowSchema = z.object({
+  status: statusSchema,
+  reason: paymentReasonSchema.nullable(),
+  amount: z.number().int(),
+  amount_refunded: z.number().int(),
+  dispute_status: z.string().nullable(),
+});
+const funnelPaymentRowSchema = accessRowSchema.extend({
+  provider: z.enum(['stripe', 'solidgate', 'mock']),
+  provider_ref: z.string(),
+  screen_id: z.string(),
+  plan_key: z.string(),
+  currency: z.string(),
+  created_at: z.string(),
+});
+
+function rowRevocation(row: z.infer<typeof accessRowSchema>) {
+  return revocationOf({
+    amount: row.amount,
+    amountRefunded: row.amount_refunded,
+    disputeStatus: row.dispute_status,
+  });
+}
 
 type ServiceClient = ReturnType<typeof createSupabaseServiceClient>;
 
@@ -119,11 +143,13 @@ export class SupabasePaymentStore implements PaymentStore {
   }
 
   async getStatus(query: StatusQuery): Promise<StatusDetail> {
-    if (query.payers.length === 0) return { status: 'pending', reason: null, found: false };
+    if (query.payers.length === 0) {
+      return { status: 'pending', reason: null, found: false, revoked: null };
+    }
     const base = () => {
       let request = serviceClient()
         .from('payments')
-        .select('status, reason, updated_at')
+        .select('status, reason, updated_at, amount, amount_refunded, dispute_status')
         .eq('run_id', query.runId)
         .eq('screen_id', query.screenId)
         .in('payer_hash', query.payers);
@@ -132,32 +158,47 @@ export class SupabasePaymentStore implements PaymentStore {
       }
       return request;
     };
-    const paid = await base().eq('status', 'succeeded').limit(1);
-    if (paid.error) throw new Error(`payment status lookup failed: ${paid.error.message}`);
-    const succeeded = z.array(statusRowSchema).parse(paid.data)[0];
-    if (succeeded) return { status: 'succeeded', reason: succeeded.reason, found: true };
+    const paidResult = await base().eq('status', 'succeeded').limit(50);
+    if (paidResult.error) {
+      throw new Error(`payment status lookup failed: ${paidResult.error.message}`);
+    }
+    const paid = z.array(accessRowSchema).parse(paidResult.data);
+    const active = paid.find((row) => rowRevocation(row) === null);
+    if (active) return { status: 'succeeded', reason: active.reason, found: true, revoked: null };
     const open = await base().eq('status', 'pending').limit(1);
     if (open.error) throw new Error(`payment status lookup failed: ${open.error.message}`);
     if (z.array(statusRowSchema).parse(open.data).length > 0) {
-      return { status: 'pending', reason: null, found: true };
+      return { status: 'pending', reason: null, found: true, revoked: null };
+    }
+    const revokedRow = paid.find((row) => rowRevocation(row) === 'disputed') ?? paid[0];
+    if (revokedRow) {
+      return {
+        status: 'succeeded',
+        reason: revokedRow.reason,
+        found: true,
+        revoked: rowRevocation(revokedRow),
+      };
     }
     const { data, error } = await base().order('updated_at', { ascending: false }).limit(1);
     if (error) throw new Error(`payment status lookup failed: ${error.message}`);
     const latest = z.array(statusRowSchema).parse(data)[0];
-    if (!latest) return { status: 'pending', reason: null, found: false };
-    return { status: latest.status, reason: latest.reason, found: true };
+    if (!latest) return { status: 'pending', reason: null, found: false, revoked: null };
+    return { status: latest.status, reason: latest.reason, found: true, revoked: null };
   }
 
   async hasActivePayment(runId: string, screenId: string): Promise<boolean> {
     const { data, error } = await serviceClient()
       .from('payments')
-      .select('status')
+      .select('status, reason, amount, amount_refunded, dispute_status')
       .eq('run_id', runId)
       .eq('screen_id', screenId)
       .in('status', ['succeeded', 'pending'])
-      .limit(1);
+      .limit(50);
     if (error) throw new Error(`payment lookup failed: ${error.message}`);
-    return z.array(z.object({ status: statusSchema })).parse(data).length > 0;
+    return z
+      .array(accessRowSchema)
+      .parse(data)
+      .some((row) => row.status === 'pending' || rowRevocation(row) !== 'refunded');
   }
 
   async getFunnelProjectId(funnelId: string): Promise<string | null> {
@@ -170,5 +211,42 @@ export class SupabasePaymentStore implements PaymentStore {
     if (error) throw new Error(`funnel lookup failed: ${error.message}`);
     if (data === null) return null;
     return projectRowSchema.parse(data).project_id;
+  }
+
+  async listFunnelPayments(
+    projectId: string,
+    funnelId: string,
+    limit: number,
+  ): Promise<FunnelPayment[]> {
+    if (!z.uuid().safeParse(projectId).success || !z.uuid().safeParse(funnelId).success) {
+      return [];
+    }
+    const { data, error } = await serviceClient()
+      .from('payments')
+      .select(
+        'provider, provider_ref, screen_id, plan_key, amount, currency, status, reason, amount_refunded, dispute_status, created_at',
+      )
+      .eq('project_id', projectId)
+      .eq('funnel_id', funnelId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw new Error(`payment list failed: ${error.message}`);
+    return z
+      .array(funnelPaymentRowSchema)
+      .parse(data)
+      .map((row) => ({
+        provider: row.provider,
+        providerRef: row.provider_ref,
+        screenId: row.screen_id,
+        planKey: row.plan_key,
+        amount: row.amount,
+        currency: row.currency,
+        status: row.status,
+        reason: row.reason,
+        amountRefunded: row.amount_refunded,
+        disputeStatus: row.dispute_status,
+        revoked: row.status === 'succeeded' ? rowRevocation(row) : null,
+        createdAt: row.created_at,
+      }));
   }
 }

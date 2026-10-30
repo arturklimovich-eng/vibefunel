@@ -4,19 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js/pure';
 import { z } from 'zod';
+import { fetchPaymentStatus as fetchStatus } from '@/lib/payment-status';
 import { useRuntime } from './runtime-context';
 import styles from './blocks.module.css';
-
-const statusResponse = z.object({
-  status: z.enum(['pending', 'processing', 'succeeded', 'failed', 'needs_review']),
-});
-
-type PublicStatus = z.infer<typeof statusResponse>['status'];
-
-type StatusResult =
-  | { kind: 'status'; status: PublicStatus }
-  | { kind: 'not_configured' }
-  | { kind: 'rate_limited'; retryAfterMs: number };
 
 const checkoutResponse = z.discriminatedUnion('mode', [
   z.object({
@@ -29,8 +19,6 @@ const checkoutResponse = z.discriminatedUnion('mode', [
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_MAX_MS = 60_000;
-const RETRY_AFTER_DEFAULT_S = 5;
-const RETRY_AFTER_MAX_S = 30;
 
 type View =
   | { kind: 'idle' }
@@ -42,15 +30,10 @@ type View =
   | { kind: 'exists' }
   | { kind: 'failed' }
   | { kind: 'needs_review' }
+  | { kind: 'refunded' }
+  | { kind: 'disputed' }
   | { kind: 'not_configured' }
   | { kind: 'error'; text: string };
-
-function retryAfterMs(response: Response): number {
-  const header = response.headers.get('retry-after');
-  const parsed = header === null ? Number.NaN : Number.parseInt(header, 10);
-  const seconds = Number.isFinite(parsed) && parsed > 0 ? parsed : RETRY_AFTER_DEFAULT_S;
-  return Math.min(seconds, RETRY_AFTER_MAX_S) * 1000;
-}
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -78,25 +61,6 @@ function isSafeRedirect(url: string): boolean {
     if (error instanceof TypeError) return false;
     throw error;
   }
-}
-
-async function fetchStatus(
-  runId: string,
-  screenId: string,
-  signal: AbortSignal,
-  ref: string | null,
-): Promise<StatusResult> {
-  const query = new URLSearchParams({ runId, screenId });
-  if (ref !== null) query.set('ref', ref);
-  const response = await fetch(`/api/payments/status?${query.toString()}`, {
-    signal,
-    cache: 'no-store',
-  });
-  if (response.status === 503) return { kind: 'not_configured' };
-  if (response.status === 429)
-    return { kind: 'rate_limited', retryAfterMs: retryAfterMs(response) };
-  if (!response.ok) throw new Error(`Status check failed (${response.status}).`);
-  return { kind: 'status', status: statusResponse.parse(await response.json()).status };
 }
 
 function EmbeddedView({ clientSecret }: { clientSecret: string }) {
@@ -132,6 +96,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
   const isReturn = screenId !== null && returnScreenId === screenId;
   const [view, setView] = useState<View>({ kind: 'idle' });
   const [attempt, setAttempt] = useState(0);
+  const [repurchase, setRepurchase] = useState(false);
 
   useEffect(() => {
     if (slug === null || runId === null || screenId === null || planKey === '' || paid) return;
@@ -159,6 +124,13 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
         }
         if (result.kind === 'status' && result.status === 'needs_review') {
           setView({ kind: 'needs_review' });
+          return;
+        }
+        if (
+          result.kind === 'status' &&
+          (result.status === 'refunded' || result.status === 'disputed')
+        ) {
+          setView({ kind: result.status });
           return;
         }
         if (result.kind === 'status' && result.status === 'processing') sawProcessing = true;
@@ -250,6 +222,14 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
           setView({ kind: 'processing' });
           return;
         }
+        if (result.status === 'disputed') {
+          setView({ kind: 'disputed' });
+          return;
+        }
+        if (result.status === 'refunded' && !repurchase) {
+          setView({ kind: 'refunded' });
+          return;
+        }
         await create();
       } catch (error) {
         if (signal.aborted) return;
@@ -269,6 +249,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
     isReturn,
     returnRef,
     attempt,
+    repurchase,
     confirmPayment,
     track,
     analyticsConsent,
@@ -381,6 +362,35 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
           <p className={styles.paymentText}>
             A payment for this step was already made or is in progress. If you paid in another
             browser or tab, continue there.
+          </p>
+        </>
+      ) : null}
+      {view.kind === 'refunded' ? (
+        <>
+          <p className={styles.paymentTitle}>Payment refunded</p>
+          <p className={styles.paymentText}>
+            Your payment for this step was refunded, so access to the paid part of this funnel is
+            closed. You can purchase again to continue.
+          </p>
+          <button
+            type="button"
+            className={styles.button}
+            onClick={() => {
+              clearReturn();
+              setRepurchase(true);
+              setAttempt((n) => n + 1);
+            }}
+          >
+            Purchase again
+          </button>
+        </>
+      ) : null}
+      {view.kind === 'disputed' ? (
+        <>
+          <p className={styles.paymentTitle}>Access suspended</p>
+          <p className={styles.paymentText}>
+            The payment for this step is disputed with your bank, so access to the paid part of this
+            funnel is suspended. Please contact support to resolve it.
           </p>
         </>
       ) : null}

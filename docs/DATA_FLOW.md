@@ -132,6 +132,8 @@ flowchart TD
   orphan --> cron["/api/cron/payments: after 24 h logs PAYMENT_NEEDS_ATTENTION"]
 ```
 
+Access policy (`revocationOf` in `server/payments/types.ts`, same in both stores): a full refund or Stripe `charge_refunded` closes access; an open dispute (`needs_response`, `under_review`) suspends it and a lost one keeps it closed; partial refunds, won disputes, inquiries (`warning_*`) and `prevented` keep it. The public status route reports `refunded` or `disputed` for such a payment. When a visitor's restored run has passed a checkout or upsell screen, the runtime re-checks those payments and sends the visitor back to the first revoked checkout; the panel offers "Purchase again" after a refund (a new checkout is allowed) and asks to contact support during or after a dispute (a new checkout stays blocked). The studio editor lists the funnel's latest 50 payments with their access state (`GET /api/funnels/[id]/payments`).
+
 ## 6. Analytics and consent
 
 One owner per event, so nothing is counted twice:

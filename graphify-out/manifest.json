@@ -6,9 +6,9 @@
     "semantic_hash": ""
   },
   "apps/web/next.config.mjs": {
-    "mtime": 1793386870.5455406,
-    "seen": 1793397859.1269028,
-    "ast_hash": "7fa65ecc0863ca6afd60e7189b08f9f3",
+    "mtime": 1793400296.254046,
+    "seen": 1793400335.4584458,
+    "ast_hash": "d2b96e1ce0c0d9689927c3f440e78ee5",
     "semantic_hash": ""
   },
   "apps/web/package.json": {
@@ -102,9 +102,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/mock/confirm/route.ts": {
-    "mtime": 1793382624.5083234,
-    "seen": 1793397859.1269238,
-    "ast_hash": "290a1f78962ff6d5bd74a2abf83b3386",
+    "mtime": 1793400296.25456,
+    "seen": 1793400335.4584768,
+    "ast_hash": "5be7dbff9d556c908c231a83f38075b1",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/mock/webhook/route.ts": {
@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/status/route.ts": {
-    "mtime": 1793382462.742332,
-    "seen": 1793397859.1269274,
-    "ast_hash": "dc872c4e39a3e84b3a6f1619d8844e7a",
+    "mtime": 1793399471.1493716,
+    "seen": 1793400335.4584806,
+    "ast_hash": "c8a9cac58f86884c498bf2f6a9ae9d36",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/stripe/webhook/route.ts": {
@@ -168,9 +168,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/layout.tsx": {
-    "mtime": 1793125724.4796338,
-    "seen": 1793397859.1269376,
-    "ast_hash": "651a2a00c163fc6e01632039cb4bd8e4",
+    "mtime": 1793399672.6013632,
+    "seen": 1793400335.4584918,
+    "ast_hash": "8f6d375f7329e080980fe1d6f6ee9bb4",
     "semantic_hash": ""
   },
   "apps/web/src/app/login/LoginForm.tsx": {
@@ -252,15 +252,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793398684.797692,
-    "seen": 1793398755.530077,
-    "ast_hash": "55becf372e854c404a017e868d52d6ab",
+    "mtime": 1793399580.9800084,
+    "seen": 1793400335.4585106,
+    "ast_hash": "70375fb58f824780a1f45fbcef612235",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
-    "mtime": 1793382624.5115943,
-    "seen": 1793397859.126955,
-    "ast_hash": "38a4a41f69ef9a161bb06dccebe6f6eb",
+    "mtime": 1793399772.5673642,
+    "seen": 1793400335.4585118,
+    "ast_hash": "276017827b02a3fad3ca701c493fde17",
     "semantic_hash": ""
   },
   "apps/web/src/components/NewFunnelForm.tsx": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/CheckoutPanel.tsx": {
-    "mtime": 1793382643.4642036,
-    "seen": 1793397859.1269777,
-    "ast_hash": "bef629749820cb4c544285728cefa84f",
+    "mtime": 1793399523.968572,
+    "seen": 1793400335.4585404,
+    "ast_hash": "401e74cb9c1f418002d8f99b5d403bf2",
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/PlanField.tsx": {
@@ -468,9 +468,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/proxy.ts": {
-    "mtime": 1793375476.493596,
-    "seen": 1793397859.1269948,
-    "ast_hash": "8e14c10237225ba221462abfe5ae466b",
+    "mtime": 1793399942.3209996,
+    "seen": 1793400335.4585607,
+    "ast_hash": "899afba1c681b58247577fa92560d2ad",
     "semantic_hash": ""
   },
   "apps/web/src/server/analytics/posthog.ts": {
@@ -546,9 +546,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/file-payment-store.ts": {
-    "mtime": 1793398696.15455,
-    "seen": 1793398755.5301707,
-    "ast_hash": "6fef529b0b6e7d025db62546bc4cdb02",
+    "mtime": 1793400296.252999,
+    "seen": 1793400335.4585798,
+    "ast_hash": "d95f8e66b41289fee6473494c8f6a2a3",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/mock-provider.ts": {
@@ -588,9 +588,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/store.ts": {
-    "mtime": 1793396193.451333,
-    "seen": 1793397859.1270206,
-    "ast_hash": "64b0232e54d93abe2ecfd2703a5c8b6b",
+    "mtime": 1793399450.9241555,
+    "seen": 1793400335.458589,
+    "ast_hash": "bdce13ef724f28761ad84c3a07ae9bc4",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/stripe-provider.ts": {
@@ -600,15 +600,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/supabase-payment-store.ts": {
-    "mtime": 1793398654.4751534,
-    "seen": 1793398755.5301907,
-    "ast_hash": "9feac0fb05a7657d4d0d7d3a8f3349bd",
+    "mtime": 1793400296.254046,
+    "seen": 1793400335.4585917,
+    "ast_hash": "e92d7cadd66bb5500257d29da6669984",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/types.ts": {
-    "mtime": 1793393697.4093728,
-    "seen": 1793397859.1270242,
-    "ast_hash": "fea4fd794594f22a39b59ab7f0fc8276",
+    "mtime": 1793399582.546896,
+    "seen": 1793400335.4585927,
+    "ast_hash": "31f8096cee65e122a7ddf1156ff03d72",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/webhook.ts": {
@@ -714,9 +714,9 @@
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/schema.ts": {
-    "mtime": 1793270737.041659,
-    "seen": 1793397859.1270447,
-    "ast_hash": "641d2b26685c29a065ec6e4cb341f289",
+    "mtime": 1793399942.3204882,
+    "seen": 1793400335.458617,
+    "ast_hash": "743b71fdea26f7c3bdd3cfca9ad170b9",
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/seed.ts": {
@@ -780,9 +780,9 @@
     "semantic_hash": ""
   },
   "docs/DATA_FLOW.md": {
-    "mtime": 1793396770.7369149,
-    "seen": 1793397859.1270568,
-    "ast_hash": "ebf47539f167af57e8b011998c80e49f",
+    "mtime": 1793400088.210055,
+    "seen": 1793400335.458666,
+    "ast_hash": "c55ac01e62ac4829e05060224dd58ef4",
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
@@ -792,9 +792,9 @@
     "semantic_hash": ""
   },
   "docs/IMPLEMENTATION_PLAN.md": {
-    "mtime": 1793396796.2206957,
-    "seen": 1793397859.1270592,
-    "ast_hash": "3feacc66f7e6019c138d5fbb393ed43c",
+    "mtime": 1793400088.261232,
+    "seen": 1793400335.4586687,
+    "ast_hash": "544ea3cdeed5f158cf6a8daaf0dfe2eb",
     "semantic_hash": ""
   },
   "docs/REPOSITORY_AUDIT.md": {
@@ -804,9 +804,9 @@
     "semantic_hash": ""
   },
   "docs/SECURITY.md": {
-    "mtime": 1793396212.4786084,
-    "seen": 1793397859.1270616,
-    "ast_hash": "4f8977d2392f4bcfdc1e23a08104a469",
+    "mtime": 1793400088.2090566,
+    "seen": 1793400335.4586713,
+    "ast_hash": "ebe63536e295164d620af2761c8cbb62",
     "semantic_hash": ""
   },
   "supabase/migrations/20261027120000_init.sql": {
@@ -891,6 +891,30 @@
     "mtime": 1793398686.1738849,
     "seen": 1793398755.5302477,
     "ast_hash": "d10625627b59c0a3c5811d5c4d90af2e",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/api/funnels/[id]/payments/route.ts": {
+    "mtime": 1793399580.0995195,
+    "seen": 1793400335.4584646,
+    "ast_hash": "ab41c0edfe13c4d1e7fa04c8eef20daf",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/PaymentsPanel.tsx": {
+    "mtime": 1793399580.150764,
+    "seen": 1793400335.4585145,
+    "ast_hash": "2e22913def4ebde3166ef52e9b997e86",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/payment-status.ts": {
+    "mtime": 1793399523.3295195,
+    "seen": 1793400335.4585395,
+    "ast_hash": "0412c70efaca0246cdadec58911fb831",
+    "semantic_hash": ""
+  },
+  "apps/web/src/server/csp.ts": {
+    "mtime": 1793399942.3209996,
+    "seen": 1793400335.4585664,
+    "ast_hash": "f0cf45e410f942bd28b4e5f7dc81f429",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

@@ -54,7 +54,7 @@ export async function GET(request: Request) {
       ref,
     });
     return NextResponse.json(
-      { status: toPublicPaymentStatus(detail.status, detail.reason, detail.found) },
+      { status: toPublicPaymentStatus(detail.status, detail.reason, detail.found, detail.revoked) },
       { headers: NO_STORE },
     );
   } catch (error) {

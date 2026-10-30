@@ -31,7 +31,12 @@ function page(status: number, body: string): Response {
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Mock payment (development only)</title><style>body{font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 1rem;color:#111}.banner{background:#b91c1c;color:#fff;padding:.75rem 1rem;border-radius:8px;font-weight:700}button{font:inherit;padding:.75rem 1rem;border-radius:8px;border:0;cursor:pointer;margin:.25rem .25rem 0 0}.ok{background:#15803d;color:#fff}.fail{background:#374151;color:#fff}</style></head><body>${body}</body></html>`;
   return new Response(html, {
     status,
-    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' },
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'content-security-policy':
+        "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+    },
   });
 }
 

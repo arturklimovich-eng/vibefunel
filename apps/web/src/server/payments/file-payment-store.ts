@@ -4,13 +4,14 @@ import path from 'node:path';
 import { z } from 'zod';
 import type {
   AdjustmentResult,
+  FunnelPayment,
   PaymentStore,
   StaleDeferred,
   RecordResult,
   StatusDetail,
   StatusQuery,
 } from './store';
-import { paymentReasonSchema } from './types';
+import { paymentReasonSchema, revocationOf } from './types';
 import type { PaymentAdjustment, PaymentEvent } from './types';
 
 const statusSchema = z.enum(['pending', 'succeeded', 'failed']);
@@ -306,14 +307,24 @@ export class FilePaymentStore implements PaymentStore {
           (query.ref === undefined ||
             (p.provider === query.provider && p.providerRef === query.ref)),
       );
-      const succeeded = rows.find((p) => p.status === 'succeeded');
-      if (succeeded) return { status: 'succeeded', reason: succeeded.reason, found: true };
+      const paid = rows.filter((p) => p.status === 'succeeded');
+      const active = paid.find((p) => revocationOf(p) === null);
+      if (active) return { status: 'succeeded', reason: active.reason, found: true, revoked: null };
       if (rows.some((p) => p.status === 'pending')) {
-        return { status: 'pending', reason: null, found: true };
+        return { status: 'pending', reason: null, found: true, revoked: null };
+      }
+      const revokedRow = paid.find((p) => revocationOf(p) === 'disputed') ?? paid[0];
+      if (revokedRow) {
+        return {
+          status: 'succeeded',
+          reason: revokedRow.reason,
+          found: true,
+          revoked: revocationOf(revokedRow),
+        };
       }
       const latest = rows.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-      if (!latest) return { status: 'pending', reason: null, found: false };
-      return { status: latest.status, reason: latest.reason, found: true };
+      if (!latest) return { status: 'pending', reason: null, found: false, revoked: null };
+      return { status: latest.status, reason: latest.reason, found: true, revoked: null };
     });
   }
 
@@ -324,12 +335,36 @@ export class FilePaymentStore implements PaymentStore {
         (p) =>
           p.runId === runId &&
           p.screenId === screenId &&
-          (p.status === 'succeeded' || p.status === 'pending'),
+          (p.status === 'pending' || (p.status === 'succeeded' && revocationOf(p) !== 'refunded')),
       );
     });
   }
 
   getFunnelProjectId(funnelId: string): Promise<string | null> {
     return this.funnelProjectId(funnelId);
+  }
+
+  listFunnelPayments(projectId: string, funnelId: string, limit: number): Promise<FunnelPayment[]> {
+    return this.withLock(async () => {
+      const data = await this.read();
+      return data.payments
+        .filter((p) => p.projectId === projectId && p.funnelId === funnelId)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, limit)
+        .map((p) => ({
+          provider: p.provider,
+          providerRef: p.providerRef,
+          screenId: p.screenId,
+          planKey: p.planKey,
+          amount: p.amount,
+          currency: p.currency,
+          status: p.status,
+          reason: p.reason,
+          amountRefunded: p.amountRefunded,
+          disputeStatus: p.disputeStatus,
+          revoked: p.status === 'succeeded' ? revocationOf(p) : null,
+          createdAt: p.createdAt,
+        }));
+    });
   }
 }

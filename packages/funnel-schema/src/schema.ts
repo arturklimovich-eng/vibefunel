@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+z.config({ jitless: true });
+
 export const CURRENT_SCHEMA_VERSION = 2;
 
 export const SCREEN_TYPES = [

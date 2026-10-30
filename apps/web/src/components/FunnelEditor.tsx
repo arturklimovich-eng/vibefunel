@@ -43,6 +43,7 @@ import { ThemeEditor } from './ThemeEditor';
 import { ValidationPanel } from './ValidationPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { DomainsPanel } from './DomainsPanel';
+import { PaymentsPanel } from './PaymentsPanel';
 import styles from './FunnelEditor.module.css';
 
 type TabId = 'canvas' | 'screen' | 'preview';
@@ -604,6 +605,7 @@ export function FunnelEditor({
           <VersionsPanel funnelId={funnel.id} refreshKey={versionsKey} />
 
           <DomainsPanel funnelId={funnel.id} />
+          <PaymentsPanel funnelId={funnel.id} />
 
           <div className={styles.panel}>
             <h2 className={styles.panelHeading}>Funnel settings</h2>

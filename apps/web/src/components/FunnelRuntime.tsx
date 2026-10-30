@@ -10,6 +10,7 @@ import type { Answers, AnimationPreset, FunnelDefinition, Payments, Screen } fro
 import type { AnalyticsScope } from '@/lib/analytics/events';
 import { useFunnelAnalytics } from '@/lib/analytics/use-funnel-analytics';
 import { emailKey, isValidEmail } from '@/lib/email';
+import { fetchPaymentStatus } from '@/lib/payment-status';
 import { blockId, getScreenOptions, toPuckData } from '@/lib/puck/adapters';
 import { emailInputProps, puckConfig } from '@/lib/puck/config';
 import { RuntimeContext } from '@/lib/puck/runtime-context';
@@ -39,6 +40,7 @@ const PRESETS: Record<
 };
 
 const DEFAULT_DURATION_MS = 300;
+const MAX_VERIFIED_PAYMENTS = 5;
 
 export interface ReturnParams {
   runId: string;
@@ -285,7 +287,7 @@ function RuntimeInner({
   const [runId, setRunId] = useState<string | null>(null);
   const [returnScreenId, setReturnScreenId] = useState<string | null>(null);
   const [returnRef, setReturnRef] = useState<string | null>(null);
-  const [restored, setRestored] = useState(slug === null || returning === null);
+  const [restored, setRestored] = useState(slug === null);
   const [advanceFor, setAdvanceFor] = useState<string | null>(null);
   const completedRef = useRef(false);
   const currentScreenRef = useRef(currentScreenId);
@@ -476,6 +478,37 @@ function RuntimeInner({
     }
     setRunId(id);
     setRestored(true);
+    if (returning || !saved) return;
+    const controller = new AbortController();
+    const paidSteps = saved.history
+      .map((entry, index) => ({ entry, index }))
+      .filter(({ entry }) => {
+        const step = definition.screens.find((s) => s.id === entry.screenId);
+        return step !== undefined && (step.type === 'checkout' || step.type === 'upsell');
+      })
+      .slice(-MAX_VERIFIED_PAYMENTS);
+    const verify = async () => {
+      for (const { entry, index } of paidSteps) {
+        const result = await fetchPaymentStatus(id, entry.screenId, controller.signal, null);
+        if (controller.signal.aborted) return;
+        if (
+          result.kind === 'status' &&
+          (result.status === 'refunded' || result.status === 'disputed')
+        ) {
+          setHistory(saved.history.slice(0, index));
+          setAnswers(entry.answers);
+          setEmails(entry.emails);
+          setPayments({});
+          setCurrentScreenId(entry.screenId);
+          return;
+        }
+      }
+    };
+    verify().catch((error: unknown) => {
+      if (controller.signal.aborted) return;
+      console.warn('Payment re-check failed:', error instanceof Error ? error.message : error);
+    });
+    return () => controller.abort();
   }, [slug, returning, funnelId, definition.screens]);
 
   useEffect(() => {
@@ -569,9 +602,13 @@ function RuntimeInner({
   if (!restored) {
     return (
       <main className={pageClass}>
-        <div className={styles.card} role="status">
-          <p>Restoring your progress...</p>
-        </div>
+        {returning !== null ? (
+          <div className={styles.card} role="status">
+            <p>Restoring your progress...</p>
+          </div>
+        ) : (
+          <div className={styles.card} aria-busy="true" />
+        )}
       </main>
     );
   }
