@@ -1,0 +1,3 @@
+export const STUDIO_NARROW_BREAKPOINT = 900;
+
+export const STUDIO_NARROW_MEDIA_QUERY = `(max-width: ${STUDIO_NARROW_BREAKPOINT - 1}px)`;
