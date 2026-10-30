@@ -121,4 +121,4 @@ pnpm typecheck
 pnpm build
 ```
 
-See `docs/` for architecture, security and the implementation plan.
+See `docs/` for architecture, security and the implementation plan. The C4 breakdown is in `docs/C4.md` and the data flow in `docs/DATA_FLOW.md`.

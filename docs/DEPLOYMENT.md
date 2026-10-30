@@ -21,6 +21,7 @@ The platform ships as one Docker image (`Dockerfile` at the repository root) tha
 | `TRUST_PROXY_HOPS` | Run | Number of proxies that append to `X-Forwarded-For`: `1` behind Coolify's proxy alone, `2` with Cloudflare (proxied DNS) in front of it. Never higher than the real count |
 | `CLIENT_IP_HEADER` | Run | Optional header set by the outermost proxy with the client IP, read only when `TRUST_PROXY_HOPS` > 0. Behind Cloudflare use `cf-connecting-ip`; recommended, because Coolify's Traefik or Caddy rewrite an untrusted `X-Forwarded-For` unless their trusted-proxy ranges include Cloudflare |
 | `POSTHOG_KEY`, `POSTHOG_HOST` | Run | Server-side capture; fall back to the public values |
+| `CRON_SECRET` | Run | Random string, 16+ characters. Bearer token for `POST /api/cron/domains` (custom-domain re-verification); the endpoint answers 503 while it is unset |
 | `PLATFORM_HOSTS` | Run | Optional comma-separated extra hostnames of the platform itself (for example `www.` or the Coolify-generated URL). Without it every hostname other than the `APP_URL` host is treated as a tenant domain and answers 404 for the studio |
 | `CUSTOM_DOMAIN_TARGET`, `CUSTOM_DOMAIN_TARGET_IP` | Run | CNAME target (defaults to the `APP_URL` host) and server IP shown to tenants for custom domains |
 | `CUSTOM_DOMAIN_DNS_SERVERS` | Run | Optional resolver override (`ip[:port],...`) for domain verification; leave empty to use the system resolver |
@@ -52,7 +53,7 @@ Prerequisites: a Coolify instance (v4) with a server that can build images, a ho
 5. Health check: path `/api/health`, port `3000`. The Dockerfile also declares a `HEALTHCHECK` on that path.
 6. Deploy. Watch the build log for `Compiled successfully` and the standalone copy; the container is healthy when `/api/health` returns `{"status":"ok"}`.
 7. Supabase Authentication > URL configuration: set the site URL to `https://<your-domain>` and add `https://<your-domain>/login` to the redirect URLs, then enable email confirmation.
-8. Stripe Developers > Webhooks: add `https://<your-domain>/api/payments/stripe/webhook` with the `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` and `checkout.session.expired` events; put the signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
+8. Stripe Developers > Webhooks: add `https://<your-domain>/api/payments/stripe/webhook` with the `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `checkout.session.expired`, `charge.refunded`, `charge.dispute.created` and `charge.dispute.closed` events; put the signing secret into `STRIPE_WEBHOOK_SECRET` and redeploy.
 
 Post-deploy checks:
 
@@ -60,6 +61,8 @@ Post-deploy checks:
 - `/login` renders, sign-up sends the confirmation email, `/studio` lists the default project.
 - Publish a funnel and open `/f/<slug>` from a phone; the consent banner appears only when `NEXT_PUBLIC_POSTHOG_KEY` is set.
 - With Stripe configured, a test payment with card `4242 4242 4242 4242` advances past the checkout screen only after the webhook is recorded (check the Stripe webhook delivery log for 200).
+
+Database migrations go first: apply new files in `supabase/migrations` (`pnpm exec supabase db push`) before deploying the code that uses them. The app calls RPCs by their current signature, so code that is newer than the database fails those calls (webhooks answer 500 and Stripe retries them) until the migration is applied.
 
 Updates: push to the deployed branch (or trigger Deploy in Coolify). Coolify builds a new image and swaps containers. Rollback: Deployments > pick an earlier successful deployment > Redeploy. Funnel versions are independent of platform deployments; rolling the platform back never changes which funnel version is live.
 
@@ -72,7 +75,7 @@ A tenant attaches a hostname to a funnel in the studio (Custom domains panel on 
 1. Ownership: a TXT record at `_funnel-verify.<hostname>` with the value `funnel-verify=<token>` shown in the panel. The server resolves it with `node:dns` (or the servers in `CUSTOM_DOMAIN_DNS_SERVERS`); only a matching TXT record marks the domain verified. The status is written through the service role (`record_domain_check`); authenticated users can insert and delete domain rows but never update them.
 2. Routing: a CNAME from `<hostname>` to `CUSTOM_DOMAIN_TARGET` (default: the `APP_URL` host), or an A record to `CUSTOM_DOMAIN_TARGET_IP` for apex domains. The check reports this separately; it does not block verification.
 
-Once the domain is verified and the funnel is published, a request whose `Host` is that hostname is served the live version at `/` (an internal rewrite to `/d/<host>`). Every other path on a custom host returns 404, except `/api/payments/*` (checkout, status polling, Stripe return) and `/api/health`; studio, login and the funnel API exist only on the platform domain. Stripe return URLs point back to the custom host when checkout started there. Limits: 5 hostnames per funnel; a hostname is verified for one funnel at a time (claims by other funnels stay pending until the verified one is removed). A domain stays verified until it is removed; there is no periodic re-check.
+Once the domain is verified and the funnel is published, a request whose `Host` is that hostname is served the live version at `/` (an internal rewrite to `/d/<host>`). Every other path on a custom host returns 404, except `/api/payments/*` (checkout, status polling, Stripe return) and `/api/health`; studio, login and the funnel API exist only on the platform domain. Stripe return URLs point back to the custom host when checkout started there. Limits: 5 hostnames per funnel; a hostname is verified for one funnel at a time (claims by other funnels stay pending until the verified one is removed). Verified domains are re-checked by `POST /api/cron/domains` (see "Scheduled re-verification" below): two consecutive definitive DNS answers that the TXT record is gone or wrong (checks at least 24 hours apart) move the domain back to pending, which stops routing and certificate issuance. The first one only records a warning, timeouts and SERVFAIL change nothing, and a domain revoked this way is restored automatically if the record comes back within about four weeks (29 daily re-checks), unless another funnel has verified the hostname meanwhile; after that the tenant runs the check again in the studio. Tenants must keep the TXT record in place.
 
 `GET /api/domains/serve-check?domain=<host>` answers 200 for verified hostnames of published funnels (and for the platform host) and 404 otherwise. It is public, rate limited, and is the gate for certificate issuance below.
 
@@ -113,4 +116,22 @@ Dynamic configuration files are managed in the Coolify UI only (no API). Rate li
 
 For a handful of tenant domains without touching the proxy: `PATCH /api/v1/applications/{uuid}` with `domains` set to the full comma-separated list of URLs (platform domain plus tenant domains) and `instant_deploy=true`. Coolify regenerates the proxy labels and recreates the container (brief downtime), and Let's Encrypt issues one certificate per listed host. Limits: the field is capped at 2048 characters (roughly 50 to 70 hostnames), wildcards are rejected, and every change recreates the container. The platform does not call this API; an operator or a script does, after the domain is verified in the studio.
 
-Not implemented: automatic re-verification, wildcard or DNS-01 certificates, and any proxy automation inside the platform.
+### Scheduled re-verification
+
+Set `CRON_SECRET` and add a Coolify Scheduled Task on the platform application (Configuration > Scheduled Tasks), for example every hour (`0 * * * *`):
+
+```
+wget -qO- --header="Authorization: Bearer $CRON_SECRET" --post-data="" http://127.0.0.1:3000/api/cron/domains
+```
+
+The task runs inside the container, so `127.0.0.1` reaches the app and `$CRON_SECRET` comes from its environment. Each call claims due domains five at a time (`FOR UPDATE SKIP LOCKED`, so overlapping runs never check the same domain), re-checks only the TXT record, stops after 50 domains or 45 seconds, and answers with counts per outcome (`kept`, `warned`, `revoked`, `restored`, `taken`, `still_missing`, `unknown`, `skipped`, `failed`). It answers 500 when any write failed, so the scheduled task reports an error. Revocations and restorations are logged with the hostname. The endpoint is not reachable on tenant hostnames.
+
+Add a second Scheduled Task, for example daily (`0 6 * * *`), that reports refunds and disputes still waiting for a payment that was never recorded:
+
+```
+wget -qO- --header="Authorization: Bearer $CRON_SECRET" --post-data="" http://127.0.0.1:3000/api/cron/payments
+```
+
+It answers `{ staleDeferred: <count> }` and logs one `PAYMENT_NEEDS_ATTENTION` line per adjustment that has waited more than 24 hours (usually a checkout that was rejected, for example for an invalid project id). Those rows live in `payment_orphans`.
+
+Not implemented: wildcard or DNS-01 certificates and any proxy automation inside the platform.

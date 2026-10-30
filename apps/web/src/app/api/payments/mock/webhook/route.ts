@@ -59,6 +59,7 @@ export async function POST(request: Request) {
     runId: input.runId,
     reason: null,
     payerHash: input.payer,
+    providerPaymentId: null,
     analyticsConsent: input.analytics === '1',
   };
   try {

@@ -2,9 +2,16 @@ import 'server-only';
 import { z } from 'zod';
 import { requireSupabaseEnv } from '@/lib/storage-mode';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
-import type { PaymentStore, RecordResult, StatusDetail, StatusQuery } from './store';
+import type {
+  AdjustmentResult,
+  PaymentStore,
+  StaleDeferred,
+  RecordResult,
+  StatusDetail,
+  StatusQuery,
+} from './store';
 import { paymentReasonSchema } from './types';
-import type { PaymentEvent } from './types';
+import type { PaymentAdjustment, PaymentEvent } from './types';
 
 const statusSchema = z.enum(['pending', 'succeeded', 'failed']);
 const projectRowSchema = z.object({ project_id: z.string() });
@@ -49,10 +56,66 @@ export class SupabasePaymentStore implements PaymentStore {
       p_status: event.status,
       p_reason: event.reason,
       p_payer_hash: event.payerHash,
+      p_provider_payment_id: event.providerPaymentId,
     });
     if (error) throw new Error(`record_payment_event failed: ${error.message}`);
     const inserted = z.boolean().parse(data);
     return { duplicate: !inserted, rejected: null };
+  }
+
+  async recordAdjustment(adjustment: PaymentAdjustment): Promise<AdjustmentResult> {
+    const { data, error } = await serviceClient().rpc('record_payment_adjustment', {
+      p_provider: adjustment.provider,
+      p_event_id: adjustment.eventId,
+      p_provider_payment_id: adjustment.providerPaymentId,
+      p_run_id: adjustment.runId,
+      p_screen_id: adjustment.screenId,
+      p_payer_hash: adjustment.payerHash,
+      p_amount_refunded: adjustment.amountRefunded,
+      p_dispute_status: adjustment.disputeStatus,
+      p_occurred_at: adjustment.occurredAt,
+    });
+    if (error) throw new Error(`record_payment_adjustment failed: ${error.message}`);
+    return z.enum(['recorded', 'duplicate', 'deferred']).parse(data);
+  }
+
+  async countSucceeded(runId: string, screenId: string): Promise<number> {
+    const { count, error } = await serviceClient()
+      .from('payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('run_id', runId)
+      .eq('screen_id', screenId)
+      .eq('status', 'succeeded');
+    if (error) throw new Error(`payment count failed: ${error.message}`);
+    return count ?? 0;
+  }
+
+  async listStaleDeferred(
+    seenBefore: Date,
+    limit: number,
+  ): Promise<{ total: number; items: StaleDeferred[] }> {
+    const { data, error, count } = await serviceClient()
+      .from('payment_orphans')
+      .select('provider, event_id, first_seen_at', { count: 'exact' })
+      .lt('first_seen_at', seenBefore.toISOString())
+      .order('first_seen_at', { ascending: true })
+      .limit(limit);
+    if (error) throw new Error(`payment_orphans lookup failed: ${error.message}`);
+    const items = z
+      .array(
+        z.object({
+          provider: z.enum(['stripe', 'solidgate', 'mock']),
+          event_id: z.string(),
+          first_seen_at: z.string(),
+        }),
+      )
+      .parse(data)
+      .map((row) => ({
+        provider: row.provider,
+        eventId: row.event_id,
+        firstSeenAt: row.first_seen_at,
+      }));
+    return { total: count ?? items.length, items };
   }
 
   async getStatus(query: StatusQuery): Promise<StatusDetail> {

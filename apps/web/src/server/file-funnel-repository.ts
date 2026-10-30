@@ -24,9 +24,13 @@ import {
   VersionUnreadableError,
 } from './funnel-repository';
 import { parseStoredDefinition } from './stored-definition';
+import { MAX_AUTO_RECHECKS } from './funnel-repository';
 import type {
   CustomDomain,
   DomainCheck,
+  DomainMaintenance,
+  RecheckOutcome,
+  RecheckResult,
   FunnelDraft,
   FunnelRepository,
   PublishedFunnel,
@@ -48,6 +52,7 @@ const domainFileSchema = z.object({
   verifiedAt: z.string().nullable(),
   lastCheckedAt: z.string().nullable(),
   lastError: z.string().nullable(),
+  recheckFailures: z.number().int().min(0).default(0),
   createdAt: z.string(),
 });
 
@@ -70,7 +75,7 @@ function isNotFound(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT';
 }
 
-export class FileFunnelRepository implements FunnelRepository, PublishedReader {
+export class FileFunnelRepository implements FunnelRepository, PublishedReader, DomainMaintenance {
   private readonly funnelsDir: string;
   private readonly draftsDir: string;
   private readonly versionsDir: string;
@@ -352,6 +357,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader {
         verifiedAt: null,
         lastCheckedAt: null,
         lastError: null,
+        recheckFailures: 0,
         createdAt: new Date().toISOString(),
       };
       await this.writeJson(path.join(this.domainsDir, `${domain.id}.json`), domain);
@@ -380,9 +386,115 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader {
         verifiedAt: check.verified ? (domain.verifiedAt ?? now) : null,
         lastCheckedAt: now,
         lastError: check.error === null ? null : check.error.slice(0, 500),
+        recheckFailures: 0,
       };
       await this.writeJson(path.join(this.domainsDir, `${domain.id}.json`), updated);
       return updated;
+    });
+  }
+
+  claimDueDomains(checkedBefore: Date, limit: number): Promise<CustomDomain[]> {
+    return this.withLock(async () => {
+      const cutoff = checkedBefore.toISOString();
+      const now = new Date().toISOString();
+      const due = (await this.readAllDomains())
+        .filter(
+          (d) =>
+            (d.status === 'verified' ||
+              (d.status === 'pending' &&
+                d.recheckFailures > 0 &&
+                d.recheckFailures < MAX_AUTO_RECHECKS)) &&
+            (d.lastCheckedAt === null || d.lastCheckedAt < cutoff),
+        )
+        .sort((a, b) => (a.lastCheckedAt ?? '').localeCompare(b.lastCheckedAt ?? ''))
+        .slice(0, Math.max(0, Math.min(limit, 200)));
+      const claimed: CustomDomain[] = [];
+      for (const domain of due) {
+        const next = { ...domain, lastCheckedAt: now };
+        await this.writeJson(path.join(this.domainsDir, `${domain.id}.json`), next);
+        claimed.push(next);
+      }
+      return claimed;
+    });
+  }
+
+  releaseClaim(domain: CustomDomain, checkedAt: Date): Promise<void> {
+    return this.withLock(async () => {
+      const target = (await this.readAllDomains()).find((d) => d.id === domain.id);
+      if (!target || target.lastCheckedAt !== domain.lastCheckedAt) return;
+      await this.writeJson(path.join(this.domainsDir, `${target.id}.json`), {
+        ...target,
+        lastCheckedAt: checkedAt.toISOString(),
+      });
+    });
+  }
+
+  recordRecheck(
+    domainId: string,
+    outcome: RecheckOutcome,
+    error: string | null,
+    revokeAfter: number,
+  ): Promise<RecheckResult> {
+    return this.withLock(async () => {
+      const all = await this.readAllDomains();
+      const target = all.find((d) => d.id === domainId);
+      if (
+        !target ||
+        !(
+          target.status === 'verified' ||
+          (target.status === 'pending' && target.recheckFailures > 0)
+        )
+      ) {
+        return 'skipped';
+      }
+      const file = path.join(this.domainsDir, `${target.id}.json`);
+      const message = error === null ? null : error.slice(0, 500);
+      if (outcome === 'unknown') {
+        await this.writeJson(file, { ...target, lastError: message });
+        return 'unknown';
+      }
+      if (outcome === 'ok') {
+        if (target.status === 'verified') {
+          await this.writeJson(file, { ...target, recheckFailures: 0, lastError: null });
+          return 'kept';
+        }
+        const taken = all.some(
+          (d) => d.id !== target.id && d.hostname === target.hostname && d.status === 'verified',
+        );
+        if (taken) {
+          await this.writeJson(file, {
+            ...target,
+            recheckFailures: 0,
+            lastError: 'The TXT record is back, but another funnel has verified this hostname.',
+          });
+          return 'taken';
+        }
+        await this.writeJson(file, {
+          ...target,
+          status: 'verified',
+          verifiedAt: new Date().toISOString(),
+          recheckFailures: 0,
+          lastError: null,
+        });
+        return 'restored';
+      }
+      const failures = Math.min(target.recheckFailures + 1, 1000);
+      if (target.status === 'pending') {
+        await this.writeJson(file, { ...target, recheckFailures: failures, lastError: message });
+        return 'still_missing';
+      }
+      if (failures >= Math.max(revokeAfter, 1)) {
+        await this.writeJson(file, {
+          ...target,
+          status: 'pending',
+          verifiedAt: null,
+          recheckFailures: failures,
+          lastError: message,
+        });
+        return 'revoked';
+      }
+      await this.writeJson(file, { ...target, recheckFailures: failures, lastError: message });
+      return 'warned';
     });
   }
 
@@ -403,6 +515,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader {
         verifiedAt: null,
         lastCheckedAt: new Date().toISOString(),
         lastError: STALE_CLAIM_MESSAGE,
+        recheckFailures: 0,
       });
       return true;
     });

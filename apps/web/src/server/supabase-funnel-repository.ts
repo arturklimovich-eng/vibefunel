@@ -42,7 +42,7 @@ const PROGRAM_LIMIT_EXCEEDED = '54000';
 const STALE_CLAIM_MESSAGE =
   'The TXT record no longer matches this claim; the hostname was verified by another funnel.';
 const DOMAIN_COLUMNS =
-  'id, project_id, funnel_id, hostname, status, verification_token, verified_at, last_checked_at, last_error, created_at';
+  'id, project_id, funnel_id, hostname, status, verification_token, verified_at, last_checked_at, last_error, recheck_failures, created_at';
 
 const uuidSchema = z.string().uuid();
 
@@ -99,6 +99,7 @@ const domainRowSchema = z.object({
   verified_at: z.string().nullable(),
   last_checked_at: z.string().nullable(),
   last_error: z.string().nullable(),
+  recheck_failures: z.number().int().default(0),
   created_at: z.string(),
 });
 
@@ -113,6 +114,7 @@ function toDomain(row: z.infer<typeof domainRowSchema>): CustomDomain {
     verifiedAt: row.verified_at,
     lastCheckedAt: row.last_checked_at,
     lastError: row.last_error,
+    recheckFailures: row.recheck_failures,
     createdAt: row.created_at,
   };
 }

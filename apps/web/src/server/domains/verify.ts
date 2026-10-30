@@ -121,6 +121,13 @@ async function checkOwnership(
   }
 }
 
+export async function checkDomainOwnership(
+  hostname: string,
+  token: string,
+): Promise<{ ownership: boolean | null; message: string | null }> {
+  return checkOwnership(makeResolver(), hostname, token);
+}
+
 export async function checkDomainDns(
   hostname: string,
   token: string,

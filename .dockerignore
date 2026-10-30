@@ -11,3 +11,5 @@ supabase/.branches
 supabase/.temp
 Dockerfile
 docker-compose.yml
+graphify-out
+.claude

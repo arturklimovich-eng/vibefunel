@@ -4,7 +4,8 @@ import type { AnalyticsScope } from '@/lib/analytics/events';
 import { isMissingServiceKey } from '@/lib/supabase/service';
 import { serverAnalytics } from './emitter';
 import type { PaymentStore, RecordResult } from './store';
-import type { PaymentEvent, PaymentProvider } from './types';
+import { isAdjustment } from './types';
+import type { PaymentAdjustment, PaymentEvent, PaymentProvider, WebhookEvent } from './types';
 
 function isNamed(error: unknown, name: string): boolean {
   return error instanceof Error && error.name === name;
@@ -16,9 +17,11 @@ export interface WebhookOutcome {
 }
 
 function eventUuid(event: PaymentEvent, name: string): string {
-  const hex = createHash('sha256')
-    .update(`${event.provider}:${event.providerRef}:${name}`)
-    .digest('hex');
+  return uuidFrom(`${event.provider}:${event.providerRef}:${name}`);
+}
+
+function uuidFrom(seed: string): string {
+  const hex = createHash('sha256').update(seed).digest('hex');
   const variant = ((parseInt(hex.charAt(16), 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
@@ -29,6 +32,21 @@ export async function recordVerifiedEvent(
 ): Promise<RecordResult> {
   const result = await store.recordEvent(event);
   if (result.rejected !== null) return result;
+  if (!result.duplicate && event.status === 'succeeded') {
+    try {
+      const paid = await store.countSucceeded(event.runId, event.screenId);
+      if (paid > 1) {
+        console.error(
+          `PAYMENT_NEEDS_ATTENTION duplicate_payment run=${event.runId} screen=${event.screenId} provider_ref=${event.providerRef} succeeded_payments=${paid}`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `[payments] duplicate-payment check for run ${event.runId} failed:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
   const scope: AnalyticsScope = {
     projectId: event.projectId,
     funnelId: event.funnelId ?? 'unknown',
@@ -43,6 +61,7 @@ export async function recordVerifiedEvent(
         name: 'payment_succeeded',
         screenId: event.screenId,
         paymentId: event.providerRef,
+        providerPaymentId: event.providerPaymentId,
         provider: event.provider,
         planKey: event.planKey,
         amount: event.amount,
@@ -58,6 +77,7 @@ export async function recordVerifiedEvent(
         name: 'payment_failed',
         screenId: event.screenId,
         paymentId: event.providerRef,
+        providerPaymentId: event.providerPaymentId,
         provider: event.provider,
         planKey: event.planKey,
         reason: event.reason,
@@ -68,13 +88,71 @@ export async function recordVerifiedEvent(
   return result;
 }
 
+function emitAdjustment(adjustment: PaymentAdjustment): void {
+  if (!adjustment.analyticsConsent) return;
+  const scope: AnalyticsScope = {
+    projectId: adjustment.projectId,
+    funnelId: adjustment.funnelId,
+    funnelVersion: null,
+    runId: adjustment.runId,
+  };
+  const uuid = uuidFrom(`${adjustment.provider}:${adjustment.eventId}`);
+  if (adjustment.amountRefunded !== null) {
+    serverAnalytics.emit(
+      scope,
+      {
+        name: 'payment_refunded',
+        screenId: adjustment.screenId,
+        paymentId: adjustment.providerPaymentId ?? adjustment.chargeRef,
+        providerPaymentId: adjustment.providerPaymentId,
+        chargeId: adjustment.chargeRef,
+        provider: adjustment.provider,
+        amountRefundedTotal: adjustment.amountRefunded,
+        currency: adjustment.currency,
+      },
+      { uuid },
+    );
+  }
+  if (adjustment.disputeStatus !== null) {
+    serverAnalytics.emit(
+      scope,
+      {
+        name: 'payment_disputed',
+        screenId: adjustment.screenId,
+        paymentId: adjustment.providerPaymentId ?? adjustment.chargeRef,
+        providerPaymentId: adjustment.providerPaymentId,
+        chargeId: adjustment.chargeRef,
+        provider: adjustment.provider,
+        status: adjustment.disputeStatus,
+      },
+      { uuid },
+    );
+  }
+}
+
+async function processAdjustment(
+  store: PaymentStore,
+  adjustment: PaymentAdjustment,
+): Promise<WebhookOutcome> {
+  const result = await store.recordAdjustment(adjustment);
+  if (result === 'duplicate') return { status: 200, body: { received: true, duplicate: true } };
+  emitAdjustment(adjustment);
+  if (result === 'deferred') {
+    console.warn(
+      `[payments] ${adjustment.provider} event ${adjustment.eventId} for charge ${adjustment.chargeRef} is waiting for its payment; it will be applied when the payment is recorded`,
+    );
+    return { status: 200, body: { received: true, deferred: true } };
+  }
+  return { status: 200, body: { received: true, duplicate: false } };
+}
+
 export async function processWebhook(
   provider: PaymentProvider,
   store: PaymentStore,
   rawBody: string,
   headers: Headers,
 ): Promise<WebhookOutcome> {
-  let event: PaymentEvent | null;
+  let event: WebhookEvent | null;
   try {
     event = await provider.verifyWebhook(rawBody, headers);
   } catch (error) {
@@ -91,6 +169,7 @@ export async function processWebhook(
   }
   if (event === null) return { status: 200, body: { received: true, ignored: true } };
   try {
+    if (isAdjustment(event)) return await processAdjustment(store, event);
     const result = await recordVerifiedEvent(store, event);
     if (result.rejected !== null) {
       return { status: 200, body: { received: true, rejected: result.rejected } };

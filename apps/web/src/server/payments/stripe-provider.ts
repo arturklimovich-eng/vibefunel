@@ -14,7 +14,9 @@ import {
 import type {
   CheckoutInput,
   CheckoutResult,
+  PaymentAdjustment,
   PaymentEvent,
+  WebhookEvent,
   PaymentProvider,
   PaymentReason,
   PaymentStatus,
@@ -25,6 +27,15 @@ import type { Plan } from './plans';
 const SESSION_TTL_SECONDS = 31 * 60;
 
 export const STRIPE_API_VERSION = '2026-09-30.endive';
+
+const adjustmentMetadataSchema = z.object({
+  funnelId: z.string().min(1).max(100),
+  screenId: z.string().min(1).max(100),
+  runId: runIdSchema,
+  projectId: z.string().min(1).max(100),
+  payer: z.string().regex(PAYER_HASH_PATTERN).optional(),
+  analytics: z.enum(['0', '1']).default('0'),
+});
 
 const metadataSchema = z.object({
   funnelId: z.string().min(1).max(100),
@@ -122,7 +133,7 @@ export class StripeProvider implements PaymentProvider {
     return { mode: 'embedded', clientSecret: session.client_secret };
   }
 
-  async verifyWebhook(rawBody: string, headers: Headers): Promise<PaymentEvent | null> {
+  async verifyWebhook(rawBody: string, headers: Headers): Promise<WebhookEvent | null> {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret || !process.env.STRIPE_SECRET_KEY) throw new ProviderNotConfiguredError('stripe');
     const signature = headers.get('stripe-signature');
@@ -136,6 +147,23 @@ export class StripeProvider implements PaymentProvider {
       }
       throw error;
     }
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object;
+      return this.toAdjustment(
+        event.id,
+        event.type,
+        event.created,
+        charge,
+        charge.amount_refunded,
+        null,
+      );
+    }
+    if (event.type === 'charge.dispute.created' || event.type === 'charge.dispute.closed') {
+      const dispute = event.data.object;
+      const chargeId = typeof dispute.charge === 'string' ? dispute.charge : dispute.charge.id;
+      const charge = await this.stripe().charges.retrieve(chargeId);
+      return this.toAdjustment(event.id, event.type, event.created, charge, null, dispute.status);
+    }
     if (
       event.type !== 'checkout.session.completed' &&
       event.type !== 'checkout.session.async_payment_succeeded' &&
@@ -145,6 +173,71 @@ export class StripeProvider implements PaymentProvider {
       return null;
     }
     return this.toPaymentEvent(event.id, event.type, event.data.object);
+  }
+
+  private async adjustmentMetadata(charge: Stripe.Charge) {
+    const own = adjustmentMetadataSchema.safeParse(charge.metadata ?? {});
+    if (own.success) return own.data;
+    const paymentIntent =
+      typeof charge.payment_intent === 'string' ? charge.payment_intent : charge.payment_intent?.id;
+    if (!paymentIntent) return null;
+    const sessions = await this.stripe().checkout.sessions.list({
+      payment_intent: paymentIntent,
+      limit: 1,
+    });
+    const session = sessions.data[0];
+    if (!session) return null;
+    const fromSession = adjustmentMetadataSchema.safeParse(session.metadata ?? {});
+    return fromSession.success ? fromSession.data : null;
+  }
+
+  private async toAdjustment(
+    eventId: string,
+    type: string,
+    createdSeconds: number,
+    charge: Stripe.Charge,
+    amountRefunded: number | null,
+    disputeStatus: string | null,
+  ): Promise<PaymentAdjustment | null> {
+    const meta = await this.adjustmentMetadata(charge);
+    if (meta === null) {
+      console.warn(
+        `[payments] stripe ${type} ${eventId} ignored: charge ${charge.id} is not from a funnel checkout.`,
+      );
+      return null;
+    }
+    const paymentIntent =
+      typeof charge.payment_intent === 'string'
+        ? charge.payment_intent
+        : (charge.payment_intent?.id ?? null);
+    const projectOfFunnel = await this.deps.funnelProjectId(meta.funnelId);
+    const scopeTrusted = projectOfFunnel !== null && projectOfFunnel === meta.projectId;
+    if (!scopeTrusted) {
+      console.error(
+        `PAYMENT_NEEDS_ATTENTION provider_ref=${charge.id} event=${eventId} reason=${projectOfFunnel === null ? 'funnel_missing' : 'project_mismatch'}`,
+      );
+    }
+    return {
+      kind: 'adjustment',
+      provider: 'stripe',
+      eventId,
+      chargeRef: charge.id,
+      providerPaymentId: paymentIntent,
+      projectId: meta.projectId,
+      funnelId: meta.funnelId,
+      screenId: meta.screenId,
+      runId: meta.runId,
+      payerHash: meta.payer ?? null,
+      currency: charge.currency.toLowerCase(),
+      amountRefunded,
+      disputeStatus:
+        disputeStatus !== null && /^[a-z_]{1,40}$/.test(disputeStatus) ? disputeStatus : null,
+      occurredAt: (Number.isFinite(createdSeconds) && createdSeconds > 0
+        ? new Date(createdSeconds * 1000)
+        : new Date()
+      ).toISOString(),
+      analyticsConsent: scopeTrusted && meta.analytics === '1',
+    };
   }
 
   private async toPaymentEvent(
@@ -197,6 +290,10 @@ export class StripeProvider implements PaymentProvider {
       runId: meta.runId,
       reason,
       payerHash: meta.payer,
+      providerPaymentId:
+        typeof session.payment_intent === 'string'
+          ? session.payment_intent
+          : (session.payment_intent?.id ?? null),
       analyticsConsent: meta.analytics === '1',
     };
   }

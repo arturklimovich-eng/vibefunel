@@ -1,4 +1,18 @@
-import type { PaymentEvent, PaymentReason, PaymentStatus, ProviderId } from './types';
+import type {
+  PaymentAdjustment,
+  PaymentEvent,
+  PaymentReason,
+  PaymentStatus,
+  ProviderId,
+} from './types';
+
+export type AdjustmentResult = 'recorded' | 'duplicate' | 'deferred';
+
+export interface StaleDeferred {
+  provider: ProviderId;
+  eventId: string;
+  firstSeenAt: string;
+}
 
 export type RecordRejection = 'invalid_project_id';
 
@@ -23,6 +37,12 @@ export interface StatusDetail {
 
 export interface PaymentStore {
   recordEvent(event: PaymentEvent): Promise<RecordResult>;
+  recordAdjustment(adjustment: PaymentAdjustment): Promise<AdjustmentResult>;
+  countSucceeded(runId: string, screenId: string): Promise<number>;
+  listStaleDeferred(
+    seenBefore: Date,
+    limit: number,
+  ): Promise<{ total: number; items: StaleDeferred[] }>;
   getStatus(query: StatusQuery): Promise<StatusDetail>;
   hasActivePayment(runId: string, screenId: string): Promise<boolean>;
   getFunnelProjectId(funnelId: string): Promise<string | null>;

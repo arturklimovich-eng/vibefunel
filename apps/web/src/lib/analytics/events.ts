@@ -18,6 +18,7 @@ export type AnalyticsEvent =
       name: 'payment_succeeded';
       screenId: string;
       paymentId: string;
+      providerPaymentId: string | null;
       provider: string;
       planKey: string;
       amount: number;
@@ -27,9 +28,29 @@ export type AnalyticsEvent =
       name: 'payment_failed';
       screenId: string;
       paymentId: string;
+      providerPaymentId: string | null;
       provider: string;
       planKey: string;
       reason: string | null;
+    }
+  | {
+      name: 'payment_refunded';
+      screenId: string;
+      paymentId: string;
+      providerPaymentId: string | null;
+      chargeId: string;
+      provider: string;
+      amountRefundedTotal: number;
+      currency: string;
+    }
+  | {
+      name: 'payment_disputed';
+      screenId: string;
+      paymentId: string;
+      providerPaymentId: string | null;
+      chargeId: string;
+      provider: string;
+      status: string;
     }
   | { name: 'funnel_completed' };
 
@@ -37,7 +58,7 @@ export type AnalyticsEventName = AnalyticsEvent['name'];
 
 export type ServerOnlyAnalyticsEvent = Extract<
   AnalyticsEvent,
-  { name: 'payment_succeeded' | 'payment_failed' }
+  { name: 'payment_succeeded' | 'payment_failed' | 'payment_refunded' | 'payment_disputed' }
 >;
 
 export type BrowserAnalyticsEvent = Exclude<AnalyticsEvent, ServerOnlyAnalyticsEvent>;
@@ -94,6 +115,7 @@ export function toProperties(
         ...base,
         screen_id: event.screenId,
         payment_id: event.paymentId,
+        provider_payment_id: event.providerPaymentId,
         provider: event.provider,
         plan_key: event.planKey,
         amount: event.amount,
@@ -104,9 +126,31 @@ export function toProperties(
         ...base,
         screen_id: event.screenId,
         payment_id: event.paymentId,
+        provider_payment_id: event.providerPaymentId,
         provider: event.provider,
         plan_key: event.planKey,
         reason: event.reason,
+      };
+    case 'payment_refunded':
+      return {
+        ...base,
+        screen_id: event.screenId,
+        payment_id: event.paymentId,
+        provider_payment_id: event.providerPaymentId,
+        provider: event.provider,
+        charge_id: event.chargeId,
+        amount_refunded_total: event.amountRefundedTotal,
+        currency: event.currency,
+      };
+    case 'payment_disputed':
+      return {
+        ...base,
+        screen_id: event.screenId,
+        payment_id: event.paymentId,
+        provider_payment_id: event.providerPaymentId,
+        provider: event.provider,
+        charge_id: event.chargeId,
+        dispute_status: event.status,
       };
   }
 }

@@ -6,6 +6,22 @@ import type { FunnelDefinition } from '@funnel/schema';
 import { funnelRoutes, readJson } from '@/lib/api-routes';
 
 export const AUTOSAVE_DELAY_MS = 1500;
+const KEEPALIVE_MAX_BYTES = 60_000;
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (value !== null && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+const draftResponseSchema = z.object({
+  draft: z.object({ revision: z.number().int(), definition: z.unknown() }),
+});
 
 const issueSchema = z.object({
   code: z.string(),
@@ -95,6 +111,17 @@ export function useDraftSaver(
   const mountedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const uncertainRef = useRef<{ revision: number; definitions: string[] } | null>(null);
+
+  const markUncertain = useCallback((revision: number, definition: FunnelDefinition) => {
+    const json = canonicalJson(definition);
+    const current = uncertainRef.current;
+    if (current && current.revision === revision) {
+      if (!current.definitions.includes(json)) current.definitions.push(json);
+    } else {
+      uncertainRef.current = { revision, definitions: [json] };
+    }
+  }, []);
 
   const clearTimers = useCallback(() => {
     if (debounceRef.current !== null) clearTimeout(debounceRef.current);
@@ -103,11 +130,40 @@ export function useDraftSaver(
     retryRef.current = null;
   }, []);
 
+  const recoverLostSave = useCallback(
+    async (currentRevision: number | undefined): Promise<boolean> => {
+      const uncertain = uncertainRef.current;
+      if (!uncertain || currentRevision !== uncertain.revision + 1) return false;
+      try {
+        const res = await fetch(funnelRoutes(funnelId).draft, { cache: 'no-store' });
+        const parsed = draftResponseSchema.safeParse(await readJson(res));
+        if (!res.ok || !parsed.success || parsed.data.draft.revision !== currentRevision) {
+          return false;
+        }
+        if (!uncertain.definitions.includes(canonicalJson(parsed.data.draft.definition))) {
+          return false;
+        }
+        serverRevisionRef.current = currentRevision;
+        uncertainRef.current = null;
+        return true;
+      } catch (error) {
+        console.warn(
+          'Draft recovery check failed:',
+          error instanceof Error ? error.message : error,
+        );
+        return false;
+      }
+    },
+    [funnelId],
+  );
+
   const attempt = useCallback(async (): Promise<boolean> => {
     const startRevision = revisionRef.current;
+    const sentRevision = serverRevisionRef.current;
+    const sentDefinition = definitionRef.current;
     const body = JSON.stringify({
-      revision: serverRevisionRef.current,
-      definition: definitionRef.current,
+      revision: sentRevision,
+      definition: sentDefinition,
     });
     setState('saving');
     try {
@@ -119,6 +175,18 @@ export function useDraftSaver(
       const raw = await readJson(res);
       const parsed = apiResultSchema.safeParse(raw);
       const accepted = res.ok && parsed.success && parsed.data.draft !== undefined;
+      if (accepted && parsed.data.draft !== undefined) {
+        serverRevisionRef.current = parsed.data.draft.revision;
+        savedRevisionRef.current = startRevision;
+        uncertainRef.current = null;
+      } else if (res.ok || res.status >= 500) {
+        markUncertain(sentRevision, sentDefinition);
+      } else if (res.status !== 409) {
+        uncertainRef.current = null;
+      }
+      if (res.status === 409 && (await recoverLostSave(parseCurrentRevision(raw)))) {
+        return attempt();
+      }
       if (!mountedRef.current) return accepted;
       setTimestamp(new Date());
       if (res.status === 409) {
@@ -151,13 +219,12 @@ export function useDraftSaver(
         setState('error');
         return false;
       }
-      serverRevisionRef.current = parsed.data.draft.revision;
       setIssues(parsed.data.warnings ?? []);
-      savedRevisionRef.current = startRevision;
       setSavedRevision(startRevision);
       setState(revisionRef.current === startRevision ? 'saved' : 'idle');
       return true;
     } catch (error) {
+      markUncertain(sentRevision, sentDefinition);
       if (mountedRef.current) {
         setTimestamp(new Date());
         setIssues([
@@ -171,7 +238,44 @@ export function useDraftSaver(
       }
       return false;
     }
-  }, [funnelId]);
+  }, [funnelId, recoverLostSave, markUncertain]);
+
+  const flushOnLeave = useCallback(async (): Promise<void> => {
+    if (conflictRef.current || revisionRef.current === savedRevisionRef.current) return;
+    if (uncertainRef.current !== null) {
+      await recoverLostSave(uncertainRef.current.revision + 1);
+    }
+    const startRevision = revisionRef.current;
+    const body = JSON.stringify({
+      revision: serverRevisionRef.current,
+      definition: definitionRef.current,
+    });
+    try {
+      const res = await fetch(funnelRoutes(funnelId).draft, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body,
+        keepalive: new TextEncoder().encode(body).byteLength <= KEEPALIVE_MAX_BYTES,
+      });
+      const parsed = apiResultSchema.safeParse(await readJson(res));
+      if (res.ok && parsed.success && parsed.data.draft !== undefined) {
+        serverRevisionRef.current = parsed.data.draft.revision;
+        savedRevisionRef.current = startRevision;
+        return;
+      }
+      console.warn(
+        `Saving on leave was rejected (HTTP ${res.status}); the last edits were not saved.`,
+      );
+    } catch (error) {
+      console.warn('Saving on leave failed:', error instanceof Error ? error.message : error);
+    }
+  }, [funnelId, recoverLostSave]);
+
+  const leave = useCallback(() => {
+    const running = inFlightRef.current;
+    if (running) void running.finally(() => flushOnLeave());
+    else void flushOnLeave();
+  }, [flushOnLeave]);
 
   const saveNow = useCallback((): Promise<boolean> => {
     if (conflictRef.current) return Promise.resolve(false);
@@ -240,8 +344,9 @@ export function useDraftSaver(
     return () => {
       mountedRef.current = false;
       clearTimers();
+      leave();
     };
-  }, [clearTimers]);
+  }, [clearTimers, leave]);
 
   useEffect(() => {
     if (revision === 0 || !mountedRef.current || conflictRef.current || pausedRef.current) return;

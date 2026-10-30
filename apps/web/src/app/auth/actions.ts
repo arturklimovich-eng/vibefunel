@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { resolveStorageMode } from '@/lib/storage-mode';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { DIRECT_KEY, RateLimiter, clientKeyFromHeaders } from '@/server/payments/rate-limit';
 
 export interface AuthFormState {
   error: string | null;
@@ -18,6 +19,77 @@ const credentialsSchema = z.object({
 });
 
 const DEFAULT_NEXT = '/studio';
+const MINUTE = 60_000;
+const TOO_MANY = 'Too many attempts. Please wait a few minutes and try again.';
+
+const UNAVAILABLE = 'Sign-in is temporarily unavailable. Please try again in a minute.';
+const NOT_A_CREDENTIAL_CHECK = new Set([
+  'email_not_confirmed',
+  'over_request_rate_limit',
+  'over_email_send_rate_limit',
+  'request_timeout',
+  'hook_timeout',
+  'unexpected_failure',
+  'captcha_failed',
+  'email_provider_disabled',
+  'provider_disabled',
+]);
+
+function isNonCredentialError(error: {
+  code?: string | undefined;
+  status?: number | undefined;
+}): boolean {
+  const status = error.status ?? 0;
+  if (status === 0 || status === 429 || status >= 500) return true;
+  return error.code !== undefined && NOT_A_CREDENTIAL_CHECK.has(error.code);
+}
+
+const requestLimiter = new RateLimiter(20_000);
+const failureLimiter = new RateLimiter(20_000);
+const FAILURES_PER_ACCOUNT_AND_CLIENT = 10;
+const FAILURES_PER_ACCOUNT = 50;
+const ACCOUNT_WINDOW_MS = 60 * MINUTE;
+const ACCOUNT_CLIENT_WINDOW_MS = 15 * MINUTE;
+
+interface AuthKeys {
+  client: string;
+  shared: boolean;
+  account: string;
+}
+
+async function authKeys(email: string): Promise<AuthKeys> {
+  const client = clientKeyFromHeaders(await headers());
+  return { client, shared: client === DIRECT_KEY, account: email.toLowerCase() };
+}
+
+function accountClientKey(keys: AuthKeys): string {
+  return `${keys.account}|${keys.client}`;
+}
+
+function requestBlocked(intent: 'signin' | 'signup', keys: AuthKeys): boolean {
+  const limit = intent === 'signin' ? (keys.shared ? 300 : 10) : keys.shared ? 60 : 5;
+  return !requestLimiter.check(`${intent}-client`, keys.client, limit, MINUTE).ok;
+}
+
+function reserveSignInFailure(keys: AuthKeys): boolean {
+  if (!failureLimiter.peek('account', keys.account, FAILURES_PER_ACCOUNT).ok) return false;
+  if (
+    !keys.shared &&
+    !failureLimiter.peek('account-client', accountClientKey(keys), FAILURES_PER_ACCOUNT_AND_CLIENT)
+      .ok
+  ) {
+    return false;
+  }
+  failureLimiter.hit('account', keys.account, ACCOUNT_WINDOW_MS);
+  if (!keys.shared)
+    failureLimiter.hit('account-client', accountClientKey(keys), ACCOUNT_CLIENT_WINDOW_MS);
+  return true;
+}
+
+function releaseSignInFailure(keys: AuthKeys): void {
+  failureLimiter.release('account', keys.account);
+  if (!keys.shared) failureLimiter.release('account-client', accountClientKey(keys));
+}
 
 function hasControlCharacter(value: string): boolean {
   for (let i = 0; i < value.length; i += 1) {
@@ -67,6 +139,11 @@ export async function authenticate(
     return { error: 'Enter a valid email and a password of at least 8 characters.' };
   }
   const { email, password, intent, next } = parsed.data;
+  const keys = await authKeys(email);
+  if (requestBlocked(intent, keys) || (intent === 'signin' && !reserveSignInFailure(keys))) {
+    console.warn(`[auth] ${intent} rate limited`);
+    return { error: TOO_MANY };
+  }
   const client = await createSupabaseServerClient();
   if (intent === 'signup') {
     const { data, error } = await client.auth.signUp({ email, password });
@@ -78,10 +155,30 @@ export async function authenticate(
       return { error: 'Check your inbox to confirm your email, then sign in.' };
     }
   } else {
-    const { error } = await client.auth.signInWithPassword({ email, password });
-    if (error) {
-      console.error(`[auth] sign-in failed: ${error.message}`);
+    let error: { message: string; code?: string | undefined; status?: number | undefined } | null;
+    try {
+      ({ error } = await client.auth.signInWithPassword({ email, password }));
+    } catch (thrown) {
+      releaseSignInFailure(keys);
+      console.error(`[auth] sign-in errored: ${thrown instanceof Error ? thrown.message : thrown}`);
+      return { error: UNAVAILABLE };
+    }
+    if (!error) {
+      releaseSignInFailure(keys);
+    } else if (!isNonCredentialError(error)) {
+      console.error(
+        `[auth] sign-in failed: ${error.status ?? ''} ${error.code ?? ''} ${error.message}`,
+      );
       return { error: 'Invalid email or password.' };
+    } else {
+      releaseSignInFailure(keys);
+      console.error(
+        `[auth] sign-in error ${error.status ?? ''} ${error.code ?? ''}: ${error.message}`,
+      );
+      if (error.code === 'email_not_confirmed') {
+        return { error: 'Confirm your email address first, then sign in.' };
+      }
+      return { error: UNAVAILABLE };
     }
   }
   redirect(await safeNext(next));

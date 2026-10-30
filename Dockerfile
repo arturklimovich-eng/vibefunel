@@ -18,10 +18,13 @@ ARG NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 ARG NEXT_PUBLIC_POSTHOG_KEY
 ARG NEXT_PUBLIC_POSTHOG_HOST
 ARG NEXT_PUBLIC_ANALYTICS_ANSWER_IDS
-RUN --mount=type=secret,id=NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY,env=NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
-    --mount=type=secret,id=NEXT_PUBLIC_POSTHOG_KEY,env=NEXT_PUBLIC_POSTHOG_KEY \
-    --mount=type=secret,id=NEXT_PUBLIC_POSTHOG_HOST,env=NEXT_PUBLIC_POSTHOG_HOST \
-    --mount=type=secret,id=NEXT_PUBLIC_ANALYTICS_ANSWER_IDS,env=NEXT_PUBLIC_ANALYTICS_ANSWER_IDS \
+RUN --mount=type=secret,id=NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY \
+    --mount=type=secret,id=NEXT_PUBLIC_POSTHOG_KEY \
+    --mount=type=secret,id=NEXT_PUBLIC_POSTHOG_HOST \
+    --mount=type=secret,id=NEXT_PUBLIC_ANALYTICS_ANSWER_IDS \
+    for name in NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY NEXT_PUBLIC_POSTHOG_KEY NEXT_PUBLIC_POSTHOG_HOST NEXT_PUBLIC_ANALYTICS_ANSWER_IDS; do \
+      if [ -s "/run/secrets/$name" ]; then export "$name=$(cat "/run/secrets/$name")"; fi; \
+    done && \
     pnpm --filter @funnel/web build
 
 FROM node:22-alpine AS runner

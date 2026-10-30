@@ -87,6 +87,7 @@ export interface CustomDomain {
   verifiedAt: string | null;
   lastCheckedAt: string | null;
   lastError: string | null;
+  recheckFailures: number;
   createdAt: string;
 }
 
@@ -137,6 +138,24 @@ export interface FunnelRepository {
     stillOwned: (token: string) => Promise<boolean>,
   ): Promise<boolean>;
   removeDomain(funnelId: string, domainId: string): Promise<void>;
+}
+
+export type RecheckOutcome = 'ok' | 'missing' | 'unknown';
+
+export type RecheckResult =
+  'kept' | 'restored' | 'taken' | 'warned' | 'revoked' | 'still_missing' | 'unknown' | 'skipped';
+
+export const MAX_AUTO_RECHECKS = 30;
+
+export interface DomainMaintenance {
+  claimDueDomains(checkedBefore: Date, limit: number): Promise<CustomDomain[]>;
+  recordRecheck(
+    domainId: string,
+    outcome: RecheckOutcome,
+    error: string | null,
+    revokeAfter: number,
+  ): Promise<RecheckResult>;
+  releaseClaim(domain: CustomDomain, checkedAt: Date): Promise<void>;
 }
 
 export interface PublishedReader {

@@ -5,7 +5,8 @@ import { resolveStorageMode } from '@/lib/storage-mode';
 import type { StorageMode } from '@/lib/storage-mode';
 import { createSupabaseAnonClient, createSupabaseServerClient } from '@/lib/supabase/server';
 import { FileFunnelRepository } from './file-funnel-repository';
-import type { FunnelRepository, PublishedReader } from './funnel-repository';
+import { SupabaseDomainMaintenance } from './domains/maintenance';
+import type { DomainMaintenance, FunnelRepository, PublishedReader } from './funnel-repository';
 import { SupabaseFunnelRepository, SupabasePublishedReader } from './supabase-funnel-repository';
 
 export function getDataDir(): string {
@@ -41,6 +42,11 @@ export const getStudioContext = cache(async (): Promise<StudioContext | null> =>
     userEmail: data.user.email ?? null,
   };
 });
+
+export function getDomainMaintenance(): DomainMaintenance {
+  if (resolveStorageMode() === 'file') return getFileRepository();
+  return new SupabaseDomainMaintenance();
+}
 
 export function getPublishedReader(): PublishedReader {
   if (resolveStorageMode() === 'file') return getFileRepository();

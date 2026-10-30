@@ -3,3 +3,5 @@ node_modules
 .data
 pnpm-lock.yaml
 docs
+graphify-out
+.claude/skills

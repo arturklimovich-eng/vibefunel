@@ -67,14 +67,39 @@ export interface PaymentEvent {
   runId: string;
   reason: PaymentReason | null;
   payerHash: string | null;
+  providerPaymentId: string | null;
   analyticsConsent: boolean;
+}
+
+export interface PaymentAdjustment {
+  kind: 'adjustment';
+  provider: ProviderId;
+  eventId: string;
+  chargeRef: string;
+  providerPaymentId: string | null;
+  projectId: string;
+  funnelId: string;
+  screenId: string;
+  runId: string;
+  payerHash: string | null;
+  currency: string;
+  amountRefunded: number | null;
+  disputeStatus: string | null;
+  occurredAt: string;
+  analyticsConsent: boolean;
+}
+
+export type WebhookEvent = PaymentEvent | PaymentAdjustment;
+
+export function isAdjustment(event: WebhookEvent): event is PaymentAdjustment {
+  return 'kind' in event && event.kind === 'adjustment';
 }
 
 export interface PaymentProvider {
   readonly id: ProviderId;
   status(): ProviderStatus;
   createCheckout(input: CheckoutInput): Promise<CheckoutResult>;
-  verifyWebhook(rawBody: string, headers: Headers): Promise<PaymentEvent | null>;
+  verifyWebhook(rawBody: string, headers: Headers): Promise<WebhookEvent | null>;
 }
 
 export class WebhookSignatureError extends Error {

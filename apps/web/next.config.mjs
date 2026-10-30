@@ -5,8 +5,34 @@ const devOrigins = (process.env.DEV_ALLOWED_ORIGINS ?? '')
   .map((entry) => entry.trim())
   .filter((entry) => entry.length > 0);
 
+const baseCsp = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'";
+const privateCsp = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'";
+
+const securityHeaders = [
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+  { key: 'Content-Security-Policy', value: baseCsp },
+  ...(process.env.NODE_ENV === 'production'
+    ? [{ key: 'Strict-Transport-Security', value: 'max-age=31536000' }]
+    : []),
+];
+
+const privateHeaders = [
+  { key: 'Content-Security-Policy', value: privateCsp },
+  { key: 'X-Frame-Options', value: 'DENY' },
+];
+
 const nextConfig = {
   ...(devOrigins.length > 0 ? { allowedDevOrigins: devOrigins } : {}),
+  async headers() {
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      ...['/studio', '/studio/:path*', '/login', '/preview/:path*', '/api/:path*'].map(
+        (source) => ({ source, headers: privateHeaders }),
+      ),
+    ];
+  },
   transpilePackages: ['@funnel/schema'],
   reactStrictMode: true,
   output: 'standalone',

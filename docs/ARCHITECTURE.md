@@ -1,6 +1,6 @@
 # Architecture
 
-Related: [REPOSITORY_AUDIT](./REPOSITORY_AUDIT.md) | [IMPLEMENTATION_PLAN](./IMPLEMENTATION_PLAN.md) | [SECURITY](./SECURITY.md)
+Related: [REPOSITORY_AUDIT](./REPOSITORY_AUDIT.md) | [IMPLEMENTATION_PLAN](./IMPLEMENTATION_PLAN.md) | [SECURITY](./SECURITY.md) | [C4](./C4.md) | [DATA_FLOW](./DATA_FLOW.md)
 
 ## Goals and non-goals
 
@@ -176,7 +176,7 @@ Verification (`server/domains/verify.ts`): the TXT record `_funnel-verify.<host>
 
 Resolution (`proxy.ts`): the `Host` header (port stripped) is compared with the platform host (`APP_URL`, `localhost`). On a custom host `/` is rewritten to `/d/<host>`, whose page resolves the hostname to the published version through `get_published_funnel_by_host` (verified row joined with a published funnel) and renders the same `FunnelRuntime` as `/f/[slug]`; `/api/payments/*` and `/api/health` pass through; everything else is 404. `/d/*` is 404 on the platform host. Checkout started on a custom host gets a return URL on that host (`server/public-origin.ts`), only when the host is a verified domain of that funnel.
 
-TLS is issued by the proxy, not the app: `GET /api/domains/serve-check?domain=<host>` is the gate Caddy's on-demand TLS asks before requesting a certificate (see [DEPLOYMENT](./DEPLOYMENT.md#custom-domains-for-funnels)). Not implemented: periodic re-verification, wildcard certificates, proxy automation.
+TLS is issued by the proxy, not the app: `GET /api/domains/serve-check?domain=<host>` is the gate Caddy's on-demand TLS asks before requesting a certificate (see [DEPLOYMENT](./DEPLOYMENT.md#custom-domains-for-funnels)). Re-verification: `POST /api/cron/domains` (bearer `CRON_SECRET`, run hourly as a Coolify Scheduled Task) goes through `DomainMaintenance` (`server/domains/maintenance.ts` with the service role, or the file repository) and re-runs the TXT check for verified domains last checked more than 24 hours ago (claimed atomically, five in parallel, at most 50 per call within 45 seconds); two consecutive definitive negatives revoke, and job-revoked domains are restored when the record returns within about four weeks. Not implemented: wildcard certificates, proxy automation.
 
 ## Animation
 

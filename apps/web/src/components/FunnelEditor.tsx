@@ -447,7 +447,11 @@ export function FunnelEditor({
       <Link
         href="/studio"
         onClick={(event) => {
-          if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) {
+          if (
+            dirty &&
+            (hasConflict || saveState === 'error') &&
+            !window.confirm('You have unsaved changes that could not be saved. Leave anyway?')
+          ) {
             event.preventDefault();
           }
         }}
