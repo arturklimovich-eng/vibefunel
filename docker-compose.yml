@@ -9,7 +9,7 @@ services:
         NEXT_PUBLIC_ANALYTICS_ANSWER_IDS: ${NEXT_PUBLIC_ANALYTICS_ANSWER_IDS:-false}
     image: funnel-platform-web
     env_file:
-      - .env.docker
+      - ${APP_ENV_FILE:-.env.docker}
     environment:
       FUNNEL_STORAGE: supabase
     ports:

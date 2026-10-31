@@ -112,7 +112,13 @@
   min-height: 520px;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
-  overflow: hidden;
+  /* clip, not hidden: Puck's outline calls scrollIntoView on canvas blocks, which would
+     scroll a hidden-overflow ancestor and push the whole editor out of view */
+  overflow: clip;
+}
+
+.puckHost :global([class*='_PuckLayout-inner']) {
+  overflow: clip;
 }
 
 .panelHeading {
