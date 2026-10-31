@@ -69,7 +69,7 @@ stripe listen --forward-to localhost:3000/api/payments/stripe/webhook
 
 Payments are one-time only (no subscriptions). `RUN_TOKEN_SECRET` is required for any provider to be ready; `APP_URL` is required in production; set `TRUST_PROXY_HOPS` only when behind that many trusted reverse proxies. Publishing fails with 400 `unknown_plan` when a Checkout block names a plan that is not in the catalogue.
 
-Plan amounts and currencies are decided by the server catalogue; the browser sends only a plan key. Without the Stripe variables the checkout screen shows "Payments not configured". Solidgate is not implemented (see docs/IMPLEMENTATION_PLAN.md).
+Plan amounts and currencies are decided by the server catalogue; the browser sends only a plan key. Without the Stripe variables the checkout screen shows "Payments not configured". Set `PAYMENT_PROVIDER=solidgate` and the four `SOLIDGATE_*` keys to take payments through the Solidgate payment form instead of Stripe (one provider per deployment; see docs/features/30-checkout.md).
 
 ### Mock mode (development only)
 

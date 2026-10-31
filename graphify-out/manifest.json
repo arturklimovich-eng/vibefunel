@@ -12,9 +12,9 @@
     "semantic_hash": ""
   },
   "apps/web/package.json": {
-    "mtime": 1793447091.3008866,
-    "seen": 1793448111.47452,
-    "ast_hash": "5470fbc8d3a842643edcedf1300d77e4",
+    "mtime": 1793478247.6870832,
+    "seen": 1793478901.8717365,
+    "ast_hash": "3956b75db42112c5553e74a776a5860d",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/cron/domains/route.ts": {
@@ -120,9 +120,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/status/route.ts": {
-    "mtime": 1793453334.1678593,
-    "seen": 1793453590.748224,
-    "ast_hash": "36934c03db5a226aef0f2fe6d9517ee6",
+    "mtime": 1793478320.9462442,
+    "seen": 1793478901.8717928,
+    "ast_hash": "25dbe0047f01f81b977edeb79be33c60",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/payments/stripe/webhook/route.ts": {
@@ -378,9 +378,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/CheckoutPanel.tsx": {
-    "mtime": 1793399523.968572,
-    "seen": 1793400335.4585404,
-    "ast_hash": "401e74cb9c1f418002d8f99b5d403bf2",
+    "mtime": 1793478367.8708384,
+    "seen": 1793478901.8718898,
+    "ast_hash": "69cb741fb89f2b727a4e46dee2893168",
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/PlanField.tsx": {
@@ -564,9 +564,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/registry.ts": {
-    "mtime": 1793132327.5498078,
-    "seen": 1793397859.127017,
-    "ast_hash": "e8c41224b12db7f6632a475cdbcac2a7",
+    "mtime": 1793478301.0180206,
+    "seen": 1793478901.871965,
+    "ast_hash": "d551197e9129f924a11e68305f2fd2dc",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/run-token.ts": {
@@ -576,9 +576,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/solidgate-provider.ts": {
-    "mtime": 1793271228.1285455,
-    "seen": 1793397859.1270192,
-    "ast_hash": "3e8dd65d3bcb7cae2eeed8aa571e09a5",
+    "mtime": 1793478367.5184822,
+    "seen": 1793478901.8719685,
+    "ast_hash": "62e19d7ed70b74b02ac79a3cc0cccc58",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/store.ts": {
@@ -600,15 +600,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/types.ts": {
-    "mtime": 1793399582.546896,
-    "seen": 1793400335.4585927,
-    "ast_hash": "31f8096cee65e122a7ddf1156ff03d72",
+    "mtime": 1793478301.0164618,
+    "seen": 1793478901.8719757,
+    "ast_hash": "9a627fb7c9d08b1347ef7b808c1b37d8",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/webhook.ts": {
-    "mtime": 1793398653.8506296,
-    "seen": 1793398755.5301938,
-    "ast_hash": "37e55d5ac80c19aee7419abf6deab316",
+    "mtime": 1793478301.019033,
+    "seen": 1793478901.8719773,
+    "ast_hash": "840bc5fd42aebb11f2ab5874342fe402",
     "semantic_hash": ""
   },
   "apps/web/src/server/platform-host.ts": {
@@ -750,9 +750,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1793396778.8317156,
-    "seen": 1793397859.1270523,
-    "ast_hash": "fa4829f19c278ed447af68bf9720c129",
+    "mtime": 1793478827.4371753,
+    "seen": 1793478901.8720481,
+    "ast_hash": "28969561635bbc82af3fc7bbb2b33528",
     "semantic_hash": ""
   },
   "apps/web/AGENTS.md": {
@@ -762,9 +762,9 @@
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
-    "mtime": 1793452602.570736,
-    "seen": 1793452615.094849,
-    "ast_hash": "3440bb1e6b646b2935d5d6b896df84ee",
+    "mtime": 1793478827.4411716,
+    "seen": 1793478901.8720517,
+    "ast_hash": "8645f05deac15a175a4558f4d2b67fe2",
     "semantic_hash": ""
   },
   "docs/C4.md": {
@@ -780,15 +780,15 @@
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
-    "mtime": 1793451764.1158137,
-    "seen": 1793451799.5611718,
-    "ast_hash": "7e3efbddfe01621499d6afc109f5cfb6",
+    "mtime": 1793478827.4441705,
+    "seen": 1793478901.8720572,
+    "ast_hash": "ef7cfb3828fccfcf04771ab168023157",
     "semantic_hash": ""
   },
   "docs/IMPLEMENTATION_PLAN.md": {
-    "mtime": 1793453586.7914178,
-    "seen": 1793453590.7484317,
-    "ast_hash": "f810229b85d0703660cd2a0d04d9eb47",
+    "mtime": 1793478827.4391766,
+    "seen": 1793478901.8720586,
+    "ast_hash": "0489207f4cafb317e1f871e51d1c67e1",
     "semantic_hash": ""
   },
   "docs/REPOSITORY_AUDIT.md": {
@@ -798,9 +798,9 @@
     "semantic_hash": ""
   },
   "docs/SECURITY.md": {
-    "mtime": 1793452602.6585248,
-    "seen": 1793452615.0948596,
-    "ast_hash": "ec0582312667f1bce054d8b16d84cb76",
+    "mtime": 1793478827.4371753,
+    "seen": 1793478901.872062,
+    "ast_hash": "6399a77a9455fa116b487d8e6c9d5c20",
     "semantic_hash": ""
   },
   "supabase/migrations/20261027120000_init.sql": {
@@ -906,9 +906,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/csp.ts": {
-    "mtime": 1793399942.3209996,
-    "seen": 1793400335.4585664,
-    "ast_hash": "f0cf45e410f942bd28b4e5f7dc81f429",
+    "mtime": 1793478359.7404027,
+    "seen": 1793478901.8719287,
+    "ast_hash": "c5d32cf1e3a5d6a93d9f1f52cd2a7593",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/docs/[slug]/page.tsx": {
@@ -954,9 +954,9 @@
     "semantic_hash": ""
   },
   "docs/features/30-checkout.md": {
-    "mtime": 1793453334.1779346,
-    "seen": 1793453590.748441,
-    "ast_hash": "beb5b5e49288924f6b4b36efb976c67a",
+    "mtime": 1793478827.4441705,
+    "seen": 1793478901.872071,
+    "ast_hash": "8936b41f3f38b4fb62bfdc5ad986e80c",
     "semantic_hash": ""
   },
   "docs/features/40-refunds-disputes.md": {
@@ -1073,10 +1073,22 @@
     "ast_hash": "acab4fe9d8c2dd47d0535fd546c74ef4",
     "semantic_hash": ""
   },
+  "apps/web/src/app/api/payments/solidgate/webhook/route.ts": {
+    "mtime": 1793478309.2992225,
+    "seen": 1793478901.8717859,
+    "ast_hash": "941ed41e01268144b11e336336775e73",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/puck/SolidgateForm.tsx": {
+    "mtime": 1793478334.9501047,
+    "seen": 1793478901.8718934,
+    "ast_hash": "7bb1dc6233c6826e8bbba43dc866d3e0",
+    "semantic_hash": ""
+  },
   "pnpm-lock.yaml": {
-    "mtime": 1793447081.418233,
-    "seen": 1793448111.4748142,
-    "ast_hash": "357024e04c1e38bcbdedd710289fe446",
+    "mtime": 1793478246.876866,
+    "seen": 1793478901.8720796,
+    "ast_hash": "c2881422474d21ed92ebe161d38c2296",
     "semantic_hash": ""
   }
 }

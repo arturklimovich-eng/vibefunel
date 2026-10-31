@@ -167,18 +167,43 @@ export async function processWebhook(
     }
     throw error;
   }
-  if (event === null) return { status: 200, body: { received: true, ignored: true } };
+  return processEvents(store, event === null ? [] : [event]);
+}
+
+export async function processEvents(
+  store: PaymentStore,
+  events: WebhookEvent[],
+): Promise<WebhookOutcome> {
+  if (events.length === 0) return { status: 200, body: { received: true, ignored: true } };
+  let outcome: WebhookOutcome = { status: 200, body: { received: true } };
   try {
-    if (isAdjustment(event)) return await processAdjustment(store, event);
-    const result = await recordVerifiedEvent(store, event);
-    if (result.rejected !== null) {
-      return { status: 200, body: { received: true, rejected: result.rejected } };
+    for (const event of events) {
+      if (isAdjustment(event)) {
+        outcome = await processAdjustment(store, event);
+        continue;
+      }
+      const result = await recordVerifiedEvent(store, event);
+      if (result.rejected !== null) {
+        return { status: 200, body: { received: true, rejected: result.rejected } };
+      }
+      outcome = { status: 200, body: { received: true, duplicate: result.duplicate } };
     }
-    return { status: 200, body: { received: true, duplicate: result.duplicate } };
+    return outcome;
   } catch (error) {
     if (isMissingServiceKey(error)) {
       return { status: 503, body: { status: 'not_configured' } };
     }
     throw error;
   }
+}
+
+export function verificationFailure(error: unknown): WebhookOutcome | null {
+  if (isMissingServiceKey(error)) return { status: 503, body: { status: 'not_configured' } };
+  if (isNamed(error, 'WebhookSignatureError')) {
+    return { status: 400, body: { error: 'invalid_signature' } };
+  }
+  if (isNamed(error, 'ProviderNotConfiguredError')) {
+    return { status: 503, body: { status: 'not_configured' } };
+  }
+  return null;
 }

@@ -12,6 +12,7 @@ import type { PaymentProvider } from './types';
 const globalForPayments = globalThis as typeof globalThis & {
   filePaymentStore?: FilePaymentStore;
   stripeProvider?: StripeProvider;
+  solidgateProvider?: SolidgateProvider;
 };
 
 export function getPaymentStore(): PaymentStore {
@@ -34,10 +35,19 @@ export function getStripeProvider(): StripeProvider {
   return globalForPayments.stripeProvider;
 }
 
+export function getSolidgateProvider(): SolidgateProvider {
+  if (!globalForPayments.solidgateProvider) {
+    globalForPayments.solidgateProvider = new SolidgateProvider({
+      funnelProjectId: (funnelId) => getPaymentStore().getFunnelProjectId(funnelId),
+    });
+  }
+  return globalForPayments.solidgateProvider;
+}
+
 export function getPaymentProvider(): PaymentProvider | null {
   if (isMockEnabled()) return new MockProvider();
   const choice = process.env.PAYMENT_PROVIDER ?? 'stripe';
-  if (choice === 'solidgate') return new SolidgateProvider();
+  if (choice === 'solidgate') return getSolidgateProvider();
   if (choice === 'stripe') return getStripeProvider();
   return null;
 }

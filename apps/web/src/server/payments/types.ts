@@ -73,7 +73,9 @@ export interface CheckoutInput {
 }
 
 export type CheckoutResult =
-  { mode: 'embedded'; clientSecret: string } | { mode: 'redirect'; url: string };
+  | { mode: 'embedded'; clientSecret: string }
+  | { mode: 'redirect'; url: string }
+  | { mode: 'solidgate'; merchant: string; signature: string; paymentIntent: string; ref: string };
 
 export interface PaymentEvent {
   provider: ProviderId;

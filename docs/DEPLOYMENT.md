@@ -19,6 +19,8 @@ The platform ships as one Docker image (`Dockerfile` at the repository root) tha
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Run | Only if payments are enabled |
 | `STRIPE_WEBHOOK_SECRET_PREVIOUS` | Run | Optional. To rotate the webhook secret: roll it in Stripe, move the old value here, put the new one into `STRIPE_WEBHOOK_SECRET`, redeploy; remove the old one after a few days |
 | `PAYMENT_PLANS_JSON` | Run | Plan catalogue |
+| `PAYMENT_PROVIDER` | Run | `stripe` (default) or `solidgate`; one provider per deployment |
+| `SOLIDGATE_PUBLIC_KEY`, `SOLIDGATE_SECRET_KEY`, `SOLIDGATE_WEBHOOK_PUBLIC_KEY`, `SOLIDGATE_WEBHOOK_SECRET_KEY` | Run | Only for Solidgate; set the webhook URL `https://<your-domain>/api/payments/solidgate/webhook` in Solidgate HUB |
 | `TRUST_PROXY_HOPS` | Run | Number of proxies that append to `X-Forwarded-For`: `1` behind Coolify's proxy alone, `2` with Cloudflare (proxied DNS) in front of it. Never higher than the real count |
 | `CLIENT_IP_HEADER` | Run | Optional header set by the outermost proxy with the client IP, read only when `TRUST_PROXY_HOPS` > 0. Behind Cloudflare use `cf-connecting-ip`; recommended, because Coolify's Traefik or Caddy rewrite an untrusted `X-Forwarded-For` unless their trusted-proxy ranges include Cloudflare |
 | `POSTHOG_KEY`, `POSTHOG_HOST` | Run | Server-side capture; fall back to the public values |

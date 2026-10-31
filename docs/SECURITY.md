@@ -96,8 +96,9 @@ Verified locally on 2026-10-27 against `supabase start` (see the status log in I
 | `PAYMENT_PLANS_JSON` | No (not secret, but server only) | Server env only | Plan catalogue (amount, currency, provider ids); the client never receives provider ids |
 | `PAYMENT_PROVIDER`, `APP_URL`, `TRUST_PROXY_HOPS` | No | Server env only | Provider choice; public origin for return URLs (required in production); trusted proxy hops for rate limiting |
 | `RUN_TOKEN_SECRET` | Yes | Server env only | HMAC key (16+ chars) binding a payment run to the browser; without it every provider is `not_configured` |
-| `SOLIDGATE_MERCHANT_ID` | Treat as private | Server env only | Sent to the client only inside generated `merchantData` |
-| `SOLIDGATE_SECRET` | Yes | Server env only | Signs `signature` and `paymentIntent` on the server |
+| `SOLIDGATE_PUBLIC_KEY` | No (public by design) | Server env | Sent to the browser as `merchantData.merchant` and in the `merchant` header of API calls |
+| `SOLIDGATE_SECRET_KEY` | Yes | Server env only | HMAC-SHA512 key for request and form signatures; its first 32 characters are the AES-256-CBC key of the encrypted `paymentIntent` |
+| `SOLIDGATE_WEBHOOK_PUBLIC_KEY`, `SOLIDGATE_WEBHOOK_SECRET_KEY` | Secret key yes | Server env only | Verify the `merchant` and `signature` headers of Solidgate webhooks |
 | `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server env only | Bypasses RLS; used only by the payment, lead and domain paths via `lib/supabase/service.ts`; never in client code |
 | `SUPABASE_URL` | No | Server env | Read on the server only; `NEXT_PUBLIC_SUPABASE_URL` accepted as a compiled-in fallback |
 | `SUPABASE_ANON_KEY` | No (public) | Server env | Safe only because RLS is enforced; `NEXT_PUBLIC_SUPABASE_ANON_KEY` accepted as a compiled-in fallback |

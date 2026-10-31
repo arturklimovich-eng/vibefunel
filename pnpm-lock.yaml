@@ -44,6 +44,9 @@ importers:
       '@puckeditor/core':
         specifier: 0.23.0
         version: 0.23.0(@floating-ui/dom@1.8.0)(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(use-sync-external-store@1.7.0(react@19.3.1))
+      '@solidgate/client-sdk-loader':
+        specifier: 1.39.0
+        version: 1.39.0
       '@stripe/react-stripe-js':
         specifier: 7.0.1
         version: 7.0.1(@stripe/stripe-js@10.2.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -711,6 +714,9 @@ packages:
 
   '@radix-ui/rect@1.1.3':
     resolution: {integrity: sha512-JtyZR+mqgBibTo8xea3B6ZRmzZiM/YeVBtUkas6zMuXjAlfIFIW2FgqeM9eLyvEaYX66vr6DJMK+4U6LV0KhNw==}
+
+  '@solidgate/client-sdk-loader@1.39.0':
+    resolution: {integrity: sha512-XK61K85HLfxnX0+gRRXzdBW9q9llbdwPZEy46KvUn7IYv2NyV2y6CrxHvILBthimULNeOuUNhahiWPEyw4ss3g==}
 
   '@stripe/react-stripe-js@7.0.1':
     resolution: {integrity: sha512-yDVPIS/RcmYqtX0xuNjAlHd/d9B9twmWwzn4GrZcfrlg737yPC/rfnOs2vCwAs40zrZ2qz4VL1r5b1t0gFRjQQ==}
@@ -2822,6 +2828,8 @@ snapshots:
       '@types/react': 19.3.0
 
   '@radix-ui/rect@1.1.3': {}
+
+  '@solidgate/client-sdk-loader@1.39.0': {}
 
   '@stripe/react-stripe-js@7.0.1(@stripe/stripe-js@10.2.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:

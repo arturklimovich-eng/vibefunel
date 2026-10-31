@@ -1,6 +1,6 @@
 # Checkout
 
-> A visitor pays on a checkout or upsell screen through Stripe Embedded Checkout; only a verified Stripe webhook can unlock the funnel.
+> A visitor pays on a checkout or upsell screen through Stripe Embedded Checkout or the Solidgate payment form; only a server-verified provider event can unlock the funnel.
 
 ## What it does
 
@@ -19,6 +19,8 @@ flowchart TD
   A --> H["GET /api/payments/status<br/>poll every 2 s"]
   G --> H
   H --> I["Runtime advances the funnel"]
+  C --> S["Solidgate: encrypted intent,<br/>payment form, status API"]
+  S --> G
   A -.-> M["Mock provider (dev)"]
   M -.-> G
   I --> R["Refunds and disputes"]
@@ -31,6 +33,7 @@ flowchart TD
   click G "#step-record-payment"
   click H "#step-poll-status"
   click I "#step-advance-funnel"
+  click S "#step-solidgate"
   click M "#step-mock-provider"
   click R "./40-refunds-disputes.md"
 ```
@@ -120,6 +123,14 @@ On `succeeded` the panel calls `confirmPayment(screenId, { advance: true })`. Th
 **Code:** `apps/web/src/components/FunnelRuntime.tsx` (`confirmPayment`, advance effect), `apps/web/src/lib/puck/CheckoutPanel.tsx`, `packages/funnel-schema/src/next-screen.ts`.
 **Data:** browser run state only (`apps/web/src/lib/run-state.ts`).
 **Failure modes:** a `confirmPayment` for a screen that is no longer current is ignored; a funnel with no outgoing edge shows "You have reached the end of this funnel."
+
+### Step: Solidgate
+
+With `PAYMENT_PROVIDER=solidgate`, `SolidgateProvider.createCheckout` answers `mode: 'solidgate'` with `merchant` (the API public key), `signature` and an encrypted `paymentIntent`. The intent carries order id `sg_<32 hex>`, the catalogue amount and currency, the plan title as description, `platform: WEB`, `success_url`/`fail_url` back to the funnel with `session_id=<order id>`, and `order_metadata` with funnel, screen, run, plan, project, payer hash and analytics flag. It is AES-256-CBC encrypted with the first 32 characters of `SOLIDGATE_SECRET_KEY` (random IV prepended, URL-safe Base64); the signature is Base64 of the hex HMAC-SHA512 over public key + intent + public key. `SolidgateForm` loads `https://cdn.solidgate.com/js/solid-form.js` through `@solidgate/client-sdk-loader` and mounts the form (wallet buttons off). On `success` the panel polls the status endpoint with the order id; while the stored payment is pending the endpoint calls the signed `POST https://pay.solidgate.com/api/v1/status` and records what Solidgate reports (`settle_ok`, `partial_settled`, `refunded` succeed after the usual plan, amount, currency and project checks; `auth_ok`, `processing`, `3ds_verify` stay pending; `auth_failed`, `void_ok`, `declined` fail). `/api/payments/solidgate/webhook` checks the `merchant` header against `SOLIDGATE_WEBHOOK_PUBLIC_KEY` and the `signature` over the raw body with `SOLIDGATE_WEBHOOK_SECRET_KEY`, then re-reads the order through the same status API; refunds become adjustments and any chargeback suspends access.
+
+**Code:** `apps/web/src/server/payments/solidgate-provider.ts` (`createCheckout`, `confirm`, `verifyWebhookEvents`, `toEvents`), `apps/web/src/lib/puck/SolidgateForm.tsx`, `apps/web/src/app/api/payments/solidgate/webhook/route.ts`, `apps/web/src/app/api/payments/status/route.ts`, `apps/web/src/server/payments/webhook.ts` (`processEvents`).
+**Data:** `payments` and `payment_events` with provider `solidgate`, `provider_ref` and `provider_payment_id` = order id; event ids `status:<order>:<status>:<refunded>:payment` for status checks and `<solidgate-event-id>:payment|refund:<amount>|chargeback:<n>` for webhooks; the order id also sits in sessionStorage (`solidgate-order:<run>:<screen>`).
+**Failure modes:** the form script fails to load: the panel asks to reload; Solidgate status errors are logged and the stored status is returned; more than 20 status checks per order per minute skip the provider call; webhook with a wrong key or signature: 400; unknown order or foreign metadata: acknowledged and ignored; Solidgate chargeback statuses are not mapped, so a won chargeback stays suspended until handled by hand; the webhook URL must be set in Solidgate HUB, otherwise refunds and chargebacks arrive only when the visitor checks the status again.
 
 ### Step: Mock provider
 

@@ -22,6 +22,7 @@ export function contentSecurityPolicy(nonce: string, studio: boolean): string {
   const connect = [
     "'self'",
     'https://*.stripe.com',
+    'https://*.solidgate.com',
     'https://*.posthog.com',
     ...(analytics ? [analytics] : []),
     ...(dev ? ['ws:'] : []),
@@ -34,7 +35,7 @@ export function contentSecurityPolicy(nonce: string, studio: boolean): string {
     `font-src 'self' data:${studio ? ` ${STUDIO_FONTS}` : ''}`,
     "media-src 'self' blob: https:",
     `connect-src ${connect.join(' ')}`,
-    "frame-src 'self' https://*.stripe.com",
+    "frame-src 'self' https://*.stripe.com https://*.solidgate.com",
     "worker-src 'self' blob:",
     "object-src 'none'",
     "base-uri 'self'",

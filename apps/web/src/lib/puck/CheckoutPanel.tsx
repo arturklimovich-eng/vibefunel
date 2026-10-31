@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { EmbeddedCheckout, EmbeddedCheckoutProvider } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js/pure';
 import { z } from 'zod';
 import { fetchPaymentStatus as fetchStatus } from '@/lib/payment-status';
 import { useRuntime } from './runtime-context';
+import { SolidgateForm, rememberSolidgateRef, storedSolidgateRef } from './SolidgateForm';
+import type { SolidgateMerchantData } from './SolidgateForm';
 import styles from './blocks.module.css';
 
 const checkoutResponse = z.discriminatedUnion('mode', [
@@ -15,6 +17,14 @@ const checkoutResponse = z.discriminatedUnion('mode', [
     provider: z.string(),
   }),
   z.object({ mode: z.literal('redirect'), url: z.string().min(1), provider: z.string() }),
+  z.object({
+    mode: z.literal('solidgate'),
+    merchant: z.string().min(1),
+    signature: z.string().min(1),
+    paymentIntent: z.string().min(1),
+    ref: z.string().min(1),
+    provider: z.string(),
+  }),
 ]);
 
 const POLL_INTERVAL_MS = 2000;
@@ -24,6 +34,7 @@ type View =
   | { kind: 'idle' }
   | { kind: 'working'; text: string }
   | { kind: 'embedded'; clientSecret: string }
+  | { kind: 'solidgate'; merchantData: SolidgateMerchantData; ref: string }
   | { kind: 'mock_redirect' }
   | { kind: 'timeout' }
   | { kind: 'processing' }
@@ -97,6 +108,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
   const [view, setView] = useState<View>({ kind: 'idle' });
   const [attempt, setAttempt] = useState(0);
   const [repurchase, setRepurchase] = useState(false);
+  const [localRef, setLocalRef] = useState<string | null>(null);
 
   useEffect(() => {
     if (slug === null || runId === null || screenId === null || planKey === '' || paid) return;
@@ -107,12 +119,14 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
       if (!signal.aborted) confirmPayment(screenId, { advance });
     };
 
+    const ref = localRef ?? returnRef;
+
     const poll = async (): Promise<void> => {
       setView({ kind: 'working', text: 'Confirming your payment...' });
       let sawProcessing = false;
       let wait = 0;
       for (let waited = 0; waited <= POLL_MAX_MS; waited += wait) {
-        const result = await fetchStatus(runId, screenId, signal, returnRef);
+        const result = await fetchStatus(runId, screenId, signal, ref);
         if (signal.aborted) return;
         if (result.kind === 'not_configured') {
           setView({ kind: 'not_configured' });
@@ -183,6 +197,19 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
         setView({ kind: 'embedded', clientSecret: result.clientSecret });
         return;
       }
+      if (result.mode === 'solidgate') {
+        rememberSolidgateRef(runId, screenId, result.ref);
+        setView({
+          kind: 'solidgate',
+          ref: result.ref,
+          merchantData: {
+            merchant: result.merchant,
+            signature: result.signature,
+            paymentIntent: result.paymentIntent,
+          },
+        });
+        return;
+      }
       if (!isSafeRedirect(result.url)) {
         setView({ kind: 'error', text: 'Checkout returned an invalid redirect.' });
         return;
@@ -193,11 +220,16 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
 
     const run = async (): Promise<void> => {
       try {
-        if (isReturn) {
+        if (isReturn || localRef !== null) {
           await poll();
           return;
         }
-        const result = await fetchStatus(runId, screenId, signal, null);
+        const result = await fetchStatus(
+          runId,
+          screenId,
+          signal,
+          storedSolidgateRef(runId, screenId),
+        );
         if (signal.aborted) return;
         if (result.kind === 'not_configured') {
           setView({ kind: 'not_configured' });
@@ -248,12 +280,22 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
     paid,
     isReturn,
     returnRef,
+    localRef,
     attempt,
     repurchase,
     confirmPayment,
     track,
     analyticsConsent,
   ]);
+
+  const solidgateRef = view.kind === 'solidgate' ? view.ref : null;
+  const onSolidgateSuccess = useCallback(() => {
+    if (solidgateRef !== null) setLocalRef(solidgateRef);
+  }, [solidgateRef]);
+  const onSolidgateFail = useCallback(() => {
+    if (runId !== null && screenId !== null) rememberSolidgateRef(runId, screenId, null);
+    setView({ kind: 'failed' });
+  }, [runId, screenId]);
 
   if (slug === null) {
     return (
@@ -295,6 +337,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
       className={styles.button}
       onClick={() => {
         if (!(view.kind === 'error' && isReturn)) clearReturn();
+        setLocalRef(null);
         setAttempt((n) => n + 1);
       }}
     >
@@ -315,6 +358,13 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
         </p>
       ) : null}
       {view.kind === 'embedded' ? <EmbeddedView clientSecret={view.clientSecret} /> : null}
+      {view.kind === 'solidgate' ? (
+        <SolidgateForm
+          merchantData={view.merchantData}
+          onSuccess={onSolidgateSuccess}
+          onFail={onSolidgateFail}
+        />
+      ) : null}
       {view.kind === 'not_configured' ? (
         <>
           <p className={styles.paymentTitle}>Payments not configured</p>
