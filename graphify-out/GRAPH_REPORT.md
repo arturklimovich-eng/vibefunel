@@ -1,7 +1,7 @@
 # Graph Report - funnel-platform  (2026-10-31)
 
 ## Corpus Check
-- 165 files · ~84,478 words
+- 165 files · ~84,671 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 14 file(s) not represented in the graph (top: (none) 6, .css 6, .example 1)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `49ef4a67`
+- Built from commit: `6c31768a`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -408,4 +408,4 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `Web App Dependencies` be split into smaller, more focused modules?**
   _Cohesion score 0.054693877551020405 - nodes in this community are weakly interconnected._
 - **Why does `Status log` connect `Status log` to `Analytics and Consent`, `supabase-funnel-repository.ts`, `Implementation Plan`, `maintenance.ts`, `Run Storage`, `Payment Providers Registry`, `PaymentStore`, `Schema Migration`, `Stripe Provider`, `CheckoutPanel.tsx`, `validate.ts`, `webhook.ts`, `actions.ts`, `RateLimiter`, `Funnel Runtime`, `store.ts`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
+  _High betweenness centrality (0.052) - this node is a cross-community bridge._

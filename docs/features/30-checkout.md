@@ -95,7 +95,7 @@ Stripe POSTs signed events to the webhook route (body limit 1 MiB, 413 above). `
 
 **Code:** `apps/web/src/app/api/payments/stripe/webhook/route.ts`, `apps/web/src/server/payments/webhook.ts` (`processWebhook`), `apps/web/src/server/payments/stripe-provider.ts` (`verifyWebhook`, `toPaymentEvent`).
 **Data:** reads `funnels.project_id` through `getFunnelProjectId`.
-**Failure modes:** a missing or bad signature gives 400 `invalid_signature` (nothing stored); missing env or service key gives 503; other errors give 500 so Stripe retries with backoff. Rotation: the code reads only `STRIPE_WEBHOOK_SECRET`. `STRIPE_WEBHOOK_SECRET_PREVIOUS` appears in env files but is not read anywhere in `apps/web/src`, so a rotation needs a redeploy with the new secret and in-flight events signed with the old one are rejected with 400.
+**Failure modes:** a missing or bad signature gives 400 `invalid_signature` (nothing stored); missing env or service key gives 503; other errors give 500 so Stripe retries with backoff. Rotation: when the signature does not verify with `STRIPE_WEBHOOK_SECRET`, `verifyWebhook` tries the optional `STRIPE_WEBHOOK_SECRET_PREVIOUS`, so events still signed with the old secret are accepted until that variable is removed.
 
 ### Step: Record payment
 

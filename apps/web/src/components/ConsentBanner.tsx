@@ -7,8 +7,8 @@ export function ConsentBanner({ onDecide }: { onDecide: (decision: ConsentDecisi
   return (
     <div className={styles.consent} role="region" aria-label="Analytics consent">
       <p className={styles.consentText}>
-        This funnel uses analytics cookies to measure how it is used. Email addresses and other
-        personal details are never sent.
+        This funnel uses analytics to measure how it is used. No cookies are stored, and email
+        addresses and other personal details are never sent.
       </p>
       <div className={styles.consentActions}>
         <button type="button" className={styles.consentDecline} onClick={() => onDecide('denied')}>

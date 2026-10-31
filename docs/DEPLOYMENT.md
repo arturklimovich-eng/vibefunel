@@ -17,6 +17,7 @@ The platform ships as one Docker image (`Dockerfile` at the repository root) tha
 | `RUN_TOKEN_SECRET` | Run | Random string, 16+ characters |
 | `SUPABASE_SERVICE_ROLE_KEY` | Run | Webhook and payment-status paths only |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Run | Only if payments are enabled |
+| `STRIPE_WEBHOOK_SECRET_PREVIOUS` | Run | Optional. To rotate the webhook secret: roll it in Stripe, move the old value here, put the new one into `STRIPE_WEBHOOK_SECRET`, redeploy; remove the old one after a few days |
 | `PAYMENT_PLANS_JSON` | Run | Plan catalogue |
 | `TRUST_PROXY_HOPS` | Run | Number of proxies that append to `X-Forwarded-For`: `1` behind Coolify's proxy alone, `2` with Cloudflare (proxied DNS) in front of it. Never higher than the real count |
 | `CLIENT_IP_HEADER` | Run | Optional header set by the outermost proxy with the client IP, read only when `TRUST_PROXY_HOPS` > 0. Behind Cloudflare use `cf-connecting-ip`; recommended, because Coolify's Traefik or Caddy rewrite an untrusted `X-Forwarded-For` unless their trusted-proxy ranges include Cloudflare |

@@ -138,15 +138,21 @@ export class StripeProvider implements PaymentProvider {
     if (!secret || !process.env.STRIPE_SECRET_KEY) throw new ProviderNotConfiguredError('stripe');
     const signature = headers.get('stripe-signature');
     if (!signature) throw new WebhookSignatureError('Missing stripe-signature header.');
-    let event: Stripe.Event;
-    try {
-      event = this.stripe().webhooks.constructEvent(rawBody, signature, secret);
-    } catch (error) {
-      if (error instanceof Stripe.errors.StripeSignatureVerificationError) {
-        throw new WebhookSignatureError('Stripe signature verification failed.');
+    // During a secret rotation events signed with the old secret are still in flight (Stripe
+    // retries for days), so the previous secret is accepted until it is removed from the env.
+    const secrets = [secret, process.env.STRIPE_WEBHOOK_SECRET_PREVIOUS].filter(
+      (value): value is string => Boolean(value),
+    );
+    let event: Stripe.Event | null = null;
+    for (const candidate of secrets) {
+      try {
+        event = this.stripe().webhooks.constructEvent(rawBody, signature, candidate);
+        break;
+      } catch (error) {
+        if (!(error instanceof Stripe.errors.StripeSignatureVerificationError)) throw error;
       }
-      throw error;
     }
+    if (!event) throw new WebhookSignatureError('Stripe signature verification failed.');
     if (event.type === 'charge.refunded') {
       const charge = event.data.object;
       return this.toAdjustment(

@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ConsentBanner.tsx": {
-    "mtime": 1793262174.766467,
-    "seen": 1793397859.1269498,
-    "ast_hash": "5907437e1b7e8053b4cb32dc05da17b1",
+    "mtime": 1793451770.5825887,
+    "seen": 1793451799.5609503,
+    "ast_hash": "ba24df0634079c8b98e1577f037771e6",
     "semantic_hash": ""
   },
   "apps/web/src/components/DeleteFunnelButton.tsx": {
@@ -594,9 +594,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/stripe-provider.ts": {
-    "mtime": 1793398653.8013775,
-    "seen": 1793398755.5301883,
-    "ast_hash": "8d462b1a1167f1b49cf8b911288ce120",
+    "mtime": 1793451651.4600165,
+    "seen": 1793451799.5610783,
+    "ast_hash": "6ca49e84801f8dcad46bd3d942904f0d",
     "semantic_hash": ""
   },
   "apps/web/src/server/payments/supabase-payment-store.ts": {
@@ -786,9 +786,9 @@
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
-    "mtime": 1793396193.4548113,
-    "seen": 1793397859.1270583,
-    "ast_hash": "7a8d7aa557048c741254619fb7783ab9",
+    "mtime": 1793451764.1158137,
+    "seen": 1793451799.5611718,
+    "ast_hash": "7e3efbddfe01621499d6afc109f5cfb6",
     "semantic_hash": ""
   },
   "docs/IMPLEMENTATION_PLAN.md": {
@@ -804,9 +804,9 @@
     "semantic_hash": ""
   },
   "docs/SECURITY.md": {
-    "mtime": 1793400088.2090566,
-    "seen": 1793400335.4586713,
-    "ast_hash": "ebe63536e295164d620af2761c8cbb62",
+    "mtime": 1793451764.1143699,
+    "seen": 1793451799.5611768,
+    "ast_hash": "4d425f1a768b6663f056287f56b8dcca",
     "semantic_hash": ""
   },
   "supabase/migrations/20261027120000_init.sql": {
@@ -960,9 +960,9 @@
     "semantic_hash": ""
   },
   "docs/features/30-checkout.md": {
-    "mtime": 1793447402.7569106,
-    "seen": 1793448111.4748063,
-    "ast_hash": "44f85c967a684af6b3bb1fa59d00e6a8",
+    "mtime": 1793451764.1168144,
+    "seen": 1793451799.561184,
+    "ast_hash": "11c1c2d1971e48df46740cc3af5efd05",
     "semantic_hash": ""
   },
   "docs/features/40-refunds-disputes.md": {
