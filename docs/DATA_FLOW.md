@@ -33,7 +33,7 @@ sequenceDiagram
   participant DB as Postgres (RLS + RPC)
 
   E->>S: definition changed
-  S->>A: PUT /draft {definition, revision} (debounced; keepalive on leave)
+  S->>A: PUT /draft {definition, revision} (debounced, keepalive on leave)
   A->>A: withStudio: session, zod, schema validate
   A->>DB: save_draft(id, definition, expected revision)
   alt revision matches
@@ -68,7 +68,7 @@ sequenceDiagram
   PG->>DB: get_published_funnel(slug) or get_published_funnel_by_host(host) (anon)
   DB-->>PG: funnel id, project id, version, definition
   PG-->>V: HTML + definition
-  V->>V: run id from sessionStorage or new; answers and history saved per step
+  V->>V: run id from sessionStorage or new, answers and history saved per step
   V->>V: next screen computed locally by @funnel/schema rules
 ```
 

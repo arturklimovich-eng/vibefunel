@@ -16,6 +16,7 @@ export function StudioHeader({
         Funnel Studio
       </Link>
       <div className={styles.links}>
+        <Link href="/studio/docs">Docs</Link>
         <span className={styles.badge} data-storage={storage}>
           Storage: {storage === 'supabase' ? 'Supabase' : 'local files (dev)'}
         </span>

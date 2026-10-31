@@ -6,15 +6,15 @@
     "semantic_hash": ""
   },
   "apps/web/next.config.mjs": {
-    "mtime": 1793400296.254046,
-    "seen": 1793400335.4584458,
-    "ast_hash": "d2b96e1ce0c0d9689927c3f440e78ee5",
+    "mtime": 1793447320.8678837,
+    "seen": 1793448111.4745152,
+    "ast_hash": "2225b250db1df5314e6684f1adc0bce1",
     "semantic_hash": ""
   },
   "apps/web/package.json": {
-    "mtime": 1793261811.0872588,
-    "seen": 1793397859.1269057,
-    "ast_hash": "5e75df11f4b22c65ff5ae0fe2ea26117",
+    "mtime": 1793447091.3008866,
+    "seen": 1793448111.47452,
+    "ast_hash": "5470fbc8d3a842643edcedf1300d77e4",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/cron/domains/route.ts": {
@@ -282,9 +282,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StudioHeader.tsx": {
-    "mtime": 1793129299.1538785,
-    "seen": 1793397859.1269596,
-    "ast_hash": "17729c2b810214ace893366bcf62644f",
+    "mtime": 1793447154.2197666,
+    "seen": 1793448111.4746125,
+    "ast_hash": "5b145826cf9dfd57964bd0017e61491f",
     "semantic_hash": ""
   },
   "apps/web/src/components/ThemeEditor.tsx": {
@@ -672,9 +672,9 @@
     "semantic_hash": ""
   },
   "docker-compose.yml": {
-    "mtime": 1793263125.8566558,
-    "seen": 1793397859.1270366,
-    "ast_hash": "a2fe8cb26abe956a61d31e0c24d164b7",
+    "mtime": 1793440670.7635343,
+    "seen": 1793448111.4747365,
+    "ast_hash": "eca065b3f341dfafa8c92b1d8c3f72cb",
     "semantic_hash": ""
   },
   "eslint.config.mjs": {
@@ -750,9 +750,9 @@
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1793397955.3750122,
-    "seen": 1793398755.5302522,
-    "ast_hash": "4cbe2373ac12f0074e437e1844c79e9b",
+    "mtime": 1793447320.0371368,
+    "seen": 1793448111.474784,
+    "ast_hash": "4307165fa24c6a878a206f6d32372502",
     "semantic_hash": ""
   },
   "README.md": {
@@ -768,9 +768,9 @@
     "semantic_hash": ""
   },
   "docs/ARCHITECTURE.md": {
-    "mtime": 1793396778.8332894,
-    "seen": 1793397859.1270547,
-    "ast_hash": "94e6efc00adb5f6adde34e72c081b2d3",
+    "mtime": 1793447960.3132744,
+    "seen": 1793448111.474789,
+    "ast_hash": "eca7c3562dfa51216b31c49d7e8b4fd4",
     "semantic_hash": ""
   },
   "docs/C4.md": {
@@ -780,9 +780,9 @@
     "semantic_hash": ""
   },
   "docs/DATA_FLOW.md": {
-    "mtime": 1793400088.210055,
-    "seen": 1793400335.458666,
-    "ast_hash": "c55ac01e62ac4829e05060224dd58ef4",
+    "mtime": 1793447960.3562512,
+    "seen": 1793448111.4747925,
+    "ast_hash": "eff160b8c23873c4801a8280f22fea97",
     "semantic_hash": ""
   },
   "docs/DEPLOYMENT.md": {
@@ -917,10 +917,82 @@
     "ast_hash": "f0cf45e410f942bd28b4e5f7dc81f429",
     "semantic_hash": ""
   },
+  "apps/web/src/app/studio/docs/[slug]/page.tsx": {
+    "mtime": 1793447249.3909433,
+    "seen": 1793448111.4745831,
+    "ast_hash": "693be28d5356175126f37868dd5f92aa",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/studio/docs/page.tsx": {
+    "mtime": 1793447249.3899424,
+    "seen": 1793448111.4745848,
+    "ast_hash": "3f7ebf0f6665ca17c4fe36f17ff625f3",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/MermaidDiagrams.tsx": {
+    "mtime": 1793447507.497941,
+    "seen": 1793448111.474604,
+    "ast_hash": "6b98e7f79c93efe80720816f92f732d4",
+    "semantic_hash": ""
+  },
+  "apps/web/src/server/docs.ts": {
+    "mtime": 1793447228.0490565,
+    "seen": 1793448111.4746773,
+    "ast_hash": "d14b8fab391e7f31de53bea0860173a5",
+    "semantic_hash": ""
+  },
+  "docs/features/00-map.md": {
+    "mtime": 1793447311.505366,
+    "seen": 1793448111.4748013,
+    "ast_hash": "98c70c7de1c42014d9ee7cb569cf4276",
+    "semantic_hash": ""
+  },
+  "docs/features/10-authoring.md": {
+    "mtime": 1793447419.483532,
+    "seen": 1793448111.474803,
+    "ast_hash": "02cb3a4d5db7e71c5384464b250490c1",
+    "semantic_hash": ""
+  },
+  "docs/features/20-runtime.md": {
+    "mtime": 1793447419.5097718,
+    "seen": 1793448111.4748046,
+    "ast_hash": "56901106aee712bf362ce2505442964e",
+    "semantic_hash": ""
+  },
+  "docs/features/30-checkout.md": {
+    "mtime": 1793447402.7569106,
+    "seen": 1793448111.4748063,
+    "ast_hash": "44f85c967a684af6b3bb1fa59d00e6a8",
+    "semantic_hash": ""
+  },
+  "docs/features/40-refunds-disputes.md": {
+    "mtime": 1793447440.3992224,
+    "seen": 1793448111.4748077,
+    "ast_hash": "5e3b3f10f15eac93203c350762969dbb",
+    "semantic_hash": ""
+  },
+  "docs/features/50-custom-domains.md": {
+    "mtime": 1793447412.4535651,
+    "seen": 1793448111.4748092,
+    "ast_hash": "499e4c1b6e2d4ced08fd4ef82f9be0ae",
+    "semantic_hash": ""
+  },
+  "docs/features/60-analytics-consent.md": {
+    "mtime": 1793447412.4862957,
+    "seen": 1793448111.4748108,
+    "ast_hash": "6c88578b414188056ffc6ef4c06820b3",
+    "semantic_hash": ""
+  },
+  "docs/features/70-auth-access.md": {
+    "mtime": 1793447440.8079195,
+    "seen": 1793448111.4748125,
+    "ast_hash": "445815f4e02842eaa9d3e085db64e915",
+    "semantic_hash": ""
+  },
   "pnpm-lock.yaml": {
-    "mtime": 1793261803.0416021,
-    "seen": 1793397859.1270626,
-    "ast_hash": "89c9d4dbb02bb9ddfb43ca35bd460f06",
+    "mtime": 1793447081.418233,
+    "seen": 1793448111.4748142,
+    "ast_hash": "357024e04c1e38bcbdedd710289fe446",
     "semantic_hash": ""
   }
 }

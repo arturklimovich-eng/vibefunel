@@ -9,3 +9,9 @@ Rules:
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 - A committed graphify-out/graph.json is rewritten whole on every build, so a large diff to it in a pull request is expected. Do not flag it as churn or suggest skipping the graph rebuild or its hooks.
+
+## Documentation
+
+- The studio serves `README.md`, `docs/*.md` and `docs/features/*.md` at `/studio/docs` (signed-in users only), read from disk per request.
+- Feature pages (`docs/features/NN-name.md`) are graph-first: line 1 `# Title`, a `> summary` line, a mermaid flowchart whose nodes `click` to `#step-...` anchors or sibling `./NN-name.md` pages, then one `### Step: ...` section per node with Code, Data and Failure modes.
+- When a change alters a flow, endpoint, table or failure mode, update the matching feature page and its graph in the same commit. A new feature gets a new page and a node on `docs/features/00-map.md`.

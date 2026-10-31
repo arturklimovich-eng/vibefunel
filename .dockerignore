@@ -7,6 +7,8 @@
 **/coverage
 **/*.tsbuildinfo
 **/*.md
+!README.md
+!docs/**/*.md
 supabase/.branches
 supabase/.temp
 Dockerfile

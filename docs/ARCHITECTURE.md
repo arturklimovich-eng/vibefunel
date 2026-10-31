@@ -122,8 +122,8 @@ flowchart LR
   D --> E[Publish request]
   E --> F[re-validate]
   F --> G[repository.publish: create immutable FunnelVersion, move publishedVersionId]
-  G --> H[/f/slug: getPublishedBySlug, zod validate, render]
-  D --> I[/preview/funnelId: render draft]
+  G --> H["/f/slug: getPublishedBySlug, zod validate, render"]
+  D --> I["/preview/funnelId: render draft"]
 ```
 
 (b) Payment (Stage 4, phase A implemented; live Stripe flow not yet verified)
@@ -143,7 +143,7 @@ sequenceDiagram
   S-->>C: { mode: embedded, clientSecret }
   C->>P: pay in Embedded Checkout (Stripe iframe)
   P->>S: POST /api/payments/stripe/webhook (raw body, signature)
-  S->>S: constructEvent; amount, currency, plan, funnel-in-project checks
+  S->>S: constructEvent, then amount, currency, plan, funnel-in-project checks
   S->>D: record_payment_event (event id unique, upsert payment)
   P-->>C: redirect to /f/slug?run=...&screen=...
   C->>C: restore run state from sessionStorage
