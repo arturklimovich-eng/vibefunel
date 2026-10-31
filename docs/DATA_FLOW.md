@@ -12,7 +12,8 @@ How data enters the platform, where it is stored, who can read it and where it l
 | Projects, membership | `projects`, `project_members` | `handle_new_user` trigger, owners | RLS: members only | Roles `owner`, `editor` |
 | Draft | `funnels.draft_definition`, `draft_revision` | `save_draft` RPC (member JWT) | Members | Revision is a compare-and-swap counter |
 | Published versions | `funnel_versions` (immutable), `funnels.published_version_id` | `publish_funnel`, `rollback_funnel` | Anyone through `get_published_funnel*` | Validated by `funnel_definition_is_valid` |
-| Run id, answers, history | Visitor `sessionStorage` (`funnel-run-id:<funnel>`, `funnel-run-state:<funnel>:<run>`) | Runtime | Runtime only | Never sent to the server except run id; emails are kept in memory only |
+| Run id, answers, history | Visitor `sessionStorage` (`funnel-run-id:<funnel>`, `funnel-run-state:<funnel>:<run>`) | Runtime | Runtime only | Never sent to the server except run id; emails and consent flags are kept in memory only and sent to `POST /api/leads` on advance |
+| Leads (email, marketing consent) | `leads` | `record_lead` RPC (service role) from `POST /api/leads` | Members (select), studio Leads panel and CSV export | Personal data. One row per funnel, run and email; consent text copied from the live version. No retention policy yet |
 | Payer nonces | httpOnly cookie `fp_run_<runId>`, 30 days, path-scoped | Checkout route | Status route | The server stores only `payer_hash` = HMAC(`RUN_TOKEN_SECRET`, run:screen:nonce) |
 | Consent decision | Visitor `localStorage` | Consent banner | Browser analytics, checkout request | Copied into Stripe metadata `analytics` |
 | Payments | `payments` | `record_payment_event`, `record_payment_adjustment` (service role) | Status route (service role), members (select) | Status `pending/succeeded/failed` + reason, refunds, dispute state |
@@ -72,7 +73,11 @@ sequenceDiagram
   V->>V: next screen computed locally by @funnel/schema rules
 ```
 
-Answers stay in the browser. The server sees only the run id, the screen id and the plan key when the visitor reaches a paywall.
+Answers stay in the browser. The server sees only the run id, the screen id and the plan key when the visitor reaches a paywall, and the email address (with the consent flag) when the visitor leaves an email capture screen.
+
+### Leads
+
+When the visitor advances past a screen with `EmailInput` blocks, the runtime posts each valid, non-empty address to `POST /api/leads` with `{ slug, runId, screenId, blockId, email, consent }` (fetch with `keepalive`, not awaited, failures only logged to the console; never sent in preview). The route rate-limits, validates the body (4 KB cap), resolves the published version by slug, requires an `EmailInput` block with that id on that screen, lower-cases the address and calls `record_lead` with the service role. The consent text stored is the block's `consentLabel` from the live version, never browser text. Duplicates per funnel, run and email are ignored, and the answer is 204 either way. Members read leads in the studio (latest 100) or as a CSV export of all rows. PostHog never receives the address. See [Lead capture](./features/25-lead-capture.md).
 
 ## 4. Checkout, webhook, status
 
@@ -198,5 +203,5 @@ flowchart LR
 | Stripe to webhook | Webhook payload | Signature check with current and previous secret, amount/currency/plan/project re-check against the stored plan |
 | Proxy to app | `X-Forwarded-For`, Host | `TRUST_PROXY_HOPS` or `CLIENT_IP_HEADER`; `PLATFORM_HOSTS` decides platform vs tenant host |
 | Tenant DNS | TXT and CNAME answers | Ownership proof plus periodic re-check |
-| App to Postgres | Studio writes | User JWT with RLS; service role only in payments, domain status and cron paths |
+| App to Postgres | Studio writes | User JWT with RLS; service role only in payments, leads, domain status and cron paths |
 | App to PostHog | Event properties | Consent gate and property allowlist |

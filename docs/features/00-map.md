@@ -17,6 +17,7 @@ flowchart LR
   end
   subgraph Public["Public (visitors)"]
     RUN["Funnel runtime"]
+    LEAD["Lead capture"]
     PAY["Checkout and payment status"]
     REF["Refunds and disputes"]
     AN["Analytics and consent"]
@@ -24,6 +25,8 @@ flowchart LR
   AUTH --> AUTHOR
   AUTHOR -->|"publish version"| RUN
   DOM -->|"host rewrite"| RUN
+  RUN -->|"email screen"| LEAD
+  LEAD -->|"Leads panel, CSV"| AUTHOR
   RUN -->|"payment screen"| PAY
   PAY -->|"Stripe webhook"| REF
   REF -->|"access revoked or suspended"| RUN
@@ -33,6 +36,7 @@ flowchart LR
   click AUTHOR "./10-authoring.md"
   click DOM "./50-custom-domains.md"
   click RUN "./20-runtime.md"
+  click LEAD "./25-lead-capture.md"
   click PAY "./30-checkout.md"
   click REF "./40-refunds-disputes.md"
   click AN "./60-analytics-consent.md"
@@ -41,7 +45,7 @@ flowchart LR
 ## How a funnel lives
 
 1. A manager signs in ([Auth and access](./70-auth-access.md)), edits the screen graph and the content of each screen, and publishes. Publishing copies the draft into an immutable version ([Authoring and publishing](./10-authoring.md)).
-2. Visitors open `/f/<slug>` or a verified tenant hostname ([Custom domains](./50-custom-domains.md)). The runtime serves the live version and keeps the visitor's progress in the browser tab ([Funnel runtime](./20-runtime.md)).
+2. Visitors open `/f/<slug>` or a verified tenant hostname ([Custom domains](./50-custom-domains.md)). The runtime serves the live version and keeps the visitor's progress in the browser tab ([Funnel runtime](./20-runtime.md)). An email typed on an email capture screen is stored on the server when the visitor continues and shows up in the studio ([Lead capture](./25-lead-capture.md)).
 3. On a payment screen the visitor goes through Stripe Checkout. The screen advances only after the Stripe webhook has recorded the payment ([Checkout and payment status](./30-checkout.md)).
 4. Later refunds and disputes change the visitor's access to what they paid for ([Refunds and disputes](./40-refunds-disputes.md)).
 5. Journey and payment events reach PostHog only after the visitor consents ([Analytics and consent](./60-analytics-consent.md)).

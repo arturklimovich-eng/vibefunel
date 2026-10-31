@@ -9,10 +9,11 @@ import { migrate, nextScreen } from '@funnel/schema';
 import type { Answers, AnimationPreset, FunnelDefinition, Payments, Screen } from '@funnel/schema';
 import type { AnalyticsScope } from '@/lib/analytics/events';
 import { useFunnelAnalytics } from '@/lib/analytics/use-funnel-analytics';
-import { emailKey, isValidEmail } from '@/lib/email';
+import { emailBlocksOf, emailKey, isValidEmail } from '@/lib/email';
+import { sendLead } from '@/lib/leads';
 import { fetchPaymentStatus } from '@/lib/payment-status';
-import { blockId, getScreenOptions, toPuckData } from '@/lib/puck/adapters';
-import { emailInputProps, puckConfig } from '@/lib/puck/config';
+import { getScreenOptions, toPuckData } from '@/lib/puck/adapters';
+import { puckConfig } from '@/lib/puck/config';
 import { RuntimeContext } from '@/lib/puck/runtime-context';
 import type { AnswerSummaryItem, RuntimeApi } from '@/lib/puck/runtime-context';
 import { advance, retreat } from '@/lib/run-state';
@@ -208,15 +209,10 @@ interface EmailBlock {
 function emailBlocks(screen: Screen): { valid: boolean; blocks: EmailBlock[] } {
   const blocks: EmailBlock[] = [];
   let valid = true;
-  screen.content.content.forEach((item, index) => {
-    if (item.type !== 'EmailInput') return;
-    const parsed = emailInputProps.safeParse(item.props);
-    if (!parsed.success) {
-      valid = false;
-      return;
-    }
-    blocks.push({ blockId: blockId(item, index), required: parsed.data.required });
-  });
+  for (const block of emailBlocksOf(screen)) {
+    if (block.props === null) valid = false;
+    else blocks.push({ blockId: block.blockId, required: block.props.required });
+  }
   return { valid, blocks };
 }
 
@@ -283,6 +279,7 @@ function RuntimeInner({
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [answers, setAnswers] = useState<Answers>({});
   const [emails, setEmails] = useState<Record<string, string>>({});
+  const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [payments, setPayments] = useState<Payments>({});
   const [runId, setRunId] = useState<string | null>(null);
   const [returnScreenId, setReturnScreenId] = useState<string | null>(null);
@@ -359,6 +356,10 @@ function RuntimeInner({
     setMessage(null);
   }, []);
 
+  const setConsent = useCallback((key: string, value: boolean) => {
+    setConsents((prev) => ({ ...prev, [key]: value }));
+  }, []);
+
   const clearReturn = useCallback(() => {
     setReturnScreenId(null);
     setReturnRef(null);
@@ -428,18 +429,34 @@ function RuntimeInner({
         return;
       }
       track({ name: 'step_completed', screenId: screen.id });
+      if (slug !== null && runId !== null) {
+        for (const block of email.blocks) {
+          const key = emailKey(screen.id, block.blockId);
+          const typed = (emails[key] ?? '').trim();
+          if (typed.length === 0) continue;
+          sendLead({
+            slug,
+            runId,
+            screenId: screen.id,
+            blockId: block.blockId,
+            email: typed,
+            consent: consents[key] === true,
+          });
+        }
+      }
       setMessage(null);
       const advanced = advance(
-        { currentScreenId: screen.id, history, answers, emails, payments },
+        { currentScreenId: screen.id, history, answers, emails, consents, payments },
         targetId,
       );
       setHistory(advanced.history);
       setAnswers(advanced.answers);
       setEmails(advanced.emails);
+      setConsents(advanced.consents);
       setPayments(advanced.payments);
       setCurrentScreenId(advanced.currentScreenId);
     },
-    [answers, definition, emails, history, payments, track, screen],
+    [answers, consents, definition, emails, history, payments, runId, slug, track, screen],
   );
 
   useEffect(() => {
@@ -498,6 +515,7 @@ function RuntimeInner({
           setHistory(saved.history.slice(0, index));
           setAnswers(entry.answers);
           setEmails(entry.emails);
+          setConsents(entry.consents);
           setPayments({});
           setCurrentScreenId(entry.screenId);
           return;
@@ -513,20 +531,32 @@ function RuntimeInner({
 
   useEffect(() => {
     if (slug === null || runId === null || !restored) return;
-    saveRun(funnelId, runId, { currentScreenId, history, answers, emails, payments });
-  }, [slug, runId, restored, funnelId, currentScreenId, history, answers, emails, payments]);
+    saveRun(funnelId, runId, { currentScreenId, history, answers, emails, consents, payments });
+  }, [
+    slug,
+    runId,
+    restored,
+    funnelId,
+    currentScreenId,
+    history,
+    answers,
+    emails,
+    consents,
+    payments,
+  ]);
 
   const back = useCallback(() => {
     if (history.length === 0) return;
-    const retreated = retreat({ currentScreenId, history, answers, emails, payments });
+    const retreated = retreat({ currentScreenId, history, answers, emails, consents, payments });
     setAnswers(retreated.answers);
     setEmails(retreated.emails);
+    setConsents(retreated.consents);
     setPayments(retreated.payments);
     setHistory(retreated.history);
     setCurrentScreenId(retreated.currentScreenId);
     setMessage(null);
     setFatal(null);
-  }, [answers, currentScreenId, emails, history, payments]);
+  }, [answers, consents, currentScreenId, emails, history, payments]);
 
   const answerSummary = useMemo<AnswerSummaryItem[]>(() => {
     const items: AnswerSummaryItem[] = [];
@@ -561,10 +591,12 @@ function RuntimeInner({
       screenId: currentScreenId,
       answers,
       emails,
+      consents,
       payments,
       answerSummary,
       setAnswer,
       setEmail,
+      setConsent,
       confirmPayment,
       next,
       track,
@@ -580,10 +612,12 @@ function RuntimeInner({
       currentScreenId,
       answers,
       emails,
+      consents,
       payments,
       answerSummary,
       setAnswer,
       setEmail,
+      setConsent,
       confirmPayment,
       next,
       track,

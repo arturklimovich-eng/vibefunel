@@ -78,11 +78,13 @@ export function loadRun(funnelId: string, runId: string): RunState | null {
     currentScreenId: parsed.data.currentScreenId,
     answers: parsed.data.answers,
     emails: {},
+    consents: {},
     payments: {},
     history: parsed.data.history.map((entry) => ({
       screenId: entry.screenId,
       answers: entry.answers,
       emails: {},
+      consents: {},
       payments: {},
     })),
   };

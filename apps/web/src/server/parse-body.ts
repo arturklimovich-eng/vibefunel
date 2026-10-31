@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { z } from 'zod';
-import { readJsonBody } from './read-json-body';
+import { MAX_BODY_BYTES, readJsonBody } from './read-json-body';
 
 export type ParsedBody<T> = { ok: true; data: T } | { ok: false; response: NextResponse };
 
@@ -14,16 +14,25 @@ function invalid(status: number, error: string, message: string): ParsedBody<nev
   };
 }
 
+function sizeLabel(bytes: number): string {
+  if (bytes % (1024 * 1024) === 0) return `${bytes / (1024 * 1024)} MB`;
+  if (bytes % 1024 === 0) return `${bytes / 1024} KB`;
+  return `${bytes} bytes`;
+}
+
 export async function parseJsonBody<S extends z.ZodType>(
   request: Request,
   schema: S,
+  maxBytes: number = MAX_BODY_BYTES,
 ): Promise<ParsedBody<z.infer<S>>> {
-  const body = await readJsonBody(request);
+  const body = await readJsonBody(request, maxBytes);
   if (!body.ok) {
     return invalid(
       body.status,
       body.error,
-      body.error === 'payload_too_large' ? 'Body exceeds 1 MB.' : 'Body is not valid JSON.',
+      body.error === 'payload_too_large'
+        ? `Body exceeds ${sizeLabel(maxBytes)}.`
+        : 'Body is not valid JSON.',
     );
   }
   const parsed = schema.safeParse(body.value);

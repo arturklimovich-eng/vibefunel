@@ -13,6 +13,8 @@ export interface FunnelRoutes {
   rollback: string;
   versions: string;
   domains: string;
+  leads: string;
+  leadsCsv: string;
   domain: (domainId: string) => string;
   verifyDomain: (domainId: string) => string;
 }
@@ -26,6 +28,8 @@ export function funnelRoutes(id: string): FunnelRoutes {
     rollback: `${base}/rollback`,
     versions: `${base}/versions`,
     domains: `${base}/domains`,
+    leads: `${base}/leads`,
+    leadsCsv: `${base}/leads?format=csv`,
     domain: (domainId) => `${base}/domains/${encodeURIComponent(domainId)}`,
     verifyDomain: (domainId) => `${base}/domains/${encodeURIComponent(domainId)}/verify`,
   };

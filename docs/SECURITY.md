@@ -98,7 +98,7 @@ Verified locally on 2026-10-27 against `supabase start` (see the status log in I
 | `RUN_TOKEN_SECRET` | Yes | Server env only | HMAC key (16+ chars) binding a payment run to the browser; without it every provider is `not_configured` |
 | `SOLIDGATE_MERCHANT_ID` | Treat as private | Server env only | Sent to the client only inside generated `merchantData` |
 | `SOLIDGATE_SECRET` | Yes | Server env only | Signs `signature` and `paymentIntent` on the server |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server env only | Bypasses RLS; used only by the payment webhook paths via `lib/supabase/service.ts`; never in client code |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Server env only | Bypasses RLS; used only by the payment, lead and domain paths via `lib/supabase/service.ts`; never in client code |
 | `SUPABASE_URL` | No | Server env | Read on the server only; `NEXT_PUBLIC_SUPABASE_URL` accepted as a compiled-in fallback |
 | `SUPABASE_ANON_KEY` | No (public) | Server env | Safe only because RLS is enforced; `NEXT_PUBLIC_SUPABASE_ANON_KEY` accepted as a compiled-in fallback |
 | `NEXT_PUBLIC_POSTHOG_KEY`, `NEXT_PUBLIC_POSTHOG_HOST` | No (public) | Public, compiled in at build | Project key and ingestion host for browser capture; empty key disables analytics |
@@ -138,11 +138,11 @@ Solidgate notes:
 
 ## Tenant isolation
 
-- RLS enabled on every table holding tenant data (projects, funnels, versions, domains, integrations, events, payment records). Default deny.
+- RLS enabled on every table holding tenant data (projects, funnels, versions, domains, integrations, events, payment records, leads). Default deny.
 - `domains`: members of the project can select, insert and delete; there is no update grant for `authenticated`, so the only way to change `status` is `record_domain_check` (service role) after a server-side DNS lookup. The trigger pins `status = 'pending'` and generates the token on insert and refuses changes to hostname, funnel, project or token. The anon role has no access to the table; public resolution goes through `get_published_funnel_by_host` / `is_host_servable`, which return only verified rows of published funnels.
 - Custom-host requests: the `Host` header is normalised and only used to look up a verified row; it never reaches a redirect or a rewrite unless it passed the hostname rules, and the rewrite target is the validated hostname. Studio, login and the funnel API are unreachable on custom hosts (404). `/api/domains/serve-check` is public and rate limited, answers only 200/404 and reveals nothing beyond "this hostname is served".
 - Policies are covered by automated tests with at least two users (A cannot read, insert, update or delete B's rows).
-- `service_role` (`lib/supabase/service.ts`) is used only in server code: the payment store (webhook recording, status reads, checkout and the studio Payments panel), `record_domain_check` and the domain lookup in `supabase-funnel-repository.ts`, domain re-verification (`server/domains/maintenance.ts`) and the `/api/cron/*` jobs. It is never imported in client bundles.
+- `service_role` (`lib/supabase/service.ts`) is used only in server code: the payment store (webhook recording, status reads, checkout and the studio Payments panel), the lead store (`record_lead` and the studio Leads panel and CSV export), `record_domain_check` and the domain lookup in `supabase-funnel-repository.ts`, domain re-verification (`server/domains/maintenance.ts`) and the `/api/cron/*` jobs. It is never imported in client bundles.
 - Server code re-checks that the object belongs to the caller's project before acting, independent of RLS.
 - Published versions are readable by the runtime only through a server path that resolves slug to `publishedVersionId`; drafts are never served on public routes.
 
@@ -196,6 +196,16 @@ Implemented in Stage 5 (`apps/web/src/lib/analytics`, `apps/web/src/server/analy
 - Analytics failure never breaks the funnel: `init` and `capture` are wrapped and log a warning; request errors go to `on_request_error` (browser) and the `error` listener (server). The server client sends each event immediately (`flushAt: 1`, 5 s timeout, 2 retries), so no shutdown hook is needed; a PostHog outage costs a logged warning per event. A webhook never fails because of analytics.
 - Proxying PostHog through our domain is not configured.
 - PostHog `ee/` code is never used.
+
+## Leads (personal data)
+
+Email addresses captured by the `EmailInput` block are personal data. Implemented in `apps/web/src/app/api/leads/route.ts`, `apps/web/src/server/leads` and migration `20261031120000_leads.sql`; see [Lead capture](./features/25-lead-capture.md).
+
+- Database: `leads` has RLS enabled with one SELECT policy, `is_project_member(project_id)`, and no INSERT, UPDATE or DELETE policies. All privileges are revoked from `anon` and `authenticated`, except SELECT for `authenticated`. Writes go only through `record_lead`, a security-definer function with `search_path = ''`, executable by `service_role` only (execute revoked from `public`, `anon`, `authenticated`). It derives `project_id` from `funnels` and `version_id` from `funnel_versions` instead of trusting the caller, and inserts with `on conflict (funnel_id, run_id, email) do nothing`. Deleting the project deletes its leads; deleting a funnel keeps them with `funnel_id` set to null.
+- Public endpoint: `POST /api/leads` takes only ids, the address and a consent boolean. The body is capped at 4 KB, every field is validated with zod, the address must pass `isValidEmail` and is stored trimmed and lower-cased, and the request is rate limited (30 per minute per client behind a trusted proxy, 300 per minute on the shared `direct` key, 10 per minute per slug and run). The funnel, screen and `EmailInput` block must exist in the live published version. The stored consent text is the block's `consentLabel` read from that version on the server, so a client cannot record consent to text the manager never published. The endpoint answers 204 for new and duplicate leads, so it does not reveal whether an address is already stored.
+- Exposure: addresses are never sent to PostHog or stored in the browser beyond the tab's memory. The studio list and CSV export run behind `withStudio`; the funnel is loaded with the member's client first and only then read through the service role, mirroring the Payments panel.
+- CSV export: every cell is quoted with inner quotes doubled, and a cell that starts with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with `'` so spreadsheet apps do not evaluate visitor-supplied text as a formula.
+- Not implemented: retention limits and automatic deletion, a deletion path for data-subject requests (only deleting the project removes rows), double opt-in, and abuse checks beyond rate limiting (anyone can submit any syntactically valid address for a published funnel).
 
 ## Custom domains
 

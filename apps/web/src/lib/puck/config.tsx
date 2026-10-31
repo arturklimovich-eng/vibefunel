@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { z } from 'zod';
 import type { Config } from '@puckeditor/core';
 import type { ScreenType } from '@funnel/schema';
-import { emailKey, isValidEmail } from '@/lib/email';
+import { emailInputProps, emailKey, isValidEmail } from '@/lib/email';
 import { randomId } from '@/lib/ids';
 import { CheckoutPanel } from './CheckoutPanel';
 import { PlanField } from './PlanField';
@@ -31,11 +31,6 @@ const buttonProps = z.object({
 export const optionListProps = z.object({
   mode: z.enum(['single', 'multi']).default('single'),
   options: z.array(z.object({ id: z.string(), label: z.string() })).default([]),
-});
-export const emailInputProps = z.object({
-  label: z.string().default('Email'),
-  placeholder: z.string().default(''),
-  required: z.boolean().default(true),
 });
 const priceCardProps = z.object({
   title: z.string(),
@@ -160,10 +155,11 @@ function EmailInputBlock(props: Record<string, unknown>) {
       </p>
     );
   }
-  const { label, placeholder, required } = parsed.data;
+  const { label, placeholder, required, consentLabel } = parsed.data;
   const screenId = runtime.screenId;
   const key = screenId === null ? null : emailKey(screenId, props.id);
   const value = key === null ? '' : (runtime.emails[key] ?? '');
+  const consented = key === null ? false : runtime.consents[key] === true;
   const invalid = touched && value.trim().length > 0 && !isValidEmail(value);
   const missing = touched && required && value.trim().length === 0;
   const errorId = `${inputId}-error`;
@@ -194,6 +190,18 @@ function EmailInputBlock(props: Record<string, unknown>) {
         <p id={errorId} className={styles.fieldError}>
           {invalid ? 'Enter a valid email address.' : 'This field is required.'}
         </p>
+      ) : null}
+      {consentLabel.trim().length > 0 ? (
+        <label className={styles.consentRow}>
+          <input
+            type="checkbox"
+            checked={consented}
+            onChange={(event) => {
+              if (key !== null) runtime.setConsent(key, event.target.checked);
+            }}
+          />
+          <span>{consentLabel}</span>
+        </label>
       ) : null}
     </div>
   );
@@ -337,8 +345,14 @@ export const puckConfig: Config = {
             { label: 'Optional', value: false },
           ],
         },
+        consentLabel: { type: 'textarea', label: 'Marketing consent label (empty hides it)' },
       },
-      defaultProps: { label: 'Email address', placeholder: 'you@example.com', required: true },
+      defaultProps: {
+        label: 'Email address',
+        placeholder: 'you@example.com',
+        required: true,
+        consentLabel: '',
+      },
       render: (props) => <EmailInputBlock {...props} />,
     },
     PriceCard: {

@@ -109,6 +109,22 @@
   font-size: 0.875em;
 }
 
+.consentRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.875em;
+  cursor: pointer;
+}
+
+.consentRow input {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0.125rem 0 0;
+  accent-color: var(--funnel-primary, #4f46e5);
+}
+
 .priceCard {
   margin: 0 0 1rem;
   padding: 1rem 1.25rem;

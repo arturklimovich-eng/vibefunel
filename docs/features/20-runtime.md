@@ -20,6 +20,7 @@ flowchart TD
   NS --> TR["Transition<br/>advance + animate"]
   TR --> RUN
   RES --> PAY["Payment status re-check"]
+  TR --> LEAD["Lead capture<br/>POST /api/leads"]
 
   click PX "#step-host-routing"
   click PG "#step-load-live-version"
@@ -30,6 +31,7 @@ flowchart TD
   click NS "#step-screen-routing"
   click TR "#step-transitions"
   click PAY "./30-checkout.md"
+  click LEAD "./25-lead-capture.md"
 ```
 
 ## Steps
@@ -60,7 +62,7 @@ flowchart TD
 
 ### Step: Run token and state
 
-On mount with a `slug`, `getOrCreateRunId(funnelId)` reads `funnel-run-id:<funnelId>` from `sessionStorage`; it is reused only if it matches `RUN_ID_PATTERN` (`^[A-Za-z0-9_-]{16,64}$`), otherwise `randomId(32)` is stored. After restore, every state change writes `funnel-run-state:<funnelId>:<runId>` via `saveRun` with `{currentScreenId, answers, history[{screenId, answers}]}`; history is capped at `MAX_RUN_HISTORY` (500). Emails and payment results are deliberately not persisted.
+On mount with a `slug`, `getOrCreateRunId(funnelId)` reads `funnel-run-id:<funnelId>` from `sessionStorage`; it is reused only if it matches `RUN_ID_PATTERN` (`^[A-Za-z0-9_-]{16,64}$`), otherwise `randomId(32)` is stored. After restore, every state change writes `funnel-run-state:<funnelId>:<runId>` via `saveRun` with `{currentScreenId, answers, history[{screenId, answers}]}`; history is capped at `MAX_RUN_HISTORY` (500). Emails, consent flags and payment results are deliberately not persisted; emails are posted to the server when the visitor advances (see [Lead capture](./25-lead-capture.md)).
 
 **Code:** `apps/web/src/lib/run-storage.ts` `getOrCreateRunId`, `adoptRunId`, `saveRun`, `loadRun`; `apps/web/src/lib/run-state.ts` `advance`, `retreat`; `apps/web/src/lib/ids.ts` `randomId`.
 **Data:** `sessionStorage` keys `funnel-run-id:*`, `funnel-run-state:*:*`.
@@ -79,7 +81,7 @@ On mount with a `slug`, `getOrCreateRunId(funnelId)` reads `funnel-run-id:<funne
 `nextScreen(definition, currentScreenId, answers, payments, {fallbackOnly})` filters edges by `sourceScreenId` and returns the first whose condition matches, in array order: `always`, `answer_equals`, `answer_includes` (by `screenId` and `optionId`), `payment_succeeded`; `default` edges are only the fallback. Payment screens (`isPaymentType`) advance only through a matching `payment_succeeded` edge, so payment cannot be bypassed. `fallbackOnly` takes the `default` edge from skippable screens. Evaluation happens in the browser; answers never reach the server.
 
 **Code:** `packages/funnel-schema/src/next-screen.ts` `nextScreen`, `matches`; `apps/web/src/components/FunnelRuntime.tsx` continue handler.
-**Data:** in-memory `answers`, `payments`, `emails`.
+**Data:** in-memory `answers`, `payments`, `emails`, `consents`. On a successful advance, each valid address on the screen is sent to `POST /api/leads` (not in preview), see [Lead capture](./25-lead-capture.md).
 **Failure modes:** `null` on a checkout or upsell -> inline message ("Complete your payment to continue." or "This offer cannot be declined here."); `null` elsewhere -> fatal "Dead end"; target missing -> fatal "The next screen ... does not exist". Publish-time `validateFunnel` is meant to prevent both.
 
 ### Step: Transitions
@@ -93,4 +95,4 @@ After a target is chosen the runtime tracks `step_completed`, calls `advance` (p
 ## Related
 
 - [Data flow: public runtime](../DATA_FLOW.md#3-public-runtime)
-- [Authoring](./10-authoring.md) produces the live version, [Checkout](./30-checkout.md), [Custom domains](./50-custom-domains.md), [Analytics and consent](./60-analytics-consent.md), [Map](./00-map.md)
+- [Authoring](./10-authoring.md) produces the live version, [Lead capture](./25-lead-capture.md), [Checkout](./30-checkout.md), [Custom domains](./50-custom-domains.md), [Analytics and consent](./60-analytics-consent.md), [Map](./00-map.md)

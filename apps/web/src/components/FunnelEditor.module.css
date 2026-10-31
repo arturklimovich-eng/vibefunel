@@ -107,6 +107,31 @@
   font-size: 0.875rem;
 }
 
+.tableScroll {
+  max-height: 24rem;
+  overflow: auto;
+}
+
+.dataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.dataTable th,
+.dataTable td {
+  padding: 0.375rem 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.dataTable th {
+  position: sticky;
+  top: 0;
+  background: #fff;
+}
+
 .puckHost {
   height: 78dvh;
   min-height: 520px;

@@ -1,13 +1,10 @@
 import type { Data } from '@puckeditor/core';
 import { puckDataSchema } from '@funnel/schema';
 import type { PuckData, Screen, ScreenType } from '@funnel/schema';
+import { blockId } from './block-id';
 import { optionListProps, optionModeForScreenType } from './config';
 
-type PuckItem = PuckData['content'][number];
-
-export function blockId(item: PuckItem, index: number): string {
-  return typeof item.props.id === 'string' ? item.props.id : `${item.type}-${index}`;
-}
+export { blockId };
 
 export function toPuckData(data: PuckData): Data {
   return {

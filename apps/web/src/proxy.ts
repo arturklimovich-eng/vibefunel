@@ -6,6 +6,7 @@ import { customHost } from '@/server/platform-host';
 
 const CUSTOM_HOST_PATHS = [
   '/api/payments/',
+  '/api/leads',
   '/api/health',
   '/api/domains/serve-check',
   '/__nextjs',

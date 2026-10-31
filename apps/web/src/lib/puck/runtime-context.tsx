@@ -20,10 +20,12 @@ export interface RuntimeApi {
   screenId: string | null;
   answers: Answers;
   emails: Record<string, string>;
+  consents: Record<string, boolean>;
   payments: Payments;
   answerSummary: AnswerSummaryItem[];
   setAnswer: (screenId: string, value: string | string[]) => void;
   setEmail: (key: string, value: string) => void;
+  setConsent: (key: string, value: boolean) => void;
   confirmPayment: (screenId: string, options?: { advance?: boolean }) => void;
   next: (options?: { fallbackOnly?: boolean }) => void;
   track: (event: BrowserAnalyticsEvent) => void;
@@ -40,10 +42,12 @@ const defaultApi: RuntimeApi = {
   screenId: null,
   answers: {},
   emails: {},
+  consents: {},
   payments: {},
   answerSummary: [],
   setAnswer: () => undefined,
   setEmail: () => undefined,
+  setConsent: () => undefined,
   confirmPayment: () => undefined,
   next: () => undefined,
   track: () => undefined,
