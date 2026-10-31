@@ -61,7 +61,7 @@ sequenceDiagram
 
 `CheckoutPanel` (rendered by the Checkout block) first calls `GET /api/payments/status`; if the payment is already `succeeded` it confirms without paying, otherwise it POSTs the checkout request with the run id from the runtime and the analytics consent flag. The response is either `mode: 'embedded'` (Stripe iframe) or `mode: 'redirect'` (mock only). Requests are rate limited: 10 per minute per client (`ipLimit`) and 5 per minute per slug and run.
 
-**Code:** `apps/web/src/app/api/payments/checkout/route.ts` (`POST`), `apps/web/src/lib/puck/CheckoutPanel.tsx`, `apps/web/src/server/payments/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`).
+**Code:** `apps/web/src/app/api/payments/checkout/route.ts` (`POST`), `apps/web/src/lib/puck/CheckoutPanel.tsx`, `apps/web/src/server/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`).
 **Data:** none yet; reads `payments` through `hasActivePayment`.
 **Failure modes:** 429 `rate_limited` with `retry-after`; 503 `not_configured` when the provider is not `ready` (needs `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, `RUN_TOKEN_SECRET`) or the service key is missing; 400 from body validation (`parseJsonBody`); 409 `payment_exists` when a `pending` row or a non-refunded `succeeded` row exists for the run and screen (a fully refunded one allows a new purchase, see [Refunds and disputes](./40-refunds-disputes.md)); 502 `provider_error` for other Stripe failures.
 

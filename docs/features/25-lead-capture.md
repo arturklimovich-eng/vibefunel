@@ -67,7 +67,7 @@ sequenceDiagram
 
 The route first applies a per-client limit (30 per minute per client behind a trusted proxy, 300 per minute for the shared `direct` key, via `ipLimit`), reads at most 4 KB of JSON, and validates `slug` (`slugSchema`), `runId` (`runIdSchema`), `screenId` (`screenIdSchema`), `blockId` (1 to 100 characters), `email` (`isValidEmail`) and `consent` (boolean, default `false`). A second limit allows 10 leads per minute per slug and run. `/api/leads` is in `CUSTOM_HOST_PATHS`, so it also answers on verified tenant hostnames.
 
-**Code:** `apps/web/src/app/api/leads/route.ts` (`POST`), `apps/web/src/server/parse-body.ts` (`parseJsonBody` with a byte cap), `apps/web/src/server/payments/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`), `apps/web/src/proxy.ts` (`CUSTOM_HOST_PATHS`).
+**Code:** `apps/web/src/app/api/leads/route.ts` (`POST`), `apps/web/src/server/parse-body.ts` (`parseJsonBody` with a byte cap), `apps/web/src/server/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`), `apps/web/src/proxy.ts` (`CUSTOM_HOST_PATHS`).
 **Data:** none.
 **Failure modes:** 400 `invalid_json` or `invalid_body`; 413 `payload_too_large`; 429 `rate_limited` with `retry-after`.
 

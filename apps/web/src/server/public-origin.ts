@@ -1,5 +1,5 @@
 import 'server-only';
-import { trustedHops } from '@/server/payments/rate-limit';
+import { trustedHops } from '@/server/rate-limit';
 import { customHost, isPlatformHost, requestHost } from '@/server/platform-host';
 import { getPublishedReader } from '@/server/repository';
 

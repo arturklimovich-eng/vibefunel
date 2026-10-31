@@ -6,7 +6,7 @@ import { isMissingServiceKey } from '@/lib/supabase/service';
 import { resolveLeadTarget } from '@/server/leads/lead-target';
 import { getLeadStore } from '@/server/leads/registry';
 import { parseJsonBody } from '@/server/parse-body';
-import { checkRateLimit, clientKey, ipLimit } from '@/server/payments/rate-limit';
+import { checkRateLimit, clientKey, ipLimit } from '@/server/rate-limit';
 import { runIdSchema, screenIdSchema } from '@/server/payments/types';
 import { getPublishedReader } from '@/server/repository';
 

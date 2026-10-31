@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { isMissingServiceKey } from '@/lib/supabase/service';
-import { checkRateLimit, clientKey, ipLimit } from '@/server/payments/rate-limit';
+import { checkRateLimit, clientKey, ipLimit } from '@/server/rate-limit';
 import { getPaymentProvider, getPaymentStore } from '@/server/payments/registry';
 import { payerHashesFromRequest } from '@/server/payments/run-token';
 import {

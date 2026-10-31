@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { resolveStorageMode } from '@/lib/storage-mode';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
-import { DIRECT_KEY, RateLimiter, clientKeyFromHeaders } from '@/server/payments/rate-limit';
+import { DIRECT_KEY, RateLimiter, clientKeyFromHeaders } from '@/server/rate-limit';
 
 export interface AuthFormState {
   error: string | null;

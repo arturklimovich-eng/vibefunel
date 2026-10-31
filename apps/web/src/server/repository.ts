@@ -10,7 +10,10 @@ import type { DomainMaintenance, FunnelRepository, PublishedReader } from './fun
 import { SupabaseFunnelRepository, SupabasePublishedReader } from './supabase-funnel-repository';
 
 export function getDataDir(): string {
-  return process.env.FUNNEL_DATA_DIR ?? path.resolve(process.cwd(), '..', '..', '.data');
+  return (
+    process.env.FUNNEL_DATA_DIR ??
+    path.resolve(/* turbopackIgnore: true */ process.cwd(), '..', '..', '.data')
+  );
 }
 
 const globalForRepo = globalThis as typeof globalThis & {

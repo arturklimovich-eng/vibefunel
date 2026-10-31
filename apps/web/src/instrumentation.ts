@@ -1,6 +1,6 @@
 import { requireAppUrlInProduction } from '@/lib/app-url';
 import { resolveStorageMode } from '@/lib/storage-mode';
-import { trustedHops } from '@/server/payments/rate-limit';
+import { trustedHops } from '@/server/rate-limit';
 
 export function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {

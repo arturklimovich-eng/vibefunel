@@ -68,7 +68,7 @@ For non-tenant hosts and when `FUNNEL_STORAGE=supabase`, `proxy` treats `/login`
 
 Two in-memory `RateLimiter` stores (requests and failures) in the server action. Requests: 10 sign-ins and 5 sign-ups per minute per client; when the client IP is unknown (`TRUST_PROXY_HOPS` unset) one shared cap of 300 sign-ins and 60 sign-ups per minute. Failures: a slot is reserved before calling Supabase (cap 50 per hour per account, and 10 per 15 minutes per account and client when the IP is known) and released unless Supabase answers with a real credential failure. Successful sign-ins, outages, 429s and unconfirmed emails never count.
 
-**Code:** `apps/web/src/app/auth/actions.ts` (`requestBlocked`, `reserveSignInFailure`, `releaseSignInFailure`, `isNonCredentialError`), `apps/web/src/server/payments/rate-limit.ts` (`RateLimiter`, `clientKeyFromHeaders`).
+**Code:** `apps/web/src/app/auth/actions.ts` (`requestBlocked`, `reserveSignInFailure`, `releaseSignInFailure`, `isNonCredentialError`), `apps/web/src/server/rate-limit.ts` (`RateLimiter`, `clientKeyFromHeaders`).
 
 **Data:** process memory only; counters reset on restart and are per instance.
 

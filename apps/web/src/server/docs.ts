@@ -3,11 +3,6 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Marked } from 'marked';
 
-// Project documentation served at /studio/docs. Files are read from disk on every request,
-// so edits to docs/**/*.md show up without code changes (the image ships them, see next.config).
-// Feature pages are every docs/features/*.md: title from the first "# " heading, summary from
-// the first "> " line. Links between files (also mermaid `click` targets) use relative .md paths.
-
 export type DocGroup = 'Features' | 'Reference';
 
 export interface DocEntry {
@@ -45,8 +40,8 @@ const REFERENCE: DocEntry[] = [
   group: 'Reference' as const,
 }));
 
-// apps/web in dev, apps/web inside the standalone image (server.js chdirs there)
-const ROOT = process.env.DOCS_ROOT ?? path.resolve(process.cwd(), '..', '..');
+const ROOT =
+  process.env.DOCS_ROOT ?? path.resolve(/* turbopackIgnore: true */ process.cwd(), '..', '..');
 const FEATURES_DIR = 'docs/features';
 
 async function readOptional(file: string): Promise<string | null> {
@@ -142,7 +137,6 @@ export async function loadDoc(slug: string): Promise<RenderedDoc | null> {
       },
       code({ text, lang }) {
         if (lang !== 'mermaid') return `<pre><code>${escapeHtml(text)}</code></pre>\n`;
-        // clickable nodes: `click Node "./other.md#anchor"` points at another doc page
         const graph = text.replace(
           /^(\s*click\s+\S+\s+(?:href\s+)?)"([^"]+)"/gm,
           (_, head: string, href: string) => `${head}"${rewriteHref(href, slugByFile)}"`,
@@ -156,7 +150,6 @@ export async function loadDoc(slug: string): Promise<RenderedDoc | null> {
       },
     },
   });
-  // wide tables scroll inside their own box instead of the page
   const html = (await marked.parse(source))
     .replace(/<table>/g, '<div class="tableWrap"><table>')
     .replace(/<\/table>/g, '</table></div>');

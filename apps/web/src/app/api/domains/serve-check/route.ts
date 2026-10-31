@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { normalizeHostname, stripPort } from '@/lib/hostname';
-import { checkRateLimit, clientKey, ipLimit } from '@/server/payments/rate-limit';
+import { checkRateLimit, clientKey, ipLimit } from '@/server/rate-limit';
 import { isPlatformHost } from '@/server/platform-host';
 import { getPublishedReader } from '@/server/repository';
 

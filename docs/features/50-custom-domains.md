@@ -91,7 +91,7 @@ The result is written by the service role because authenticated users cannot upd
 
 Caddy's on-demand TLS `ask` URL calls `GET /api/domains/serve-check?domain=<host>[&secret=...]`. Platform hosts answer 200. Others are normalised and looked up with `isHostServable` (`is_host_servable`: verified domain and funnel `published` with a published version). 200 means issue, 404 means refuse.
 
-**Code:** `apps/web/src/app/api/domains/serve-check/route.ts` (`GET`, `askSecretMatches`), `apps/web/src/server/payments/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`), Caddy file `00-funnel-domains.caddy` described in `docs/DEPLOYMENT.md`.
+**Code:** `apps/web/src/app/api/domains/serve-check/route.ts` (`GET`, `askSecretMatches`), `apps/web/src/server/rate-limit.ts` (`checkRateLimit`, `clientKey`, `ipLimit`), Caddy file `00-funnel-domains.caddy` described in `docs/DEPLOYMENT.md`.
 
 **Data:** `domains` joined with `funnels` through `is_host_servable` (granted to anon).
 

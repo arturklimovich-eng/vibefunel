@@ -10,6 +10,7 @@ const CUSTOM_HOST_PATHS = [
   '/api/health',
   '/api/domains/serve-check',
   '/__nextjs',
+  '/robots.txt',
 ];
 
 function isProtected(pathname: string): boolean {

@@ -36,8 +36,8 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),
-  // /studio/docs reads these at request time
   outputFileTracingIncludes: {
+    '/studio/docs': ['../../README.md', '../../docs/*.md', '../../docs/features/*.md'],
     '/studio/docs/[slug]': ['../../README.md', '../../docs/*.md', '../../docs/features/*.md'],
   },
 };

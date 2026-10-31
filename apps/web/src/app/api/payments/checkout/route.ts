@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { parseJsonBody } from '@/server/parse-body';
 import { resolveCheckoutTarget } from '@/server/payments/checkout-target';
-import { checkRateLimit, clientKey, ipLimit } from '@/server/payments/rate-limit';
+import { checkRateLimit, clientKey, ipLimit } from '@/server/rate-limit';
 import { getPaymentProvider } from '@/server/payments/registry';
 import { isMissingServiceKey } from '@/lib/supabase/service';
 import { getPaymentStore } from '@/server/payments/registry';

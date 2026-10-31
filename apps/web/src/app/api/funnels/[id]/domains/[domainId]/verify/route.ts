@@ -3,7 +3,7 @@ import { withStudio } from '@/server/api-helpers';
 import { domainTarget } from '@/server/domains/target';
 import { checkDomainDns } from '@/server/domains/verify';
 import { toDomainView } from '@/server/domains/view';
-import { checkRateLimit } from '@/server/payments/rate-limit';
+import { checkRateLimit } from '@/server/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
