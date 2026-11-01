@@ -119,7 +119,7 @@ function foregroundForLuminance(luminance: number): string {
   return luminance > 0.179 ? DARK_FOREGROUND : LIGHT_FOREGROUND;
 }
 
-function contrastingForeground(color: string): string {
+export function contrastingForeground(color: string): string {
   const value = color.trim().toLowerCase();
   if (value.startsWith('#')) {
     const rgb = parseHex(value.slice(1));

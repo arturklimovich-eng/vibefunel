@@ -4,8 +4,8 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { SLUG_PATTERN } from '@funnel/schema';
-import { FUNNELS_ROUTE, SLUG_INPUT_PATTERN, SLUG_MAX_LENGTH } from '@/lib/api-routes';
-import styles from '@/app/studio/studio.module.css';
+import { FUNNELS_ROUTE, SLUG_INPUT_PATTERN, SLUG_MAX_LENGTH, readJson } from '@/lib/api-routes';
+import styles from './StudioDashboard.module.css';
 
 function slugify(value: string): string {
   return value
@@ -15,7 +15,14 @@ function slugify(value: string): string {
     .slice(0, SLUG_MAX_LENGTH);
 }
 
-export function NewFunnelForm() {
+function createdId(raw: unknown): string | null {
+  if (typeof raw !== 'object' || raw === null || !('funnel' in raw)) return null;
+  const funnel = raw.funnel;
+  if (typeof funnel !== 'object' || funnel === null || !('id' in funnel)) return null;
+  return typeof funnel.id === 'string' ? funnel.id : null;
+}
+
+export function NewFunnelForm({ onCancel }: { onCancel?: () => void }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -54,10 +61,13 @@ export function NewFunnelForm() {
         setError(`Could not create the funnel (HTTP ${res.status}).`);
         return;
       }
-      setName('');
-      setSlug('');
-      setSlugTouched(false);
+      const id = createdId(await readJson(res));
+      if (id) {
+        router.push(`/studio/funnels/${id}`);
+        return;
+      }
       router.refresh();
+      onCancel?.();
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : 'Network error');
     } finally {
@@ -66,37 +76,54 @@ export function NewFunnelForm() {
   };
 
   return (
-    <form onSubmit={(event) => void submit(event)} className={styles.inlineForm}>
-      <label className={styles.field}>
-        Name
+    <form onSubmit={(event) => void submit(event)} className={styles.form}>
+      <label className={styles.formField}>
+        <span>Name</span>
         <input
           type="text"
           value={name}
           maxLength={200}
+          placeholder="Creator launch"
+          autoFocus
           onChange={(e) => {
             setName(e.target.value);
             if (!slugTouched) setSlug(slugify(e.target.value));
           }}
         />
       </label>
-      <label className={styles.field}>
-        Slug
-        <input
-          type="text"
-          value={slug}
-          maxLength={SLUG_MAX_LENGTH}
-          pattern={SLUG_INPUT_PATTERN}
-          aria-invalid={slug.length > 0 && !slugValid}
-          onChange={(e) => {
-            setSlugTouched(true);
-            setSlug(e.target.value);
-          }}
-        />
+      <label className={styles.formField}>
+        <span>Link</span>
+        <span className={styles.slugInput}>
+          <span className={styles.slugPrefix}>/f/</span>
+          <input
+            type="text"
+            value={slug}
+            maxLength={SLUG_MAX_LENGTH}
+            pattern={SLUG_INPUT_PATTERN}
+            placeholder="creator-launch"
+            aria-invalid={slug.length > 0 && !slugValid}
+            onChange={(e) => {
+              setSlugTouched(true);
+              setSlug(e.target.value);
+            }}
+          />
+        </span>
       </label>
-      <button type="submit" className={styles.btnPrimary} disabled={busy}>
-        New funnel
-      </button>
-      {error ? <p role="alert">{error}</p> : null}
+      {error ? (
+        <p role="alert" className={styles.formError}>
+          {error}
+        </p>
+      ) : null}
+      <div className={styles.formActions}>
+        {onCancel ? (
+          <button type="button" className={styles.outlineBtn} onClick={onCancel}>
+            Cancel
+          </button>
+        ) : null}
+        <button type="submit" className={styles.createBtn} disabled={busy}>
+          {busy ? 'Creating...' : 'Create funnel'}
+        </button>
+      </div>
     </form>
   );
 }

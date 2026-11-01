@@ -56,9 +56,9 @@ For non-tenant hosts and when `FUNNEL_STORAGE=supabase`, `proxy` treats `/login`
 
 ### Step: Sign-up, sign-in, sign-out
 
-`authenticate` validates credentials with zod (email up to 320 chars, password 8 to 200), applies rate limits, then calls `signUp` or `signInWithPassword`. Sign-up without a returned session shows "Check your inbox to confirm your email, then sign in." (hosted projects have confirmation enabled; `supabase/config.toml` sets `enable_confirmations = false` for local dev). Success redirects to the safe `next`. `signOut` calls `auth.signOut()` and redirects to `/login`; it is a form action in `StudioHeader`.
+`authenticate` validates credentials with zod (email up to 320 chars, password 8 to 200), applies rate limits, then calls `signUp` or `signInWithPassword`. Sign-up without a returned session shows "Check your inbox to confirm your email, then sign in." (hosted projects have confirmation enabled; `supabase/config.toml` sets `enable_confirmations = false` for local dev). Success redirects to the safe `next`. `signOut` calls `auth.signOut()` and redirects to `/login`; it is a form action in the studio sidebar (`StudioShell`, shown in Supabase mode only).
 
-**Code:** `apps/web/src/app/auth/actions.ts` (`authenticate`, `signOut`), `apps/web/src/lib/supabase/server.ts` (`createSupabaseServerClient`), `apps/web/src/components/StudioHeader.tsx`.
+**Code:** `apps/web/src/app/auth/actions.ts` (`authenticate`, `signOut`), `apps/web/src/lib/supabase/server.ts` (`createSupabaseServerClient`), `apps/web/src/components/StudioShell.tsx`.
 
 **Data:** Supabase `auth.users`; session cookies.
 

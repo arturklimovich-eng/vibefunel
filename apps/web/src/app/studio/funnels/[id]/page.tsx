@@ -1,13 +1,19 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { FunnelEditor } from '@/components/FunnelEditor';
-import { StudioHeader } from '@/components/StudioHeader';
 import { getStudioContext } from '@/server/repository';
+import { uiFont } from '../../ui-font';
 
 export const dynamic = 'force-dynamic';
 
-export default async function EditFunnelPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function EditFunnelPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   const context = await getStudioContext();
   if (!context) redirect(`/login?next=${encodeURIComponent(`/studio/funnels/${id}`)}`);
   const { repo } = context;
@@ -23,13 +29,13 @@ export default async function EditFunnelPage({ params }: { params: Promise<{ id:
     );
   }
   return (
-    <>
-      <StudioHeader storage={context.storage} userEmail={context.userEmail} />
+    <div className={uiFont.variable}>
       <FunnelEditor
         funnel={funnel}
         initialDefinition={draft.definition}
         initialRevision={draft.revision}
+        initialMode={query.view === 'flow' ? 'flow' : 'editor'}
       />
-    </>
+    </div>
   );
 }

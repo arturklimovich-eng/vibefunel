@@ -204,9 +204,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/funnels/[id]/page.tsx": {
-    "mtime": 1793129312.5198257,
-    "seen": 1793397859.1269443,
-    "ast_hash": "d9a689c8065af037b9c3e6e14dc1812f",
+    "mtime": 1793557070.599584,
+    "seen": 1793557259.5501273,
+    "ast_hash": "de3fd10242973f49e3e8b458370234e9",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/loading.tsx": {
@@ -216,9 +216,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/page.tsx": {
-    "mtime": 1793129312.491085,
-    "seen": 1793397859.1269464,
-    "ast_hash": "6e2b6530a9b0cd4adaa75c0b013b33bc",
+    "mtime": 1793557071.7701497,
+    "seen": 1793557259.5501306,
+    "ast_hash": "bc96951b75abada3345f0c358345c0f8",
     "semantic_hash": ""
   },
   "apps/web/src/components/AnimationSettings.tsx": {
@@ -240,9 +240,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/DeleteFunnelButton.tsx": {
-    "mtime": 1793271236.3235,
-    "seen": 1793397859.126951,
-    "ast_hash": "870f19c5d2ca311949f59f4a6626602d",
+    "mtime": 1793556916.2630346,
+    "seen": 1793557259.5501387,
+    "ast_hash": "c257bbe27aeb4a8ca510fecbd3ac75c1",
     "semantic_hash": ""
   },
   "apps/web/src/components/DomainsPanel.tsx": {
@@ -252,21 +252,21 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793452602.1184025,
-    "seen": 1793452615.0946305,
-    "ast_hash": "322cdca9fd3916a122749953b9572688",
+    "mtime": 1793557059.7944224,
+    "seen": 1793557259.550143,
+    "ast_hash": "c25140e9bee3a2be1dff52213cacb443",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
-    "mtime": 1793452602.1624558,
-    "seen": 1793452615.0946324,
-    "ast_hash": "d8d1f0c08f5a5e9b15a805f619b84da1",
+    "mtime": 1793555486.4206762,
+    "seen": 1793556024.5867124,
+    "ast_hash": "6bf3cffb8e2c7a9b8fa67a2395ae9787",
     "semantic_hash": ""
   },
   "apps/web/src/components/NewFunnelForm.tsx": {
-    "mtime": 1793271236.166567,
-    "seen": 1793397859.126956,
-    "ast_hash": "c4c00532cd7e684be396603bdf6f7036",
+    "mtime": 1793556933.450852,
+    "seen": 1793557259.5501487,
+    "ast_hash": "c39f7ca8e504dff6a5fa33c34ea81c2c",
     "semantic_hash": ""
   },
   "apps/web/src/components/PreviewPane.tsx": {
@@ -276,15 +276,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenEditor.tsx": {
-    "mtime": 1793271169.818443,
-    "seen": 1793397859.1269584,
-    "ast_hash": "fa6b3ae3b6d350f181fd6832508409a4",
-    "semantic_hash": ""
-  },
-  "apps/web/src/components/StudioHeader.tsx": {
-    "mtime": 1793447154.2197666,
-    "seen": 1793448111.4746125,
-    "ast_hash": "5b145826cf9dfd57964bd0017e61491f",
+    "mtime": 1793555754.7697344,
+    "seen": 1793556024.586721,
+    "ast_hash": "da45d293b0c173060875362bf27f1a1d",
     "semantic_hash": ""
   },
   "apps/web/src/components/ThemeEditor.tsx": {
@@ -912,15 +906,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/docs/[slug]/page.tsx": {
-    "mtime": 1793447249.3909433,
-    "seen": 1793448111.4745831,
-    "ast_hash": "693be28d5356175126f37868dd5f92aa",
+    "mtime": 1793557457.856946,
+    "seen": 1793557639.7149227,
+    "ast_hash": "d2f01ad3a8f6d8f9f7546adae105bab0",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/docs/page.tsx": {
-    "mtime": 1793447249.3899424,
-    "seen": 1793448111.4745848,
-    "ast_hash": "3f7ebf0f6665ca17c4fe36f17ff625f3",
+    "mtime": 1793557457.8290162,
+    "seen": 1793557639.7149243,
+    "ast_hash": "076452f90071cab86596e05583801dfe",
     "semantic_hash": ""
   },
   "apps/web/src/components/MermaidDiagrams.tsx": {
@@ -936,9 +930,9 @@
     "semantic_hash": ""
   },
   "docs/features/00-map.md": {
-    "mtime": 1793452602.6906052,
-    "seen": 1793452615.0948613,
-    "ast_hash": "36ba369827e892d441ca9ca63db7d5a8",
+    "mtime": 1793557246.9793446,
+    "seen": 1793557259.550314,
+    "ast_hash": "3b021a4fd9c52f1a6a89d71f0eef025e",
     "semantic_hash": ""
   },
   "docs/features/10-authoring.md": {
@@ -978,9 +972,9 @@
     "semantic_hash": ""
   },
   "docs/features/70-auth-access.md": {
-    "mtime": 1793453334.1789398,
-    "seen": 1793453590.7484462,
-    "ast_hash": "d1b7efeebaa31e4bbb23cdd9251ca226",
+    "mtime": 1793557628.8891919,
+    "seen": 1793557639.7151446,
+    "ast_hash": "5f1e941f022e2358f3a0ad858cef2e87",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/funnels/[id]/leads/route.ts": {
@@ -1083,6 +1077,54 @@
     "mtime": 1793478334.9501047,
     "seen": 1793478901.8718934,
     "ast_hash": "7bb1dc6233c6826e8bbba43dc866d3e0",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/EditorIcons.tsx": {
+    "mtime": 1793556904.6598673,
+    "seen": 1793557259.5501418,
+    "ast_hash": "0136032ce53c0d3fe73fbf7ff7369f37",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/studio/ui-font.ts": {
+    "mtime": 1793557070.5518916,
+    "seen": 1793557259.5501323,
+    "ast_hash": "e786ae48b0f25b93c1b92417981d6d4d",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/StudioDashboard.tsx": {
+    "mtime": 1793557490.100833,
+    "seen": 1793557639.7149534,
+    "ast_hash": "e443cad1ebce8d5b2829c7d6a6e48ac7",
+    "semantic_hash": ""
+  },
+  "apps/web/src/server/studio-overview.ts": {
+    "mtime": 1793557073.162945,
+    "seen": 1793557259.550256,
+    "ast_hash": "0163da59e69b458b04a5eba948a106be",
+    "semantic_hash": ""
+  },
+  "docs/features/15-studio-overview.md": {
+    "mtime": 1793557623.9428096,
+    "seen": 1793557639.7151353,
+    "ast_hash": "3e8b83881ba6511fb5363d6d42b163fa",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/studio/docs/DocsSearch.tsx": {
+    "mtime": 1793557457.8009262,
+    "seen": 1793557639.7149208,
+    "ast_hash": "ff4741809582ba05c8ee062fcaaa5146",
+    "semantic_hash": ""
+  },
+  "apps/web/src/app/studio/shell-props.ts": {
+    "mtime": 1793557457.7188747,
+    "seen": 1793557639.7149298,
+    "ast_hash": "7819a87cbf21938e801ea60f740adf4a",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/StudioShell.tsx": {
+    "mtime": 1793557394.7251651,
+    "seen": 1793557639.7149549,
+    "ast_hash": "2f48b5b048ea25d6aece901914c50b2e",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

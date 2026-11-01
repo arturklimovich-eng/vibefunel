@@ -12,6 +12,7 @@ Each feature page has its own graph. Its nodes link to the steps below the graph
 flowchart LR
   subgraph Studio["Studio (signed-in managers)"]
     AUTH["Auth and access"]
+    OVER["Studio overview"]
     AUTHOR["Authoring and publishing"]
     DOM["Custom domains"]
   end
@@ -22,7 +23,10 @@ flowchart LR
     REF["Refunds and disputes"]
     AN["Analytics and consent"]
   end
-  AUTH --> AUTHOR
+  AUTH --> OVER
+  OVER -->|"open funnel"| AUTHOR
+  LEAD -->|"leads, opt-ins"| OVER
+  PAY -->|"paid orders, revenue"| OVER
   AUTHOR -->|"publish version"| RUN
   DOM -->|"host rewrite"| RUN
   RUN -->|"email screen"| LEAD
@@ -34,6 +38,7 @@ flowchart LR
   PAY --> AN
   click AUTH "./70-auth-access.md"
   click AUTHOR "./10-authoring.md"
+  click OVER "./15-studio-overview.md"
   click DOM "./50-custom-domains.md"
   click RUN "./20-runtime.md"
   click LEAD "./25-lead-capture.md"
@@ -44,7 +49,7 @@ flowchart LR
 
 ## How a funnel lives
 
-1. A manager signs in ([Auth and access](./70-auth-access.md)), edits the screen graph and the content of each screen, and publishes. Publishing copies the draft into an immutable version ([Authoring and publishing](./10-authoring.md)).
+1. A manager signs in ([Auth and access](./70-auth-access.md)) and lands on the [Studio overview](./15-studio-overview.md) with leads, paid orders and revenue per funnel. They edit the screen graph and the content of each screen, and publishes. Publishing copies the draft into an immutable version ([Authoring and publishing](./10-authoring.md)).
 2. Visitors open `/f/<slug>` or a verified tenant hostname ([Custom domains](./50-custom-domains.md)). The runtime serves the live version and keeps the visitor's progress in the browser tab ([Funnel runtime](./20-runtime.md)). An email typed on an email capture screen is stored on the server when the visitor continues and shows up in the studio ([Lead capture](./25-lead-capture.md)).
 3. On a payment screen the visitor goes through Stripe Checkout. The screen advances only after the Stripe webhook has recorded the payment ([Checkout and payment status](./30-checkout.md)).
 4. Later refunds and disputes change the visitor's access to what they paid for ([Refunds and disputes](./40-refunds-disputes.md)).

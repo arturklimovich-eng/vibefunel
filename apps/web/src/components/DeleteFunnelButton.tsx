@@ -1,11 +1,24 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { funnelRoutes } from '@/lib/api-routes';
 import styles from '@/app/studio/studio.module.css';
 
-export function DeleteFunnelButton({ funnelId, name }: { funnelId: string; name: string }) {
+export function DeleteFunnelButton({
+  funnelId,
+  name,
+  className,
+  role,
+  children,
+}: {
+  funnelId: string;
+  name: string;
+  className?: string;
+  role?: 'menuitem';
+  children?: ReactNode;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,11 +45,12 @@ export function DeleteFunnelButton({ funnelId, name }: { funnelId: string; name:
     <>
       <button
         type="button"
-        className={styles.btnDanger}
+        role={role}
+        className={className ?? styles.btnDanger}
         disabled={busy}
         onClick={() => void remove()}
       >
-        Delete
+        {children ?? 'Delete'}
       </button>
       {error ? <span role="alert">{error}</span> : null}
     </>
