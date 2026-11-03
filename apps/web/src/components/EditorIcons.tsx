@@ -244,3 +244,15 @@ export const TranslateIcon = (p: P) => (
     <path d="M13 21l4-9 4 9M14.5 18h5" />
   </Icon>
 );
+
+export const ArrowUpIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M12 19V5M6 11l6-6 6 6" />
+  </Icon>
+);
+
+export const StopIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="7" y="7" width="10" height="10" rx="1.5" />
+  </Icon>
+);

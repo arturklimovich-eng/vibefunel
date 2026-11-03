@@ -1,6 +1,6 @@
 # AI assistant (design)
 
-> Design for the editor chat: how the model is connected, how it edits the funnel through validated patches, and how it answers with generative UI cards. Not implemented yet.
+> Design for the editor chat: how the model is connected, how it edits the funnel through validated patches, and how it answers with generative UI cards. The chat panel UI is built with example replies; the model, route and storage are not implemented yet.
 
 ## What it does
 
@@ -66,9 +66,10 @@ sequenceDiagram
 
 ### Step: Chat panel
 
-The rail sparkle (`MagicIcon` in `FunnelEditor`, disabled today) toggles a chat panel that takes the place of the right inspector, the same way Styles does. The panel sends the user text, the funnel id, the saver's server revision and the current selection (`selectedId`, Puck element id) so "make this shorter" has a target. It reads the SSE stream and renders text, cards and proposals in one message list. Card answers ("pick a tone": three buttons) go back as the next user message with a structured payload, not as free text.
+The rail sparkle (`MagicIcon` in `FunnelEditor`) toggles a chat panel that takes the place of the right inspector; the inspector stays mounted underneath so Puck field portals survive, and the chat keeps its messages while closed. The panel sends the user text, the funnel id, the saver's server revision and the current selection (`selectedId`, Puck element id) so "make this shorter" has a target. It reads the SSE stream and renders text, cards and proposals in one message list. Card answers ("pick a tone": three buttons) go back as the next user message with a structured payload, not as free text.
 
-**Code (planned):** `apps/web/src/components/assistant/ChatPanel.tsx`, `useAssistantStream.ts`, `cards/*.tsx`.
+**Built (UI preview):** `apps/web/src/components/assistant/AssistantPanel.tsx`: empty state with suggestions, message list, context chip for the selected screen, autosizing composer (Enter sends, Shift+Enter new line), stop button, and the card kinds `plan`, `choice`, `theme`, `issues` (live validation results, click selects the screen) and `proposal` (Apply and Discard disabled). Replies come from a local `demoReply` keyword matcher, and a banner says the assistant is not connected.
+**Code (planned):** `useAssistantStream.ts` replacing `demoReply`, cards split into `cards/*.tsx`.
 **Data:** messages in React state; the thread id in the URL query so a reload resumes the thread.
 **Failure modes:** stream drops mid-answer, then the panel shows a retry that resends the last user message with the same `clientMessageId` (the route deduplicates); the draft changed since `baseRevision`, then the proposal card shows "Draft changed" and offers to re-run.
 

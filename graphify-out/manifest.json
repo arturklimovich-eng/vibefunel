@@ -252,9 +252,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793691747.7828953,
-    "seen": 1793692101.4091046,
-    "ast_hash": "2ef8f5a060a7805e57a8ddceb7cc371b",
+    "mtime": 1793692956.4458632,
+    "seen": 1793693174.9165523,
+    "ast_hash": "3d91ce02b4548e7753bd5a89e67a716c",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
@@ -930,15 +930,15 @@
     "semantic_hash": ""
   },
   "docs/features/00-map.md": {
-    "mtime": 1793656798.1548154,
-    "seen": 1793656921.9413905,
-    "ast_hash": "8f5628a9f2f945df5daeac9f36db8175",
+    "mtime": 1793693169.853941,
+    "seen": 1793693174.9167309,
+    "ast_hash": "0358f8ed80dbd49102105ed496f81aee",
     "semantic_hash": ""
   },
   "docs/features/10-authoring.md": {
-    "mtime": 1793692067.7057283,
-    "seen": 1793692101.4092977,
-    "ast_hash": "63d6431b3b459cbe2434daed2910d9f3",
+    "mtime": 1793693169.830444,
+    "seen": 1793693174.916732,
+    "ast_hash": "d2e78581bb38113e063e31669c8d277d",
     "semantic_hash": ""
   },
   "docs/features/20-runtime.md": {
@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/EditorIcons.tsx": {
-    "mtime": 1793691722.8858583,
-    "seen": 1793692101.409103,
-    "ast_hash": "f471c3884a56e2bdb69e5961ab460e76",
+    "mtime": 1793692850.3961742,
+    "seen": 1793693174.9165504,
+    "ast_hash": "beebdaf2a0a1a63dd89614562aa42e9f",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/ui-font.ts": {
@@ -1134,9 +1134,9 @@
     "semantic_hash": ""
   },
   "docs/features/80-ai-assistant.md": {
-    "mtime": 1793656787.752268,
-    "seen": 1793656921.941404,
-    "ast_hash": "a593762582f6352d748931d23e6117a2",
+    "mtime": 1793693165.9594448,
+    "seen": 1793693174.9167438,
+    "ast_hash": "e1d0ae690de7ff2f35fbcbd2f3b46b92",
     "semantic_hash": ""
   },
   "apps/web/src/components/ParamControls.tsx": {
@@ -1155,6 +1155,12 @@
     "mtime": 1793691747.8772478,
     "seen": 1793692101.4091482,
     "ast_hash": "b30a95b302fab94013a7e0ffd5d0a634",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/assistant/AssistantPanel.tsx": {
+    "mtime": 1793693107.7882547,
+    "seen": 1793693174.9165747,
+    "ast_hash": "7d85b7ed134846889d89417f274a19eb",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

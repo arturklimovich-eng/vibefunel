@@ -15,7 +15,7 @@ flowchart LR
     OVER["Studio overview"]
     AUTHOR["Authoring and publishing"]
     DOM["Custom domains"]
-    AI["AI assistant (design)"]
+    AI["AI assistant (UI preview)"]
   end
   subgraph Public["Public (visitors)"]
     RUN["Funnel runtime"]

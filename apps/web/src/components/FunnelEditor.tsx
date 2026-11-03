@@ -40,6 +40,7 @@ import { LeadsPanel } from './LeadsPanel';
 import { PaymentsPanel } from './PaymentsPanel';
 import { ScreenCanvas } from './ScreenCanvas';
 import { ScreenHeaderBar } from './ScreenHeaderBar';
+import { AssistantPanel } from './assistant/AssistantPanel';
 import { Segmented, ToggleRow } from './ParamControls';
 import {
   DEFAULT_SEGMENTS,
@@ -194,6 +195,7 @@ export function FunnelEditor({
   const [dragId, setDragId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>('screens');
   const [rightTab, setRightTab] = useState<RightTab>('parameters');
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [slots, setSlots] = useState<ScreenEditorSlots>({
     preview: null,
@@ -1279,9 +1281,13 @@ export function FunnelEditor({
             <button
               type="button"
               className={shell.railBtn}
-              aria-label="AI assistant (coming soon)"
-              title="AI assistant (coming soon)"
-              disabled
+              aria-label="AI assistant"
+              title="AI assistant"
+              aria-pressed={assistantOpen}
+              onClick={() => {
+                setAssistantOpen((v) => !v);
+                setNarrowPanel('inspector');
+              }}
             >
               <MagicIcon size={16} />
             </button>
@@ -1290,9 +1296,12 @@ export function FunnelEditor({
               className={shell.railBtn}
               aria-label="Styles"
               title="Styles"
-              aria-pressed={rightTab === 'styles'}
+              aria-pressed={!assistantOpen && rightTab === 'styles'}
               onClick={() => {
-                setRightTab((t) => (t === 'styles' ? 'parameters' : 'styles'));
+                setAssistantOpen(false);
+                setRightTab((t) =>
+                  assistantOpen ? 'styles' : t === 'styles' ? 'parameters' : 'styles',
+                );
                 setNarrowPanel('inspector');
               }}
             >
@@ -1344,7 +1353,25 @@ export function FunnelEditor({
         </main>
 
         <aside className={shell.right} data-panel="inspector" aria-label="Settings">
-          <div className={shell.tabs} role="tablist" aria-label="Right panel">
+          <AssistantPanel
+            hidden={!assistantOpen}
+            definition={definition}
+            selected={selected}
+            typeMeta={typeMeta}
+            issues={issues}
+            issueScreenId={issueScreenId}
+            onSelectScreen={(id) => {
+              selectScreen(id);
+              commandsRef.current?.deselect();
+            }}
+            onClose={() => setAssistantOpen(false)}
+          />
+          <div
+            className={shell.tabs}
+            role="tablist"
+            aria-label="Right panel"
+            style={assistantOpen ? { display: 'none' } : undefined}
+          >
             <button
               type="button"
               role="tab"
@@ -1364,7 +1391,10 @@ export function FunnelEditor({
               Styles
             </button>
           </div>
-          <div className={shell.inspectorScroll}>
+          <div
+            className={shell.inspectorScroll}
+            style={assistantOpen ? { display: 'none' } : undefined}
+          >
             <div hidden={rightTab !== 'parameters'}>
               <div className={shell.inspectorHead}>
                 <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
