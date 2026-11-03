@@ -206,6 +206,8 @@ Checklist:
 
 ## Decisions to review (taken during the autonomous loop, 2026-10-30)
 
+Reviewed with the user on 2026-11-03: tenant iframe embedding stays off, sign-in limits stay as they are (no CAPTCHA or remembered device), payment_orphans stay log-only, the domain revoke and restore rule stays. The tenant TLS path moved to Caddy on-demand certificates the same day (see DEPLOYMENT.md).
+
 - Review checkpoints use `git stash create` snapshots instead of commits; nothing was committed or pushed.
 - UI and UX items stay deferred (user instruction): keyboard selection and moves on the canvas, start-screen flash on reload, unsaved-edit prompts beyond the save-on-leave flush. The consent banner covering the payment form was fixed on 2026-11-03 (compact banner on checkout and upsell screens, space reserved under the content).
 - Custom domains: a domain is revoked after two consecutive negative TXT checks at least 24 hours apart, and a job-revoked domain is restored automatically when the record returns; up to 29 automatic re-checks after a revocation.
