@@ -19,7 +19,9 @@ import type { AnswerSummaryItem, RuntimeApi } from '@/lib/puck/runtime-context';
 import { advance, retreat } from '@/lib/run-state';
 import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storage';
 import type { HistoryEntry, RunState } from '@/lib/run-state';
+import { longestPathFrom } from '@/lib/progress';
 import { ConsentBanner } from './ConsentBanner';
+import { ScreenHeaderBar } from './ScreenHeaderBar';
 import styles from './FunnelRuntime.module.css';
 
 const PRESETS: Record<
@@ -42,6 +44,7 @@ const PRESETS: Record<
 
 const DEFAULT_DURATION_MS = 300;
 const MAX_VERIFIED_PAYMENTS = 5;
+const AUTO_NAVIGATION_DELAY_MS = 250;
 
 export interface ReturnParams {
   runId: string;
@@ -158,49 +161,6 @@ function loadUsableRun(funnelId: string, runId: string, screens: Screen[]): RunS
   return usable ? saved : null;
 }
 
-function longestPathFrom(definition: FunnelDefinition): Map<string, number> {
-  const ids = definition.screens.map((s) => s.id);
-  const known = new Set(ids);
-  const adjacency = new Map<string, string[]>();
-  for (const e of definition.edges) {
-    if (!known.has(e.sourceScreenId) || !known.has(e.targetScreenId)) continue;
-    const list = adjacency.get(e.sourceScreenId) ?? [];
-    list.push(e.targetScreenId);
-    adjacency.set(e.sourceScreenId, list);
-  }
-
-  const backEdges = new Set<string>();
-  const state = new Map<string, 'open' | 'done'>();
-  const classify = (id: string): void => {
-    state.set(id, 'open');
-    for (const target of adjacency.get(id) ?? []) {
-      const seen = state.get(target);
-      if (seen === 'open') backEdges.add(`${id}>${target}`);
-      else if (seen === undefined) classify(target);
-    }
-    state.set(id, 'done');
-  };
-  const roots = [definition.startScreenId, ...ids];
-  for (const id of roots) {
-    if (known.has(id) && !state.has(id)) classify(id);
-  }
-
-  const memo = new Map<string, number>();
-  const measure = (id: string): number => {
-    const cached = memo.get(id);
-    if (cached !== undefined) return cached;
-    let best = 0;
-    for (const target of adjacency.get(id) ?? []) {
-      if (backEdges.has(`${id}>${target}`)) continue;
-      best = Math.max(best, measure(target));
-    }
-    memo.set(id, best + 1);
-    return best + 1;
-  };
-  for (const id of ids) measure(id);
-  return memo;
-}
-
 interface EmailBlock {
   blockId: string;
   required: boolean;
@@ -286,6 +246,7 @@ function RuntimeInner({
   const [returnRef, setReturnRef] = useState<string | null>(null);
   const [restored, setRestored] = useState(slug === null);
   const [advanceFor, setAdvanceFor] = useState<string | null>(null);
+  const [autoFor, setAutoFor] = useState<string | null>(null);
   const completedRef = useRef(false);
   const currentScreenRef = useRef(currentScreenId);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -342,6 +303,7 @@ function RuntimeInner({
       if (screenId !== currentScreenRef.current) return;
       setAnswers((prev) => ({ ...prev, [screenId]: value }));
       setMessage(null);
+      if (typeof value === 'string') setAutoFor(screenId);
       track({
         name: 'answer_selected',
         screenId,
@@ -465,6 +427,24 @@ function RuntimeInner({
     setAdvanceFor(null);
     next();
   }, [advanceFor, payments, screen, next]);
+
+  useEffect(() => {
+    if (autoFor === null) return;
+    if (
+      !screen ||
+      screen.id !== autoFor ||
+      !screen.autoNavigation ||
+      screen.type !== 'quiz_single'
+    ) {
+      setAutoFor(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setAutoFor(null);
+      next();
+    }, AUTO_NAVIGATION_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [autoFor, screen, next]);
 
   useEffect(() => {
     if (returnScreenId !== null && currentScreenId !== returnScreenId) clearReturn();
@@ -693,24 +673,12 @@ function RuntimeInner({
         <p className={styles.srOnly} aria-live="polite">
           Step {stepNumber} of up to {stepTotal}: {screen.title}
         </p>
-        <div className={styles.topBar}>
-          <button
-            type="button"
-            className={styles.backButton}
-            onClick={back}
-            disabled={history.length === 0}
-          >
-            Back
-          </button>
-          <span className={styles.stepText}>
-            Step {stepNumber} of up to {stepTotal}
-          </span>
-        </div>
-        <progress
-          className={styles.progress}
-          value={stepNumber}
-          max={stepTotal}
-          aria-label={`Step ${stepNumber} of up to ${stepTotal}`}
+        <ScreenHeaderBar
+          definition={definition}
+          screen={screen}
+          position={{ step: stepNumber, total: stepTotal }}
+          canGoBack={history.length > 0}
+          onBack={back}
         />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div

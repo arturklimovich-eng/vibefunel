@@ -17,6 +17,9 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Render } from '@puckeditor/core';
+import { depthFromStart, longestPathFrom, previewStep } from '@/lib/progress';
+import type { StepPosition } from '@/lib/progress';
+import { ScreenHeaderBar } from './ScreenHeaderBar';
 import type { FunnelDefinition, Screen, Theme } from '@funnel/schema';
 import { toPuckData } from '@/lib/puck/adapters';
 import { puckConfig } from '@/lib/puck/config';
@@ -34,7 +37,8 @@ const LABEL_H = 34;
 
 export interface ScreenNodeData extends Record<string, unknown> {
   screen: Screen;
-  theme: Theme;
+  definition: FunnelDefinition;
+  position: StepPosition;
   index: number;
   typeLabel: string;
   typeColor: string;
@@ -58,7 +62,7 @@ function screenStyle(theme: Theme): CSSProperties {
 }
 
 const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<ScreenFlowNode>) {
-  const { screen, theme, index, typeLabel, typeColor, isStart, severity } = data;
+  const { screen, definition, position, index, typeLabel, typeColor, isStart, severity } = data;
   const puckData = useMemo(() => toPuckData(screen.content), [screen.content]);
   return (
     <div
@@ -82,8 +86,14 @@ const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<Screen
       </div>
       <div className={styles.canvasDevice} style={{ height: NODE_H }}>
         <Handle type="target" position={Position.Left} className={styles.canvasHandle} />
-        <div className={styles.canvasScreen} style={screenStyle(theme)} inert>
+        <div className={styles.canvasScreen} style={screenStyle(definition.theme)} inert>
           <div className={styles.canvasScreenInner}>
+            <ScreenHeaderBar
+              definition={definition}
+              screen={screen}
+              position={position}
+              canGoBack={position.step > 1}
+            />
             <Render config={puckConfig} data={puckData} />
           </div>
         </div>
@@ -152,6 +162,8 @@ export function ScreenCanvas({
 }) {
   const nodes = useMemo<ScreenFlowNode[]>(() => {
     const placed = layoutColumns(definition);
+    const depths = depthFromStart(definition);
+    const lengths = longestPathFrom(definition);
     return definition.screens.map((screen, index) => {
       const slot = placed.get(screen.id) ?? { col: 0, row: index };
       const meta = typeMeta(screen);
@@ -166,7 +178,8 @@ export function ScreenCanvas({
         draggable: false,
         data: {
           screen,
-          theme: definition.theme,
+          definition,
+          position: previewStep(definition, screen.id, depths, lengths),
           index,
           typeLabel: meta.label,
           typeColor: meta.color,

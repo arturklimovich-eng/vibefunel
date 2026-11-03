@@ -54,7 +54,7 @@ flowchart TD
 
 ### Step: Render screen
 
-`FunnelRuntime` runs `migrate` on the definition and checks `startScreenId` exists; otherwise it renders "This funnel cannot be displayed" (detail only when `label` is passed, as in Studio preview). `RuntimeInner` starts at `definition.startScreenId`, renders the screen content, validates email blocks, and shows a step counter (`longestPathFrom` gives the "up to N" total) plus Back. The same component powers `/preview/*` in Studio (no `slug`, so no persistence).
+`FunnelRuntime` runs `migrate` on the definition and checks `startScreenId` exists; otherwise it renders "This funnel cannot be displayed" (detail only when `label` is passed, as in Studio preview). `RuntimeInner` starts at `definition.startScreenId`, renders the screen content, validates email blocks, and renders `ScreenHeaderBar` from `screen.header`: progress (line, N segments, or one segment per screen group), Back, a `step/total` counter (`longestPathFrom` in `apps/web/src/lib/progress.ts` gives the total), a title and optional logo and image. Back, counter and progress default to on. With `screen.autoNavigation` on a `quiz_single` screen, picking an answer advances after 250 ms. The same component powers `/preview/*` in Studio (no `slug`, so no persistence).
 
 **Code:** `apps/web/src/components/FunnelRuntime.tsx` `FunnelRuntime`, `parseDefinition`, `RuntimeInner`, `longestPathFrom`; `apps/web/src/app/preview/`.
 **Data:** none beyond the definition.

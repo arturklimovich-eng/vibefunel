@@ -5,7 +5,7 @@ import type { CSSProperties, DragEvent } from 'react';
 import Link from 'next/link';
 import type { Connection } from '@xyflow/react';
 import { z } from 'zod';
-import { SCREEN_TYPES } from '@funnel/schema';
+import { MAX_PROGRESS_SEGMENTS, PROGRESS_TYPES, SCREEN_TYPES } from '@funnel/schema';
 import type {
   Condition,
   Edge,
@@ -13,6 +13,7 @@ import type {
   FunnelDefinition,
   PuckData,
   Screen,
+  ScreenHeader,
   ScreenType,
 } from '@funnel/schema';
 import { funnelRoutes, readJson } from '@/lib/api-routes';
@@ -38,6 +39,15 @@ import { DomainsPanel } from './DomainsPanel';
 import { LeadsPanel } from './LeadsPanel';
 import { PaymentsPanel } from './PaymentsPanel';
 import { ScreenCanvas } from './ScreenCanvas';
+import { ScreenHeaderBar } from './ScreenHeaderBar';
+import { Segmented, ToggleRow } from './ParamControls';
+import {
+  DEFAULT_SEGMENTS,
+  depthFromStart,
+  longestPathFrom,
+  previewStep,
+  screenGroups,
+} from '@/lib/progress';
 import {
   ChatIcon,
   ChevronDown,
@@ -57,6 +67,8 @@ import {
   Redo,
   SearchIcon,
   SlidersIcon,
+  TranslateIcon,
+  UsersIcon,
   TrashIcon,
   Undo,
 } from './EditorIcons';
@@ -83,6 +95,14 @@ const PUBLISH_NOTICE: Record<PublishOutcome, string> = {
   rejected: 'Publish failed. See the validation panel.',
   published: 'Published.',
 };
+
+const IMAGE_POSITIONS = [
+  { value: 'left', label: 'Left' },
+  { value: 'right', label: 'Right' },
+] as const;
+
+const PROGRESS_LABELS = { line: 'Line', segments: 'Segments', groups: 'Groups' } as const;
+const PROGRESS_OPTIONS = PROGRESS_TYPES.map((value) => ({ value, label: PROGRESS_LABELS[value] }));
 
 const SCREEN_META: Record<ScreenType, { label: string; color: string }> = {
   welcome: { label: 'Landing', color: '#f0503a' },
@@ -267,6 +287,12 @@ export function FunnelEditor({
     [mutate],
   );
 
+  const updateHeader = (id: string, patch: Partial<ScreenHeader>) => {
+    const current = screensById.get(id);
+    if (!current) return;
+    updateScreen(id, { header: { ...current.header, ...patch } });
+  };
+
   const onContentChange = (id: string, content: PuckData) => {
     const current = screensById.get(id);
     if (!current || JSON.stringify(current.content) === JSON.stringify(content)) return;
@@ -296,6 +322,14 @@ export function FunnelEditor({
     setPending((p) => (p && (p.source === id || p.target === id) ? null : p));
     if (selected?.id === id) selectScreen(definition.startScreenId);
     setNotice(null);
+  };
+
+  const addGroup = () => {
+    if (!selected) return;
+    let n = groups.length + 1;
+    while (groups.includes(`Group ${n}`)) n += 1;
+    updateScreen(selected.id, { group: `Group ${n}` });
+    setRightTab('parameters');
   };
 
   const setStart = (id: string) => {
@@ -538,6 +572,14 @@ export function FunnelEditor({
   } as CSSProperties;
 
   const elementMode = mode === 'editor' && bridge.selection !== null;
+  const depths = useMemo(() => depthFromStart(definition), [definition]);
+  const lengths = useMemo(() => longestPathFrom(definition), [definition]);
+  const groups = useMemo(() => screenGroups(definition), [definition]);
+  const selectedPosition = selected
+    ? previewStep(definition, selected.id, depths, lengths)
+    : { step: 1, total: 1 };
+  const selectedHeader = selected?.header ?? {};
+
   const normalizedQuery = query.trim().toLowerCase();
   const visibleScreens = normalizedQuery
     ? definition.screens.filter(
@@ -608,11 +650,152 @@ export function FunnelEditor({
             ))}
           </select>
         </label>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Group</span>
+          <input
+            className={shell.input}
+            list="screen-groups"
+            placeholder="No group"
+            maxLength={60}
+            value={selected.group ?? ''}
+            onChange={(e) =>
+              updateScreen(selected.id, {
+                group: e.target.value === '' ? undefined : e.target.value,
+              })
+            }
+          />
+          <datalist id="screen-groups">
+            {groups.map((g) => (
+              <option key={g} value={g} />
+            ))}
+          </datalist>
+        </label>
       </div>
 
       <details className={shell.paramSection} open>
         <summary className={shell.paramSummary}>
+          Header <ChevronDown size={14} />
+        </summary>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Title</span>
+          <input
+            className={shell.input}
+            maxLength={200}
+            placeholder="No title"
+            value={selectedHeader.title ?? ''}
+            onChange={(e) => updateHeader(selected.id, { title: e.target.value })}
+          />
+        </label>
+      </details>
+
+      <details className={shell.paramSection} open>
+        <summary className={shell.paramSummary}>
+          Header Image <ChevronDown size={14} />
+        </summary>
+        <ToggleRow
+          label="Show Logo"
+          checked={selectedHeader.showLogo ?? false}
+          onChange={(showLogo) => updateHeader(selected.id, { showLogo })}
+        />
+        {selectedHeader.showLogo && !definition.theme.logoUrl ? (
+          <p className={shell.muted}>Set the logo URL in Styles.</p>
+        ) : null}
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Image</span>
+          <input
+            className={shell.input}
+            type="url"
+            placeholder="https://…"
+            maxLength={2000}
+            value={selectedHeader.imageUrl ?? ''}
+            onChange={(e) =>
+              updateHeader(selected.id, {
+                imageUrl: e.target.value === '' ? undefined : e.target.value,
+              })
+            }
+          />
+        </label>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Alt Text</span>
+          <input
+            className={shell.input}
+            maxLength={200}
+            value={selectedHeader.imageAlt ?? ''}
+            onChange={(e) => updateHeader(selected.id, { imageAlt: e.target.value })}
+          />
+        </label>
+        <Segmented
+          label="Position"
+          options={IMAGE_POSITIONS}
+          value={selectedHeader.imagePosition ?? 'left'}
+          onChange={(imagePosition) => updateHeader(selected.id, { imagePosition })}
+        />
+      </details>
+
+      <details className={shell.paramSection} open>
+        <summary className={shell.paramSummary}>
           Navigation <ChevronDown size={14} />
+        </summary>
+        <ToggleRow
+          label="Back Button"
+          checked={selectedHeader.backButton ?? true}
+          onChange={(backButton) => updateHeader(selected.id, { backButton })}
+        />
+        <ToggleRow
+          label="Counter"
+          checked={selectedHeader.counter ?? true}
+          onChange={(counter) => updateHeader(selected.id, { counter })}
+        />
+        <ToggleRow
+          label="Progress bar"
+          checked={selectedHeader.progress ?? true}
+          onChange={(progress) => updateHeader(selected.id, { progress })}
+        />
+        {(selectedHeader.progress ?? true) ? (
+          <>
+            <Segmented
+              label="Type"
+              options={PROGRESS_OPTIONS}
+              value={selectedHeader.progressType ?? 'line'}
+              onChange={(progressType) => updateHeader(selected.id, { progressType })}
+            />
+            {(selectedHeader.progressType ?? 'line') === 'segments' ? (
+              <label className={shell.paramRow}>
+                <span className={shell.paramLabel}>Segments</span>
+                <input
+                  className={shell.input}
+                  type="number"
+                  min={1}
+                  max={MAX_PROGRESS_SEGMENTS}
+                  value={selectedHeader.segments ?? DEFAULT_SEGMENTS}
+                  onChange={(e) => {
+                    const n = Math.round(Number(e.target.value));
+                    if (!Number.isFinite(n)) return;
+                    updateHeader(selected.id, {
+                      segments: Math.min(MAX_PROGRESS_SEGMENTS, Math.max(1, n)),
+                    });
+                  }}
+                />
+              </label>
+            ) : null}
+            {(selectedHeader.progressType ?? 'line') === 'groups' && groups.length === 0 ? (
+              <p className={shell.muted}>Assign screens to groups to split the bar by group.</p>
+            ) : null}
+          </>
+        ) : null}
+        <ToggleRow
+          label="Auto Navigation"
+          checked={selected.autoNavigation ?? false}
+          onChange={(autoNavigation) => updateScreen(selected.id, { autoNavigation })}
+        />
+        {selected.autoNavigation && selected.type !== 'quiz_single' ? (
+          <p className={shell.muted}>Auto navigation works on single-choice quiz screens.</p>
+        ) : null}
+      </details>
+
+      <details className={shell.paramSection} open>
+        <summary className={shell.paramSummary}>
+          Connections <ChevronDown size={14} />
         </summary>
         <div className={shell.paramRow}>
           <span className={shell.paramLabel}>Start screen</span>
@@ -838,15 +1021,25 @@ export function FunnelEditor({
               />
             </label>
             <ol className={shell.screenList}>
-              {visibleScreens.map((screen) => {
+              {visibleScreens.map((screen, visibleIndex) => {
+                const groupName = screen.group?.trim() ?? '';
+                const prevGroup = visibleScreens[visibleIndex - 1]?.group?.trim() ?? '';
+                const groupLabel =
+                  groupName !== '' && groupName !== prevGroup ? (
+                    <li key={`group-${screen.id}`} className={shell.groupLabel} aria-hidden="true">
+                      <UsersIcon size={12} /> {groupName}
+                    </li>
+                  ) : null;
                 const index = definition.screens.indexOf(screen);
                 const meta = SCREEN_META[screen.type];
                 const severity = severityByScreen.get(screen.id);
                 const isSelected = screen.id === selected?.id;
-                return (
+                return [
+                  groupLabel,
                   <li
                     key={screen.id}
                     className={shell.screenRow}
+                    data-grouped={groupName !== ''}
                     data-selected={isSelected}
                     data-dragging={dragId === screen.id}
                     draggable={normalizedQuery === ''}
@@ -888,7 +1081,7 @@ export function FunnelEditor({
                           ) : null}
                         </span>
                         <span className={shell.screenMeta}>
-                          {index + 1} · {meta.label}
+                          {index + 1} · /{screen.id}
                           {screen.id === definition.startScreenId ? (
                             <span className={shell.startBadge}>Start</span>
                           ) : null}
@@ -931,8 +1124,8 @@ export function FunnelEditor({
                         </ul>
                       ) : null}
                     </div>
-                  </li>
-                );
+                  </li>,
+                ];
               })}
             </ol>
             {visibleScreens.length === 0 ? (
@@ -964,8 +1157,14 @@ export function FunnelEditor({
               </button>
               {addMenuList('bottom')}
             </div>
-            <button type="button" className={shell.footGhost} onClick={() => setSettingsOpen(true)}>
-              <GearIcon size={14} /> Settings
+            <button
+              type="button"
+              className={shell.footGhost}
+              disabled={!selected}
+              onClick={addGroup}
+              title="Put the selected screen into a new group"
+            >
+              <UsersIcon size={14} /> Group
             </button>
           </div>
         </aside>
@@ -994,6 +1193,14 @@ export function FunnelEditor({
             </div>
           </div>
           <div className={shell.stageTools} data-side="right">
+            <button
+              type="button"
+              className={shell.localizeBtn}
+              disabled
+              title="Localization is coming soon"
+            >
+              <TranslateIcon size={14} /> Localize
+            </button>
             <span className={shell.stageMeta}>
               {mode === 'editor'
                 ? `${selectedIndex + 1} / ${definition.screens.length} · ${selected?.title ?? ''}`
@@ -1005,6 +1212,16 @@ export function FunnelEditor({
             <div className={shell.phone}>
               <span className={shell.island} aria-hidden="true" />
               <div className={shell.phoneScreen} style={phoneStyle}>
+                {selected ? (
+                  <div className={shell.phoneHeader}>
+                    <ScreenHeaderBar
+                      definition={definition}
+                      screen={selected}
+                      position={selectedPosition}
+                      canGoBack={selectedPosition.step > 1}
+                    />
+                  </div>
+                ) : null}
                 <div ref={previewSlotRef} className={shell.previewSlot} />
               </div>
             </div>
@@ -1206,6 +1423,26 @@ export function FunnelEditor({
                 theme={definition.theme}
                 onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
               />
+              <label className={shell.paramRow}>
+                <span className={shell.paramLabel}>Logo URL</span>
+                <input
+                  className={shell.input}
+                  type="url"
+                  placeholder="https://…"
+                  maxLength={2000}
+                  value={definition.theme.logoUrl ?? ''}
+                  onChange={(e) =>
+                    mutate((d) => ({
+                      ...d,
+                      theme: {
+                        ...d.theme,
+                        logoUrl: e.target.value === '' ? undefined : e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+              <p className={shell.muted}>Shown in screen headers with Show Logo turned on.</p>
             </div>
           </div>
         </aside>

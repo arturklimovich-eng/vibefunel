@@ -229,3 +229,18 @@ export const ChevronDown = (p: P) => (
     <path d="m6 9 6 6 6-6" />
   </Icon>
 );
+
+export const UsersIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="9" cy="8" r="3.5" />
+    <path d="M2.5 20a6.5 6.5 0 0 1 13 0" />
+    <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18.5 14.4A6.5 6.5 0 0 1 21.5 20" />
+  </Icon>
+);
+
+export const TranslateIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 5h8M8 3v2M10.5 5c-.7 4-3.4 7.4-6.5 9M6 9c1.3 2.2 3.3 4 5.5 5" />
+    <path d="M13 21l4-9 4 9M14.5 18h5" />
+  </Icon>
+);

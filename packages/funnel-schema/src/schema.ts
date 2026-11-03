@@ -137,6 +137,39 @@ export type PuckData = z.infer<typeof puckDataSchema>;
 
 export const positionSchema = z.object({ x: z.number(), y: z.number() });
 
+export const MAX_URL_LENGTH = 2000;
+const urlStringSchema = z.string().max(MAX_URL_LENGTH);
+
+export function isHttpsUrl(value: string | undefined): value is string {
+  if (!value) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export const PROGRESS_TYPES = ['line', 'segments', 'groups'] as const;
+export const progressTypeSchema = z.enum(PROGRESS_TYPES);
+export type ProgressType = z.infer<typeof progressTypeSchema>;
+
+export const MAX_PROGRESS_SEGMENTS = 12;
+export const MAX_GROUP_NAME_LENGTH = 60;
+
+export const screenHeaderSchema = z.object({
+  title: z.string().max(MAX_TITLE_LENGTH).optional(),
+  showLogo: z.boolean().optional(),
+  imageUrl: urlStringSchema.optional(),
+  imageAlt: z.string().max(MAX_TITLE_LENGTH).optional(),
+  imagePosition: z.enum(['left', 'right']).optional(),
+  backButton: z.boolean().optional(),
+  counter: z.boolean().optional(),
+  progress: z.boolean().optional(),
+  progressType: progressTypeSchema.optional(),
+  segments: z.number().int().min(1).max(MAX_PROGRESS_SEGMENTS).optional(),
+});
+export type ScreenHeader = z.infer<typeof screenHeaderSchema>;
+
 export const screenSchema = z.object({
   id: idSchema,
   type: screenTypeSchema,
@@ -144,6 +177,9 @@ export const screenSchema = z.object({
   content: puckDataSchema,
   animation: animationSchema,
   position: positionSchema,
+  header: screenHeaderSchema.optional(),
+  group: z.string().max(MAX_GROUP_NAME_LENGTH).optional(),
+  autoNavigation: z.boolean().optional(),
 });
 export type Screen = z.infer<typeof screenSchema>;
 
@@ -182,6 +218,7 @@ export const themeSchema = z.object({
   backgroundColor: colorSchema,
   textColor: colorSchema,
   fontScale: z.number().min(MIN_FONT_SCALE).max(MAX_FONT_SCALE).optional(),
+  logoUrl: urlStringSchema.optional(),
 });
 export type Theme = z.infer<typeof themeSchema>;
 
