@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 
 export default function ErrorPage({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     console.error(error.message);
@@ -17,7 +17,7 @@ export default function ErrorPage({
       <h1>Something went wrong</h1>
       <p>An unexpected error occurred. Please try again.</p>
       {error.digest ? <p>Error reference: {error.digest}</p> : null}
-      <button type="button" onClick={reset}>
+      <button type="button" onClick={retry}>
         Try again
       </button>
     </main>

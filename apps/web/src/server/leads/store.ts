@@ -22,5 +22,10 @@ export interface FunnelLead {
 
 export interface LeadStore {
   recordLead(lead: LeadInput): Promise<{ duplicate: boolean }>;
-  listFunnelLeads(projectId: string, funnelId: string, limit: number | null): Promise<FunnelLead[]>;
+  listFunnelLeads(
+    projectId: string,
+    funnelId: string,
+    limit: number | null,
+    since?: string,
+  ): Promise<FunnelLead[]>;
 }

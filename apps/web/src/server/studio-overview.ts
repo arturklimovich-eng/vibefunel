@@ -35,6 +35,7 @@ export interface RevenueMetric {
 
 export interface FunnelRow {
   id: string;
+  groupId: string | null;
   name: string;
   slug: string;
   live: boolean;
@@ -116,17 +117,22 @@ function isPaid(payment: FunnelPayment): boolean {
   return payment.status === 'succeeded' && revocationOf(payment) === null;
 }
 
-async function safeLeads(funnel: Funnel): Promise<FunnelLead[] | null> {
+async function safeLeads(funnel: Funnel, since: string): Promise<FunnelLead[] | null> {
   try {
-    return await getLeadStore().listFunnelLeads(funnel.projectId, funnel.id, null);
+    return await getLeadStore().listFunnelLeads(funnel.projectId, funnel.id, null, since);
   } catch {
     return null;
   }
 }
 
-async function safePayments(funnel: Funnel): Promise<FunnelPayment[] | null> {
+async function safePayments(funnel: Funnel, since: string): Promise<FunnelPayment[] | null> {
   try {
-    return await getPaymentStore().listFunnelPayments(funnel.projectId, funnel.id, PAYMENT_LIMIT);
+    return await getPaymentStore().listFunnelPayments(
+      funnel.projectId,
+      funnel.id,
+      PAYMENT_LIMIT,
+      since,
+    );
   } catch {
     return null;
   }
@@ -153,6 +159,7 @@ export async function loadStudioOverview(
   now = Date.now(),
 ): Promise<StudioOverview> {
   const window = buildWindow(range, now);
+  const since = new Date(window.previousStart).toISOString();
   const size = window.buckets.length;
   const leadSeries = new Array<number>(size).fill(0);
   const paidSeries = new Array<number>(size).fill(0);
@@ -171,8 +178,8 @@ export async function loadStudioOverview(
   const loaded = await Promise.all(
     funnels.map(async (funnel) => {
       const [funnelLeads, funnelPayments, screens] = await Promise.all([
-        safeLeads(funnel),
-        safePayments(funnel),
+        safeLeads(funnel, since),
+        safePayments(funnel, since),
         safeScreens(repo, funnel),
       ]);
       return { funnel, funnelLeads, funnelPayments, screens };
@@ -230,6 +237,7 @@ export async function loadStudioOverview(
     const topRowCurrency = [...rowRevenue.entries()].sort((a, b) => b[1] - a[1])[0];
     return {
       id: funnel.id,
+      groupId: funnel.groupId,
       name: funnel.name,
       slug: funnel.slug,
       live: funnel.publishedVersionId !== null,

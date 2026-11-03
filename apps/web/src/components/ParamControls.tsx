@@ -294,10 +294,53 @@ export function SelectRow<T extends string>({
 
 const HEX = /^#?([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
 
+const FUNCTIONAL = /^(rgba?|hsla?)\(\s*([^)]*)\)$/i;
+
+function channel(part: string, scale: number): number {
+  const n = parseFloat(part);
+  if (!Number.isFinite(n)) return Number.NaN;
+  return part.trim().endsWith('%') ? (n / 100) * scale : n;
+}
+
+function hexOf(r: number, g: number, b: number): string {
+  return [r, g, b]
+    .map((c) =>
+      Math.round(Math.min(255, Math.max(0, c)))
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+    .toUpperCase();
+}
+
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [f(0) * 255, f(8) * 255, f(4) * 255];
+}
+
+function splitFunctional(value: string): { hex: string; alpha: number } | null {
+  const m = FUNCTIONAL.exec(value);
+  if (!m?.[1] || m[2] === undefined) return null;
+  const parts = m[2].split(/[\s,/]+/).filter((p) => p !== '');
+  if (parts.length < 3) return null;
+  const [p0 = '', p1 = '', p2 = '', p3] = parts;
+  const alpha = p3 === undefined ? 100 : Math.round(channel(p3, 1) * 100);
+  let rgb: [number, number, number];
+  if (m[1].toLowerCase().startsWith('rgb')) {
+    rgb = [channel(p0, 255), channel(p1, 255), channel(p2, 255)];
+  } else {
+    rgb = hslToRgb(parseFloat(p0), channel(p1, 1), channel(p2, 1));
+  }
+  if (rgb.some((c) => !Number.isFinite(c)) || !Number.isFinite(alpha)) return null;
+  return { hex: hexOf(...rgb), alpha: Math.min(100, Math.max(0, alpha)) };
+}
+
 function splitColor(value: string | undefined): { hex: string; alpha: number } | null {
   if (!value) return null;
   const m = HEX.exec(value.trim());
-  if (!m?.[1]) return null;
+  if (!m?.[1]) return splitFunctional(value.trim());
   let body = m[1];
   if (body.length === 3) body = [...body].map((c) => c + c).join('');
   const alpha = body.length === 8 ? Math.round((parseInt(body.slice(6), 16) / 255) * 100) : 100;
@@ -389,11 +432,13 @@ export function ColorRow({
 export function UrlRow({
   label,
   value,
+  inherited,
   onChange,
   onReset,
 }: {
   label: string;
   value: string | undefined;
+  inherited?: string;
   onChange: (value: string | undefined) => void;
   onReset?: () => void;
 }) {
@@ -404,7 +449,7 @@ export function UrlRow({
         className={shell.input}
         type="url"
         aria-label={label}
-        placeholder="https://…"
+        placeholder={inherited || 'https://…'}
         maxLength={2000}
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}

@@ -1,7 +1,9 @@
+import { slugSchema } from '@funnel/schema';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { isMissingServiceKey } from '@/lib/supabase/service';
 import { checkRateLimit, clientKey, ipLimit } from '@/server/rate-limit';
+import { getPublishedReader } from '@/server/repository';
 import {
   getPaymentProvider,
   getPaymentStore,
@@ -21,6 +23,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 const querySchema = z.object({
+  slug: slugSchema,
   runId: runIdSchema,
   screenId: screenIdSchema,
   ref: providerRefSchema.optional(),
@@ -38,12 +41,13 @@ export async function GET(request: Request) {
   }
   const params = new URL(request.url).searchParams;
   const parsed = querySchema.safeParse({
+    slug: params.get('slug'),
     runId: params.get('runId'),
     screenId: params.get('screenId'),
     ref: params.get('ref') ?? undefined,
   });
   if (!parsed.success) return NextResponse.json({ error: 'invalid_query' }, { status: 400 });
-  const { runId, screenId, ref } = parsed.data;
+  const { slug, runId, screenId, ref } = parsed.data;
   const payers = payerHashesFromRequest(request, runId, screenId);
   if (payers.length === 0) {
     return NextResponse.json({ status: 'pending' }, { headers: NO_STORE });
@@ -53,8 +57,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ status: 'pending' }, { headers: NO_STORE });
   }
   try {
+    const published = await getPublishedReader().getPublishedBySlug(slug);
+    if (!published) return NextResponse.json({ status: 'pending' }, { headers: NO_STORE });
     const store = getPaymentStore();
-    const query: StatusQuery = { runId, screenId, payers, provider: provider?.id, ref };
+    const query: StatusQuery = {
+      funnelId: published.funnelId,
+      runId,
+      screenId,
+      payers,
+      provider: provider?.id,
+      ref,
+    };
     let detail = await store.getStatus(query);
     if (
       provider?.id === 'solidgate' &&

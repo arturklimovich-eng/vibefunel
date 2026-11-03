@@ -96,14 +96,16 @@ export function ScreenStyles({
         {media === 'image' ? (
           <UrlRow
             label="Image"
-            value={s.backgroundImageUrl ?? inherited.backgroundImageUrl}
+            value={s.backgroundImageUrl}
+            inherited={inherited.backgroundImageUrl}
             onChange={(backgroundImageUrl) => set({ backgroundImageUrl })}
             onReset={reset('backgroundImageUrl')}
           />
         ) : (
           <UrlRow
             label="Video"
-            value={s.backgroundVideoUrl ?? inherited.backgroundVideoUrl}
+            value={s.backgroundVideoUrl}
+            inherited={inherited.backgroundVideoUrl}
             onChange={(backgroundVideoUrl) => set({ backgroundVideoUrl })}
             onReset={reset('backgroundVideoUrl')}
           />

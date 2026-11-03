@@ -150,6 +150,7 @@ export class SupabasePaymentStore implements PaymentStore {
       let request = serviceClient()
         .from('payments')
         .select('status, reason, updated_at, amount, amount_refunded, dispute_status')
+        .eq('funnel_id', query.funnelId)
         .eq('run_id', query.runId)
         .eq('screen_id', query.screenId)
         .in('payer_hash', query.payers);
@@ -186,10 +187,11 @@ export class SupabasePaymentStore implements PaymentStore {
     return { status: latest.status, reason: latest.reason, found: true, revoked: null };
   }
 
-  async hasActivePayment(runId: string, screenId: string): Promise<boolean> {
+  async hasActivePayment(funnelId: string, runId: string, screenId: string): Promise<boolean> {
     const { data, error } = await serviceClient()
       .from('payments')
       .select('status, reason, amount, amount_refunded, dispute_status')
+      .eq('funnel_id', funnelId)
       .eq('run_id', runId)
       .eq('screen_id', screenId)
       .in('status', ['succeeded', 'pending'])
@@ -217,19 +219,20 @@ export class SupabasePaymentStore implements PaymentStore {
     projectId: string,
     funnelId: string,
     limit: number,
+    since?: string,
   ): Promise<FunnelPayment[]> {
     if (!z.uuid().safeParse(projectId).success || !z.uuid().safeParse(funnelId).success) {
       return [];
     }
-    const { data, error } = await serviceClient()
+    let request = serviceClient()
       .from('payments')
       .select(
         'provider, provider_ref, screen_id, plan_key, amount, currency, status, reason, amount_refunded, dispute_status, created_at',
       )
       .eq('project_id', projectId)
-      .eq('funnel_id', funnelId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .eq('funnel_id', funnelId);
+    if (since !== undefined) request = request.gte('created_at', since);
+    const { data, error } = await request.order('created_at', { ascending: false }).limit(limit);
     if (error) throw new Error(`payment list failed: ${error.message}`);
     return z
       .array(funnelPaymentRowSchema)

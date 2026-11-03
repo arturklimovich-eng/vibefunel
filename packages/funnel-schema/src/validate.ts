@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { flattenContent } from './walk';
 import { isPaymentType, isSkipType } from './schema';
 import type { Edge, FunnelDefinition, Screen } from './schema';
 
@@ -180,7 +181,7 @@ export function validateFunnel(
   const buttonLinked = new Set<string>();
   for (const s of definition.screens) {
     if (isPaymentScreen(s)) continue;
-    for (const item of s.content.content) {
+    for (const item of flattenContent(s.content.content)) {
       if (item.type !== 'Button') continue;
       const action = item.props.action ?? 'next';
       const destination = item.props.destination;

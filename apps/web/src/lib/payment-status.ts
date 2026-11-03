@@ -30,12 +30,13 @@ export function retryAfterMs(response: Response): number {
 }
 
 export async function fetchPaymentStatus(
+  slug: string,
   runId: string,
   screenId: string,
   signal: AbortSignal,
   ref: string | null,
 ): Promise<StatusResult> {
-  const query = new URLSearchParams({ runId, screenId });
+  const query = new URLSearchParams({ slug, runId, screenId });
   if (ref !== null) query.set('ref', ref);
   const response = await fetch(`/api/payments/status?${query.toString()}`, {
     signal,

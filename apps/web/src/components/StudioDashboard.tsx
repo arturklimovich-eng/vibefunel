@@ -1,14 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { StorageMode } from '@/lib/storage-mode';
-import type { FunnelRow, Metric, OverviewRange, StudioOverview } from '@/server/studio-overview';
-import { DeleteFunnelButton } from './DeleteFunnelButton';
-import { StudioShell, firstName, useStudioShell } from './StudioShell';
-import { DotsIcon, FlowIcon, PenIcon, PlusIcon, SearchIcon } from './EditorIcons';
+import type { FunnelGroup } from '@/server/funnel-repository';
+import type { Metric, OverviewRange, StudioOverview } from '@/server/studio-overview';
+import { StudioShell, firstName } from './StudioShell';
+import { SearchIcon } from './EditorIcons';
 import styles from './StudioDashboard.module.css';
 
 const RANGE_LABEL: Record<OverviewRange, string> = {
@@ -23,11 +22,9 @@ const PREVIOUS_LABEL: Record<OverviewRange, string> = {
   year: 'last year',
 };
 
-const ROW_COLORS = ['#ef4f37', '#7968f2', '#1c9b70', '#e89a2a', '#0ea5e9', '#db2777'];
+export const NUMBER = new Intl.NumberFormat('en');
 
-const NUMBER = new Intl.NumberFormat('en');
-
-function formatMoney(amount: number, currency: string | null): string {
+export function formatMoney(amount: number, currency: string | null): string {
   if (!currency) return '—';
   try {
     const formatter = new Intl.NumberFormat('en', { style: 'currency', currency });
@@ -178,15 +175,15 @@ function PerformanceChart({ overview }: { overview: StudioOverview }) {
       >
         <defs>
           <linearGradient id="leadFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#7968f2" stopOpacity="0.22" />
-            <stop offset="100%" stopColor="#7968f2" stopOpacity="0" />
+            <stop offset="0%" stopColor="#4b7bf5" stopOpacity="0.22" />
+            <stop offset="100%" stopColor="#4b7bf5" stopOpacity="0" />
           </linearGradient>
         </defs>
         {area ? <path d={area} fill="url(#leadFill)" /> : null}
         <path
           d={leadLine}
           fill="none"
-          stroke="#7968f2"
+          stroke="#4b7bf5"
           strokeWidth="2.5"
           vectorEffect="non-scaling-stroke"
           strokeLinecap="round"
@@ -194,7 +191,7 @@ function PerformanceChart({ overview }: { overview: StudioOverview }) {
         <path
           d={smoothPath(paidPts)}
           fill="none"
-          stroke="#ef4f37"
+          stroke="#f0685d"
           strokeWidth="2"
           strokeDasharray="5 5"
           vectorEffect="non-scaling-stroke"
@@ -210,136 +207,24 @@ function PerformanceChart({ overview }: { overview: StudioOverview }) {
   );
 }
 
-function FunnelActions({ row }: { row: FunnelRow }) {
-  const [menuAt, setMenuAt] = useState<{ top: number; right: number } | null>(null);
-  const open = menuAt !== null;
-  const ref = useRef<HTMLDivElement>(null);
-  const setOpen = (next: boolean) => {
-    const rect = ref.current?.getBoundingClientRect();
-    setMenuAt(
-      next && rect ? { top: rect.bottom + 4, right: window.innerWidth - rect.right } : null,
-    );
-  };
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: MouseEvent | KeyboardEvent) => {
-      if (
-        event instanceof KeyboardEvent
-          ? event.key === 'Escape'
-          : !ref.current?.contains(event.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    const dismiss = () => setMenuAt(null);
-    document.addEventListener('mousedown', close);
-    document.addEventListener('keydown', close);
-    window.addEventListener('resize', dismiss);
-    document.addEventListener('scroll', dismiss, true);
-    return () => {
-      document.removeEventListener('mousedown', close);
-      document.removeEventListener('keydown', close);
-      window.removeEventListener('resize', dismiss);
-      document.removeEventListener('scroll', dismiss, true);
-    };
-  }, [open]);
-  return (
-    <div className={styles.rowActions}>
-      <Link
-        href={`/studio/funnels/${row.id}?view=flow`}
-        className={styles.iconBtn}
-        aria-label={`Open the flow of ${row.name}`}
-        title="Flow"
-      >
-        <FlowIcon size={15} />
-      </Link>
-      <Link
-        href={`/studio/funnels/${row.id}`}
-        className={styles.iconBtn}
-        aria-label={`Edit ${row.name}`}
-        title="Edit"
-      >
-        <PenIcon size={15} />
-      </Link>
-      <div className={styles.menuHost} ref={ref}>
-        <button
-          type="button"
-          className={styles.iconBtn}
-          aria-label={`More actions for ${row.name}`}
-          aria-expanded={open}
-          onClick={() => setOpen(!open)}
-        >
-          <DotsIcon size={15} />
-        </button>
-        {open ? (
-          <div className={styles.menu} role="menu" style={menuAt ?? undefined}>
-            <Link
-              href={`/preview/${row.id}`}
-              target="_blank"
-              role="menuitem"
-              className={styles.menuItem}
-            >
-              Preview draft
-            </Link>
-            {row.live ? (
-              <Link
-                href={`/f/${row.slug}`}
-                target="_blank"
-                role="menuitem"
-                className={styles.menuItem}
-              >
-                Open live page
-              </Link>
-            ) : null}
-            <DeleteFunnelButton
-              funnelId={row.id}
-              name={row.name}
-              role="menuitem"
-              className={styles.menuItemDanger}
-            >
-              Delete funnel
-            </DeleteFunnelButton>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function CreateAnotherButton({ empty }: { empty: boolean }) {
-  const { openCreate } = useStudioShell();
-  return (
-    <button type="button" className={styles.createAnother} onClick={openCreate}>
-      <PlusIcon size={14} /> {empty ? 'Create a funnel' : 'Create another funnel'}
-    </button>
-  );
-}
-
 export function StudioDashboard({
   overview,
+  groups,
   storage,
   userEmail,
 }: {
   overview: StudioOverview;
+  groups: FunnelGroup[];
   storage: StorageMode;
   userEmail: string | null;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState('');
   const [greeting, setGreeting] = useState<string | null>(null);
   const name = firstName(userEmail);
 
   useEffect(() => {
     setGreeting(greetingFor(new Date().getHours()));
   }, []);
-
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return overview.funnels;
-    return overview.funnels.filter(
-      (f) => f.name.toLowerCase().includes(q) || f.slug.toLowerCase().includes(q),
-    );
-  }, [overview.funnels, query]);
 
   const total = overview.funnels.length;
   const consentRate =
@@ -354,21 +239,15 @@ export function StudioDashboard({
       userEmail={userEmail}
       funnelCount={total}
       liveCount={overview.liveCount}
+      groups={groups}
       search={
-        <label className={styles.search}>
+        <form action="/studio/funnels" className={styles.search} role="search">
           <SearchIcon size={15} />
-          <span className={styles.srOnly}>Search funnels</span>
-          <input
-            type="search"
-            placeholder="Search funnels..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter')
-                document.getElementById('funnels')?.scrollIntoView({ behavior: 'smooth' });
-            }}
-          />
-        </label>
+          <label htmlFor="overview-search" className={styles.srOnly}>
+            Search funnels
+          </label>
+          <input id="overview-search" type="search" name="q" placeholder="Search funnels..." />
+        </form>
       }
     >
       <div className={styles.inner}>
@@ -447,10 +326,10 @@ export function StudioDashboard({
               </div>
               <div className={styles.legend}>
                 <span>
-                  <i style={{ background: '#7968f2' }} /> Leads
+                  <i style={{ background: '#4b7bf5' }} /> Leads
                 </span>
                 <span>
-                  <i style={{ background: '#ef4f37' }} /> Paid orders
+                  <i style={{ background: '#f0685d' }} /> Paid orders
                 </span>
               </div>
             </div>
@@ -493,86 +372,6 @@ export function StudioDashboard({
             </div>
           </section>
         </div>
-
-        <section
-          id="funnels"
-          className={styles.card + ' ' + styles.tableCard}
-          aria-labelledby="funnels-title"
-        >
-          <div className={styles.tableHead}>
-            <div>
-              <h2 id="funnels-title" className={styles.cardTitle}>
-                Your funnels
-              </h2>
-              <p className={styles.cardSub}>
-                {total} funnel{total === 1 ? '' : 's'} in your workspace
-                {query ? ` · ${rows.length} matching “${query}”` : ''}
-              </p>
-            </div>
-          </div>
-          <div className={styles.tableScroll}>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th scope="col">Funnel</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Leads</th>
-                  <th scope="col">Paid</th>
-                  <th scope="col">Revenue</th>
-                  <th scope="col">
-                    <span className={styles.srOnly}>Actions</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => {
-                  const color =
-                    ROW_COLORS[overview.funnels.indexOf(row) % ROW_COLORS.length] ?? ROW_COLORS[0];
-                  return (
-                    <tr
-                      key={row.id}
-                      style={{ '--row-color': color } as CSSProperties}
-                      data-index={index}
-                    >
-                      <td>
-                        <Link href={`/studio/funnels/${row.id}`} className={styles.funnelCell}>
-                          <span className={styles.funnelIcon}>
-                            <FlowIcon size={16} />
-                          </span>
-                          <span>
-                            <b>{row.name}</b>
-                            <small>
-                              {row.screens === null
-                                ? `/${row.slug}`
-                                : `${row.screens} screen${row.screens === 1 ? '' : 's'} · /${row.slug}`}
-                            </small>
-                          </span>
-                        </Link>
-                      </td>
-                      <td>
-                        <span className={styles.status} data-live={row.live}>
-                          <i /> {row.live ? 'Live' : 'Draft'}
-                        </span>
-                      </td>
-                      <td>{NUMBER.format(row.leads)}</td>
-                      <td>{NUMBER.format(row.paid)}</td>
-                      <td>{row.currency ? formatMoney(row.revenue, row.currency) : '—'}</td>
-                      <td>
-                        <FunnelActions row={row} />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {total === 0 ? (
-              <p className={styles.empty}>No funnels yet. Create your first one to get started.</p>
-            ) : rows.length === 0 ? (
-              <p className={styles.empty}>No funnels match “{query}”.</p>
-            ) : null}
-          </div>
-          <CreateAnotherButton empty={total === 0} />
-        </section>
       </div>
     </StudioShell>
   );

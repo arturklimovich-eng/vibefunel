@@ -12,6 +12,7 @@ import type { Connection } from '@xyflow/react';
 import { z } from 'zod';
 import {
   MAX_PROGRESS_SEGMENTS,
+  MAX_TITLE_LENGTH,
   PROGRESS_TYPES,
   SCREEN_TYPES,
   isQuizScreen,
@@ -32,6 +33,7 @@ import { randomId } from '@/lib/ids';
 import { STUDIO_NARROW_MEDIA_QUERY } from '@/lib/layout';
 import { getScreenOptions } from '@/lib/puck/adapters';
 import { retypeEdges } from '@/lib/retype-edges';
+import { stripScreenRefs } from '@/lib/screen-refs';
 import { allowedComponentsForScreenType } from '@/lib/puck/config';
 import { createQuizContent, createScreenContent } from '@/lib/puck/templates';
 import { parseCurrentRevision, parseIssues, useDraftSaver } from '@/lib/use-draft-saver';
@@ -287,6 +289,7 @@ export function FunnelEditor({
   const [rightTab, setRightTab] = useState<RightTab>('parameters');
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [contentEpoch, setContentEpoch] = useState(0);
   const [slots, setSlots] = useState<ScreenEditorSlots>({
     preview: null,
     fields: null,
@@ -406,11 +409,19 @@ export function FunnelEditor({
     }
     const screen = screensById.get(id);
     if (!window.confirm(`Delete the screen "${screen?.title ?? id}" and its connections?`)) return;
+    let openChanged = false;
     mutate((d) => ({
       ...d,
-      screens: d.screens.filter((s) => s.id !== id),
+      screens: d.screens
+        .filter((s) => s.id !== id)
+        .map((s) => {
+          const cleaned = stripScreenRefs(s, id, { destinations: true });
+          if (cleaned !== s && s.id === selected?.id) openChanged = true;
+          return cleaned;
+        }),
       edges: d.edges.filter((e) => e.sourceScreenId !== id && e.targetScreenId !== id),
     }));
+    if (openChanged) setContentEpoch((n) => n + 1);
     setPending((p) => (p && (p.source === id || p.target === id) ? null : p));
     if (selected?.id === id) selectScreen(definition.startScreenId);
     setNotice(null);
@@ -458,7 +469,7 @@ export function FunnelEditor({
   const cloneScreen = (source: Screen): Screen => ({
     ...structuredClone(source),
     id: shortId('screen'),
-    title: source.title ? `${source.title} copy` : 'Copy',
+    title: source.title ? `${source.title} copy`.slice(0, MAX_TITLE_LENGTH) : 'Copy',
     position: { x: source.position.x + 40, y: source.position.y + 40 },
   });
 
@@ -723,7 +734,8 @@ export function FunnelEditor({
     if (type === screen.type) return;
     const allowed = new Set(allowedComponentsForScreenType(type));
     const removed = screen.content.content.filter((item) => !allowed.has(item.type));
-    const retyped = retypeEdges(definition.edges, screen, type);
+    const kept = screen.content.content.filter((item) => allowed.has(item.type));
+    const retyped = retypeEdges(definition.edges, screen, type, kept);
     if (removed.length > 0 || retyped.changes > 0) {
       const parts: string[] = [];
       if (removed.length > 0) {
@@ -739,22 +751,30 @@ export function FunnelEditor({
         return;
       }
     }
+    const lostQuiz =
+      isQuizScreen(screen) && !isQuizScreen({ content: { ...screen.content, content: kept } });
+    let openChanged = false;
     mutate((d) => ({
       ...d,
-      edges: retypeEdges(d.edges, screen, type).edges,
-      screens: d.screens.map((s) =>
-        s.id === screen.id
-          ? {
-              ...s,
-              type,
-              content: {
-                ...s.content,
-                content: s.content.content.filter((item) => allowed.has(item.type)),
-              },
-            }
-          : s,
-      ),
+      edges: retypeEdges(d.edges, screen, type, kept).edges,
+      screens: d.screens.map((s) => {
+        if (s.id === screen.id) {
+          return {
+            ...s,
+            type,
+            content: {
+              ...s.content,
+              content: s.content.content.filter((item) => allowed.has(item.type)),
+            },
+          };
+        }
+        if (!lostQuiz) return s;
+        const cleaned = stripScreenRefs(s, screen.id, { destinations: false });
+        if (cleaned !== s && s.id === selected?.id) openChanged = true;
+        return cleaned;
+      }),
     }));
+    if (openChanged) setContentEpoch((n) => n + 1);
   };
 
   const requestPublish = async (retryOnStaleConflict: boolean): Promise<PublishOutcome> => {
@@ -942,7 +962,10 @@ export function FunnelEditor({
           <input
             className={shell.input}
             value={selected.title}
-            onChange={(e) => updateScreen(selected.id, { title: e.target.value })}
+            maxLength={MAX_TITLE_LENGTH}
+            onChange={(e) =>
+              updateScreen(selected.id, { title: e.target.value.slice(0, MAX_TITLE_LENGTH) })
+            }
           />
         </label>
         <label className={shell.paramRow}>
@@ -1977,7 +2000,7 @@ export function FunnelEditor({
 
       {selected ? (
         <ScreenEditor
-          key={`${selected.id}-${selected.type}`}
+          key={`${selected.id}-${selected.type}-${contentEpoch}`}
           screenId={selected.id}
           screenType={selected.type}
           theme={definition.theme}

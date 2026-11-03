@@ -76,7 +76,7 @@ export function ElementInspector({
     onUpdate({ style: cleanObject({ ...style, ...patch }) });
 
   const { position, ...themeable } = style;
-  const canSaveToTheme = Object.keys(themeable).length > 0;
+  const canSaveToTheme = tokenKey !== 'other' && Object.keys(themeable).length > 0;
 
   const quizScreens = screens.filter((s) => s.id !== screen.id && getScreenOptions(s).length > 0);
   const whenScreen = quizScreens.find((s) => s.id === meta.visibleWhen?.screenId);

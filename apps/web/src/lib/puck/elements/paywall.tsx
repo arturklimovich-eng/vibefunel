@@ -18,17 +18,25 @@ import type { PlanItem } from '../element-schemas';
 import type { Components } from './shared';
 import styles from './elements.module.css';
 
-function usePlanSelection(props: BlockProps, keys: string[], selected: number) {
+function usePlanSelection(
+  props: BlockProps,
+  keys: string[],
+  selected: number,
+  ownKeys: string[] = keys,
+) {
   const runtime = useRuntime();
   const live = !isEditingRender(props) && runtime.screenId !== null;
   const current = runtime.values[SELECTED_PLAN_KEY] ?? '';
   const fallback = keys[selected - 1] ?? keys[0] ?? '';
   const known = keys.includes(current);
+  const otherPicker =
+    !known && !ownKeys.includes(current) && runtime.screenPlanKeys.includes(current);
+  const adopt = live && !known && !otherPicker && fallback !== '';
   const { setValue } = runtime;
   useEffect(() => {
-    if (live && !known && fallback !== '') setValue(SELECTED_PLAN_KEY, fallback);
-  }, [live, known, fallback, setValue]);
-  const active = known ? current : fallback;
+    if (adopt) setValue(SELECTED_PLAN_KEY, fallback);
+  }, [adopt, fallback, setValue]);
+  const active = known ? current : otherPicker ? '' : fallback;
   return {
     active,
     choose: (key: string) => {
@@ -48,6 +56,7 @@ function PlanPickerView(props: BlockProps & { composite: boolean; billing?: bool
     props,
     visible.map((e) => e.key),
     p?.selected ?? 1,
+    all.map((e) => e.key),
   );
   if (!p) return null;
   const { accentColor, ...rest } = props.blockStyle;

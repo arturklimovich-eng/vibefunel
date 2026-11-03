@@ -75,10 +75,16 @@ export class FileLeadStore implements LeadStore {
     projectId: string,
     funnelId: string,
     limit: number | null,
+    since?: string,
   ): Promise<FunnelLead[]> {
     return this.withLock(async () => {
       const rows = (await this.read()).leads
-        .filter((l) => l.projectId === projectId && l.funnelId === funnelId)
+        .filter(
+          (l) =>
+            l.projectId === projectId &&
+            l.funnelId === funnelId &&
+            (since === undefined || l.createdAt >= since),
+        )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return (limit === null ? rows : rows.slice(0, limit)).map((l) => ({
         email: l.email,

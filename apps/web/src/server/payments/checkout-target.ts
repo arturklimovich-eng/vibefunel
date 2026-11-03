@@ -11,6 +11,20 @@ export const PLAN_BOUND_BLOCKS: ReadonlySet<string> = new Set([
   'Button',
 ]);
 
+type ContentItem = { type: string; props: Record<string, unknown> };
+
+export function isPlanBound(item: ContentItem): boolean {
+  if (!PLAN_BOUND_BLOCKS.has(item.type)) return false;
+  return item.type !== 'Button' || item.props.action === 'purchase';
+}
+
+export function usesPickerPlan(item: ContentItem): boolean {
+  return (
+    item.props.source === 'picker' ||
+    ((item.type === 'WalletButton' || item.type === 'Button') && item.props.source !== 'fixed')
+  );
+}
+
 export type CheckoutTarget =
   | { ok: true; funnelId: string; projectId: string; plan: Plan; definition: FunnelDefinition }
   | { ok: false; status: 400 | 404 | 503; error: string };
@@ -31,12 +45,10 @@ export async function resolveCheckoutTarget(
     published.definition.screens.flatMap((s) => s.content.content.flatMap(pickerPlanKeys)),
   );
   const bound = screen.content.content.some((item) => {
-    if (!PLAN_BOUND_BLOCKS.has(item.type)) return false;
-    if (item.type === 'Button' && item.props.action !== 'purchase') return false;
-    const fromPicker =
-      item.props.source === 'picker' ||
-      ((item.type === 'WalletButton' || item.type === 'Button') && item.props.source !== 'fixed');
-    return fromPicker ? pickerKeys.has(input.planKey) : item.props.planKey === input.planKey;
+    if (!isPlanBound(item)) return false;
+    return usesPickerPlan(item)
+      ? pickerKeys.has(input.planKey)
+      : item.props.planKey === input.planKey;
   });
   if (!bound) return { ok: false, status: 400, error: 'plan_not_bound' };
   return {

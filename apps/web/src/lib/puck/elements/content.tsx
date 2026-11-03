@@ -143,8 +143,9 @@ const lottieProps = z.object({
 function Lottie(props: BlockProps) {
   const p = parse(lottieProps, props);
   const host = useRef<HTMLDivElement>(null);
-  const [failed, setFailed] = useState(false);
   const src = p?.src ?? '';
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const failed = failedSrc === src;
   const loop = p?.loop ?? true;
   useEffect(() => {
     const el = host.current;
@@ -170,7 +171,7 @@ function Lottie(props: BlockProps) {
         destroy = () => anim.destroy();
       } catch (error) {
         console.warn('Lottie failed to load:', error instanceof Error ? error.message : error);
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setFailedSrc(src);
       }
     };
     void load();

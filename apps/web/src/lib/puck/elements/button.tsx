@@ -162,11 +162,19 @@ function ButtonView(props: BlockProps) {
   );
 }
 
-function ActionField({ value, onChange }: { value: unknown; onChange: (v: string) => void }) {
+function ActionField({
+  value,
+  onChange,
+  nested = false,
+}: {
+  value: unknown;
+  onChange: (v: string) => void;
+  nested?: boolean;
+}) {
   const { screenType } = useEditorData();
   const allowed = BUTTON_ACTIONS.filter((a) => {
     if (a === 'skip') return screenType !== null && isSkipType(screenType);
-    if (a === 'purchase') return screenType !== null && isPaymentType(screenType);
+    if (a === 'purchase') return !nested && screenType !== null && isPaymentType(screenType);
     return true;
   });
   const current = typeof value === 'string' ? value : 'next';
@@ -301,8 +309,29 @@ export const buttonComponents: Components = {
       },
       countdown: { type: 'number', label: 'Countdown (minutes, 0 = off)', min: 0, max: 240 },
     },
-    resolveFields: (data, { fields }) => {
+    resolveFields: (data, { fields, parent }) => {
       const action = (data.props as Record<string, unknown>).action ?? 'next';
+      const resolved =
+        parent === null
+          ? fields
+          : {
+              ...fields,
+              action: {
+                type: 'custom' as const,
+                label: 'Action',
+                render: ({
+                  value,
+                  onChange,
+                }: {
+                  value: unknown;
+                  onChange: (v: string) => void;
+                }) => (
+                  <FieldLabel label="Action" el="div">
+                    <ActionField value={value} onChange={onChange} nested />
+                  </FieldLabel>
+                ),
+              },
+            };
       const source = (data.props as Record<string, unknown>).source ?? 'picker';
       const keep = new Set(['label', 'action', 'countdown']);
       if (action === 'next') keep.add('destination');
@@ -312,7 +341,7 @@ export const buttonComponents: Components = {
         keep.add('source');
         if (source === 'fixed') keep.add('planKey');
       }
-      return Object.fromEntries(Object.entries(fields).filter(([k]) => keep.has(k)));
+      return Object.fromEntries(Object.entries(resolved).filter(([k]) => keep.has(k)));
     },
     defaultProps: {
       label: 'Continue',

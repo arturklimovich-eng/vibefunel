@@ -146,7 +146,7 @@ sequenceDiagram
   participant S as Next.js server
   participant P as Stripe
   participant D as PaymentStore
-  C->>S: GET /api/payments/status (runId, screenId)
+  C->>S: GET /api/payments/status (slug, runId, screenId)
   S-->>C: pending (nothing recorded yet)
   C->>S: POST /api/payments/checkout { slug, screenId, runId, planKey }
   S->>S: published funnel by slug, screen is checkout/upsell and bound to planKey, plan from PAYMENT_PLANS_JSON

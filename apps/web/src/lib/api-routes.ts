@@ -2,6 +2,12 @@ import { SLUG_PATTERN } from '@funnel/schema';
 
 export const FUNNELS_ROUTE = '/api/funnels';
 
+export const FUNNEL_GROUPS_ROUTE = '/api/funnel-groups';
+
+export function funnelGroupRoute(id: string): string {
+  return FUNNEL_GROUPS_ROUTE + '/' + encodeURIComponent(id);
+}
+
 export const SLUG_MAX_LENGTH = 60;
 
 export const SLUG_INPUT_PATTERN = SLUG_PATTERN.source.replace(/-\]/g, '\\-]');

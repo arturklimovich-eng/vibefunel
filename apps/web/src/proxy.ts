@@ -20,7 +20,9 @@ function isProtected(pathname: string): boolean {
     pathname.startsWith('/studio/') ||
     pathname.startsWith('/preview/') ||
     pathname === '/api/funnels' ||
-    pathname.startsWith('/api/funnels/')
+    pathname.startsWith('/api/funnels/') ||
+    pathname === '/api/funnel-groups' ||
+    pathname.startsWith('/api/funnel-groups/')
   );
 }
 

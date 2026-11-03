@@ -35,26 +35,36 @@ export class SupabaseLeadStore implements LeadStore {
     projectId: string,
     funnelId: string,
     limit: number | null,
+    since?: string,
   ): Promise<FunnelLead[]> {
     if (!z.uuid().safeParse(projectId).success || !z.uuid().safeParse(funnelId).success) {
       return [];
     }
     const client = createSupabaseServiceClient();
     const leads: FunnelLead[] = [];
+    let cursor: { createdAt: string; id: string } | null = null;
     for (;;) {
-      const from = leads.length;
-      const size = limit === null ? PAGE_SIZE : Math.min(PAGE_SIZE, limit - from);
+      const size = limit === null ? PAGE_SIZE : Math.min(PAGE_SIZE, limit - leads.length);
       if (size <= 0) break;
-      const { data, error } = await client
+      let request = client
         .from('leads')
-        .select('email, consent, consent_text, screen_id, block_id, run_id, created_at')
+        .select('id, email, consent, consent_text, screen_id, block_id, run_id, created_at')
         .eq('project_id', projectId)
-        .eq('funnel_id', funnelId)
+        .eq('funnel_id', funnelId);
+      if (since !== undefined) request = request.gte('created_at', since);
+      if (cursor !== null) {
+        request = request.or(
+          `created_at.lt."${cursor.createdAt}",and(created_at.eq."${cursor.createdAt}",id.lt.${cursor.id})`,
+        );
+      }
+      const { data, error } = await request
         .order('created_at', { ascending: false })
-        .order('id', { ascending: true })
-        .range(from, from + size - 1);
+        .order('id', { ascending: false })
+        .limit(size);
       if (error) throw new Error(`lead list failed: ${error.message}`);
-      const rows = z.array(leadRowSchema).parse(data);
+      const rows = z.array(leadRowSchema.extend({ id: z.uuid() })).parse(data);
+      const last = rows[rows.length - 1];
+      if (last) cursor = { createdAt: last.created_at, id: last.id };
       for (const row of rows) {
         leads.push({
           email: row.email,

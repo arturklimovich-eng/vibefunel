@@ -3,7 +3,7 @@
 import type { ComponentType, ReactNode } from 'react';
 import {
   containerStyle,
-  isElementVisible,
+  isItemShown,
   readElementMeta,
   readElementStyle,
   resolveStyle,
@@ -43,8 +43,7 @@ function Frame({
   const meta = readElementMeta(props);
   const editing = isEditingRender(props);
   const id = typeof props.id === 'string' ? props.id : null;
-  const base = isElementVisible(meta, runtime.answers);
-  const visible = id !== null && runtime.toggles[id] === true ? !base : base;
+  const visible = isItemShown(props, runtime.answers, runtime.toggles);
   if (!visible && !editing) return null;
   const animation = meta.animation && meta.animation !== 'off' ? meta.animation : undefined;
   const position = style.position ?? 'content';

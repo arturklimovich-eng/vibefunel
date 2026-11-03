@@ -21,6 +21,7 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Render } from '@puckeditor/core';
+import { flattenContent } from '@funnel/schema';
 import type { FunnelDefinition, Screen, Theme } from '@funnel/schema';
 import { depthFromStart, longestPathFrom, previewStep } from '@/lib/progress';
 import type { StepPosition } from '@/lib/progress';
@@ -45,6 +46,7 @@ export interface ScreenNodeData extends Record<string, unknown> {
   screen: Screen;
   definition: FunnelDefinition;
   position: StepPosition;
+  groupsKey: string;
   index: number;
   typeLabel: string;
   typeColor: string;
@@ -66,15 +68,18 @@ export function phoneVars(theme: Theme): CSSProperties {
   } as CSSProperties;
 }
 
-function StaticScreen({
-  screen,
-  definition,
-  position,
-}: {
+interface StaticScreenProps {
   screen: Screen;
   definition: FunnelDefinition;
   position: StepPosition;
-}) {
+  groupsKey: string;
+}
+
+const StaticScreen = memo(function StaticScreen({
+  screen,
+  definition,
+  position,
+}: StaticScreenProps) {
   const puckData = useMemo(() => toPuckData(screen.content), [screen.content]);
   const surface = screenSurface(screen, definition.theme);
   return (
@@ -99,10 +104,30 @@ function StaticScreen({
       </div>
     </div>
   );
+}, sameStaticScreen);
+
+function sameStaticScreen(a: StaticScreenProps, b: StaticScreenProps): boolean {
+  return (
+    a.screen === b.screen &&
+    a.definition.theme === b.definition.theme &&
+    a.position.step === b.position.step &&
+    a.position.total === b.position.total &&
+    a.groupsKey === b.groupsKey
+  );
 }
 
 const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<ScreenFlowNode>) {
-  const { screen, definition, position, index, typeLabel, typeColor, isStart, severity } = data;
+  const {
+    screen,
+    definition,
+    position,
+    groupsKey,
+    index,
+    typeLabel,
+    typeColor,
+    isStart,
+    severity,
+  } = data;
   return (
     <div
       className={styles.canvasNode}
@@ -130,7 +155,12 @@ const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<Screen
       >
         <Handle type="target" position={Position.Left} className={styles.canvasHandle} />
         <span className={styles.island} aria-hidden="true" />
-        <StaticScreen screen={screen} definition={definition} position={position} />
+        <StaticScreen
+          screen={screen}
+          definition={definition}
+          position={position}
+          groupsKey={groupsKey}
+        />
         <Handle type="source" position={Position.Right} className={styles.canvasHandle} />
       </div>
       <div className={styles.canvasPillRow} style={{ height: PILL_H }}>
@@ -151,7 +181,7 @@ function buttonEdges(definition: FunnelDefinition): FlowEdge[] {
   const ids = new Set(definition.screens.map((s) => s.id));
   const out: FlowEdge[] = [];
   for (const screen of definition.screens) {
-    for (const item of screen.content.content) {
+    for (const item of flattenContent(screen.content.content)) {
       const p = item.props;
       if (item.type !== 'Button' || (p.action ?? 'next') !== 'next') continue;
       if (typeof p.destination !== 'string' || !ids.has(p.destination)) continue;
@@ -292,6 +322,7 @@ export function ScreenCanvas({
     const placed = layoutColumns(definition);
     const depths = depthFromStart(definition);
     const lengths = longestPathFrom(definition);
+    const groupsKey = definition.screens.map((s) => `${s.id}:${s.group ?? ''}`).join('|');
     return definition.screens.map((screen, index) => {
       const slot = placed.get(screen.id) ?? { col: 0, row: index };
       const meta = typeMeta(screen);
@@ -309,6 +340,7 @@ export function ScreenCanvas({
           screen,
           definition,
           position: previewStep(definition, screen.id, depths, lengths),
+          groupsKey,
           index,
           typeLabel: meta.label,
           typeColor: meta.color,

@@ -7,6 +7,7 @@ import { funnelRoutes, readJson } from '@/lib/api-routes';
 
 export const AUTOSAVE_DELAY_MS = 1500;
 const KEEPALIVE_MAX_BYTES = 60_000;
+const RETRY_MAX_MS = 30_000;
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -111,6 +112,8 @@ export function useDraftSaver(
   const mountedRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const transientRef = useRef(false);
+  const failuresRef = useRef(0);
   const uncertainRef = useRef<{ revision: number; definitions: string[] } | null>(null);
 
   const markUncertain = useCallback((revision: number, definition: FunnelDefinition) => {
@@ -166,6 +169,7 @@ export function useDraftSaver(
       definition: sentDefinition,
     });
     setState('saving');
+    transientRef.current = false;
     try {
       const res = await fetch(funnelRoutes(funnelId).draft, {
         method: 'PUT',
@@ -180,6 +184,7 @@ export function useDraftSaver(
         savedRevisionRef.current = startRevision;
         uncertainRef.current = null;
       } else if (res.ok || res.status >= 500) {
+        transientRef.current = true;
         markUncertain(sentRevision, sentDefinition);
       } else if (res.status !== 409) {
         uncertainRef.current = null;
@@ -224,6 +229,7 @@ export function useDraftSaver(
       setState(revisionRef.current === startRevision ? 'saved' : 'idle');
       return true;
     } catch (error) {
+      transientRef.current = true;
       markUncertain(sentRevision, sentDefinition);
       if (mountedRef.current) {
         setTimestamp(new Date());
@@ -295,13 +301,17 @@ export function useDraftSaver(
         ok = await attempt();
       } while (ok && queuedRef.current && mountedRef.current);
       inFlightRef.current = null;
-      if (!ok && queuedRef.current && mountedRef.current && !conflictRef.current) {
+      if (ok) failuresRef.current = 0;
+      const retry = queuedRef.current || transientRef.current;
+      if (!ok && retry && mountedRef.current && !conflictRef.current) {
         queuedRef.current = false;
+        failuresRef.current += 1;
+        const delay = Math.min(AUTOSAVE_DELAY_MS * 2 ** (failuresRef.current - 1), RETRY_MAX_MS);
         if (retryRef.current !== null) clearTimeout(retryRef.current);
         retryRef.current = setTimeout(() => {
           retryRef.current = null;
           if (!pausedRef.current) void saveNow();
-        }, AUTOSAVE_DELAY_MS);
+        }, delay);
       }
       return ok;
     };
@@ -347,6 +357,29 @@ export function useDraftSaver(
       leave();
     };
   }, [clearTimers, leave]);
+
+  useEffect(() => {
+    const dirty = () => !conflictRef.current && revisionRef.current !== savedRevisionRef.current;
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden' && dirty() && !pausedRef.current) {
+        void saveNow();
+      }
+    };
+    const onPageHide = () => {
+      if (!dirty()) return;
+      if (debounceRef.current !== null) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      leave();
+    };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('pagehide', onPageHide);
+    };
+  }, [leave, saveNow]);
 
   useEffect(() => {
     if (revision === 0 || !mountedRef.current || conflictRef.current || pausedRef.current) return;

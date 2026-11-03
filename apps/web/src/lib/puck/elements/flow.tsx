@@ -298,7 +298,7 @@ export function useCountdown(id: string, minutes: number, live: boolean): number
     const timer = window.setInterval(tick, 1000);
     return () => window.clearInterval(timer);
   }, [live, minutes, id, runtime.funnelId]);
-  return left;
+  return live ? left : minutes * 60_000;
 }
 
 function Timer(props: BlockProps) {

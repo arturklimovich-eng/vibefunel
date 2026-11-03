@@ -20,6 +20,7 @@ import {
   DomainTakenError,
   FunnelNotFoundError,
   FunnelValidationError,
+  GroupNotFoundError,
   RevisionConflictError,
   SlugTakenError,
   VersionUnreadableError,
@@ -33,6 +34,7 @@ import type {
   RecheckOutcome,
   RecheckResult,
   FunnelDraft,
+  FunnelGroup,
   FunnelRepository,
   PublishedFunnel,
   PublishedReader,
@@ -54,6 +56,13 @@ const domainFileSchema = z.object({
   lastCheckedAt: z.string().nullable(),
   lastError: z.string().nullable(),
   recheckFailures: z.number().int().min(0).default(0),
+  createdAt: z.string(),
+});
+
+const groupFileSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  name: z.string().min(1),
   createdAt: z.string(),
 });
 
@@ -81,6 +90,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
   private readonly draftsDir: string;
   private readonly versionsDir: string;
   private readonly domainsDir: string;
+  private readonly groupsDir: string;
   private readonly reported = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
 
@@ -89,6 +99,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     this.draftsDir = path.join(dataDir, 'drafts');
     this.versionsDir = path.join(dataDir, 'versions');
     this.domainsDir = path.join(dataDir, 'domains');
+    this.groupsDir = path.join(dataDir, 'groups');
   }
 
   private withLock<T>(task: () => Promise<T>): Promise<T> {
@@ -103,8 +114,8 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
 
   private async bootstrap(): Promise<void> {
     await Promise.all(
-      [this.funnelsDir, this.draftsDir, this.versionsDir, this.domainsDir].map((d) =>
-        mkdir(d, { recursive: true }),
+      [this.funnelsDir, this.draftsDir, this.versionsDir, this.domainsDir, this.groupsDir].map(
+        (d) => mkdir(d, { recursive: true }),
       ),
     );
     const existing = (await readdir(this.funnelsDir)).filter((f) => f.endsWith('.json'));
@@ -115,6 +126,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     const funnel: Funnel = {
       id,
       projectId: 'local',
+      groupId: null,
       slug: 'demo',
       name: 'Demo funnel',
       status: 'draft',
@@ -550,8 +562,9 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     });
   }
 
-  async createFunnel(name: string, slug: string): Promise<Funnel> {
+  async createFunnel(name: string, slug: string, groupId: string | null = null): Promise<Funnel> {
     return this.withLock(async () => {
+      if (groupId !== null) await this.requireGroup(groupId);
       const existing = await this.listFunnels();
       if (existing.some((f) => f.slug === slug)) throw new SlugTakenError(slug);
       const id = randomUUID();
@@ -559,6 +572,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
       const funnel: Funnel = {
         id,
         projectId: 'local',
+        groupId,
         slug,
         name,
         status: 'draft',
@@ -593,6 +607,78 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
       await rm(path.join(this.draftsDir, `${funnelId}.json`), { force: true });
       await rm(path.join(this.funnelsDir, `${funnelId}.json`), { force: true });
     });
+  }
+
+  async moveFunnel(funnelId: string, groupId: string | null): Promise<Funnel> {
+    return this.withLock(async () => {
+      const funnel = await this.requireFunnel(funnelId);
+      if (groupId !== null) await this.requireGroup(groupId);
+      const updated: Funnel = { ...funnel, groupId };
+      await this.writeJson(path.join(this.funnelsDir, `${funnelId}.json`), updated);
+      return updated;
+    });
+  }
+
+  async listGroups(): Promise<FunnelGroup[]> {
+    await this.init();
+    const files = (await readdir(this.groupsDir)).filter((f) => f.endsWith('.json'));
+    const groups: FunnelGroup[] = [];
+    for (const file of files) {
+      const fullPath = path.join(this.groupsDir, file);
+      const raw = await this.readJson(fullPath);
+      if (raw === null) continue;
+      const parsed = groupFileSchema.safeParse(raw);
+      if (parsed.success) groups.push(parsed.data);
+      else this.report(fullPath, parsed.error.message);
+    }
+    return groups.sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async createGroup(name: string): Promise<FunnelGroup> {
+    return this.withLock(async () => {
+      await this.init();
+      const group: FunnelGroup = {
+        id: randomUUID(),
+        projectId: 'local',
+        name,
+        createdAt: new Date().toISOString(),
+      };
+      await this.writeJson(path.join(this.groupsDir, `${group.id}.json`), group);
+      return group;
+    });
+  }
+
+  async renameGroup(groupId: string, name: string): Promise<FunnelGroup> {
+    return this.withLock(async () => {
+      const group = await this.requireGroup(groupId);
+      const updated: FunnelGroup = { ...group, name };
+      await this.writeJson(path.join(this.groupsDir, `${groupId}.json`), updated);
+      return updated;
+    });
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    return this.withLock(async () => {
+      await this.requireGroup(groupId);
+      for (const funnel of await this.listFunnels()) {
+        if (funnel.groupId !== groupId) continue;
+        await this.writeJson(path.join(this.funnelsDir, `${funnel.id}.json`), {
+          ...funnel,
+          groupId: null,
+        });
+      }
+      await rm(path.join(this.groupsDir, `${groupId}.json`), { force: true });
+    });
+  }
+
+  private async requireGroup(id: string): Promise<FunnelGroup> {
+    await this.init();
+    if (!SAFE_ID.test(id)) throw new GroupNotFoundError(`Project "${id}" not found.`);
+    const file = path.join(this.groupsDir, `${id}.json`);
+    const raw = await this.readJson(file);
+    const parsed = raw === null ? null : groupFileSchema.safeParse(raw);
+    if (!parsed?.success) throw new GroupNotFoundError(`Project "${id}" not found.`);
+    return parsed.data;
   }
 
   private async getVersion(versionId: string): Promise<FunnelVersion | null> {

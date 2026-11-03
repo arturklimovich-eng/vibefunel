@@ -22,7 +22,7 @@ import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storag
 import type { HistoryEntry, RunState } from '@/lib/run-state';
 import { longestPathFrom } from '@/lib/progress';
 import { resolveStyle, screenSurface } from '@/lib/styles';
-import { defaultPickerPlan, screenGate } from '@/lib/puck/gates';
+import { defaultPickerPlan, hiddenBlockIds, pickerPlanKeys, screenGate } from '@/lib/puck/gates';
 import { ConsentBanner } from './ConsentBanner';
 import { ScreenHeaderBar } from './ScreenHeaderBar';
 import styles from './FunnelRuntime.module.css';
@@ -169,10 +169,14 @@ interface EmailBlock {
   required: boolean;
 }
 
-function emailBlocks(screen: Screen): { valid: boolean; blocks: EmailBlock[] } {
+function emailBlocks(
+  screen: Screen,
+  hidden: ReadonlySet<string>,
+): { valid: boolean; blocks: EmailBlock[] } {
   const blocks: EmailBlock[] = [];
   let valid = true;
   for (const block of emailBlocksOf(screen)) {
+    if (hidden.has(block.blockId)) continue;
     if (block.props === null) valid = false;
     else blocks.push({ blockId: block.blockId, required: block.props.required });
   }
@@ -262,6 +266,10 @@ function RuntimeInner({
   const screen = definition.screens.find((s) => s.id === currentScreenId);
   const pathLengths = useMemo(() => longestPathFrom(definition), [definition]);
   const defaultPlan = useMemo(() => defaultPickerPlan(definition), [definition]);
+  const screenPlanKeys = useMemo(
+    () => (screen ? screen.content.content.flatMap(pickerPlanKeys) : []),
+    [screen],
+  );
 
   const analyticsScope = useMemo<AnalyticsScope>(
     () => ({ projectId, funnelId, funnelVersion, runId }),
@@ -374,12 +382,13 @@ function RuntimeInner({
           return;
         }
       }
-      const gate = screenGate(screen, values);
+      const hidden = hiddenBlockIds(screen, answers, toggles);
+      const gate = screenGate(screen, values, hidden);
       if (gate !== null) {
         setMessage(gate);
         return;
       }
-      const email = emailBlocks(screen);
+      const email = emailBlocks(screen, hidden);
       if (!email.valid) {
         setMessage('This screen has an invalid email block and cannot continue.');
         return;
@@ -444,7 +453,20 @@ function RuntimeInner({
       setPayments(advanced.payments);
       setCurrentScreenId(advanced.currentScreenId);
     },
-    [answers, consents, definition, emails, history, payments, runId, slug, track, screen, values],
+    [
+      answers,
+      consents,
+      definition,
+      emails,
+      history,
+      payments,
+      runId,
+      slug,
+      track,
+      screen,
+      toggles,
+      values,
+    ],
   );
 
   useEffect(() => {
@@ -501,7 +523,7 @@ function RuntimeInner({
     }
     setRunId(id);
     setRestored(true);
-    if (returning || !saved) return;
+    if (returning || !saved || slug === null) return;
     const controller = new AbortController();
     const paidSteps = saved.history
       .map((entry, index) => ({ entry, index }))
@@ -512,7 +534,7 @@ function RuntimeInner({
       .slice(-MAX_VERIFIED_PAYMENTS);
     const verify = async () => {
       for (const { entry, index } of paidSteps) {
-        const result = await fetchPaymentStatus(id, entry.screenId, controller.signal, null);
+        const result = await fetchPaymentStatus(slug, id, entry.screenId, controller.signal, null);
         if (controller.signal.aborted) return;
         if (
           result.kind === 'status' &&
@@ -614,6 +636,7 @@ function RuntimeInner({
       consentPending: analytics.showBanner,
       decideConsent: analytics.decide,
       defaultPlan,
+      screenPlanKeys,
     }),
     [
       funnelId,
@@ -642,6 +665,7 @@ function RuntimeInner({
       analytics.showBanner,
       analytics.decide,
       defaultPlan,
+      screenPlanKeys,
     ],
   );
 

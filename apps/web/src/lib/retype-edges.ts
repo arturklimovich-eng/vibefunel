@@ -6,10 +6,15 @@ export interface RetypeResult {
   changes: number;
 }
 
-export function retypeEdges(edges: Edge[], screen: Screen, newType: ScreenType): RetypeResult {
+export function retypeEdges(
+  edges: Edge[],
+  screen: Screen,
+  newType: ScreenType,
+  keptContent: Screen['content']['content'] = screen.content.content,
+): RetypeResult {
   const wasPayment = isPaymentType(screen.type);
   const willBePayment = isPaymentType(newType);
-  const willBeQuiz = isQuizScreen(screen);
+  const willBeQuiz = isQuizScreen({ content: { ...screen.content, content: keptContent } });
   let changes = 0;
   let declineKept = false;
   const hasDefault = edges.some(

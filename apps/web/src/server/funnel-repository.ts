@@ -77,6 +77,20 @@ export class DomainNotFoundError extends Error {
   }
 }
 
+export class GroupNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'GroupNotFoundError';
+  }
+}
+
+export interface FunnelGroup {
+  id: string;
+  projectId: string;
+  name: string;
+  createdAt: string;
+}
+
 export interface CustomDomain {
   id: string;
   projectId: string;
@@ -127,7 +141,12 @@ export interface FunnelRepository {
   publish(funnelId: string, expectedRevision: number): Promise<FunnelVersion>;
   rollback(funnelId: string, versionId: string): Promise<Funnel>;
   listVersionSummaries(funnelId: string): Promise<VersionSummary[]>;
-  createFunnel(name: string, slug: string): Promise<Funnel>;
+  createFunnel(name: string, slug: string, groupId?: string | null): Promise<Funnel>;
+  moveFunnel(funnelId: string, groupId: string | null): Promise<Funnel>;
+  listGroups(): Promise<FunnelGroup[]>;
+  createGroup(name: string): Promise<FunnelGroup>;
+  renameGroup(groupId: string, name: string): Promise<FunnelGroup>;
+  deleteGroup(groupId: string): Promise<void>;
   deleteFunnel(funnelId: string): Promise<void>;
   listDomains(funnelId: string): Promise<CustomDomain[]>;
   getDomain(funnelId: string, domainId: string): Promise<CustomDomain | null>;

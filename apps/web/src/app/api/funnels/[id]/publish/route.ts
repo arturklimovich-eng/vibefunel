@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { FunnelDefinition } from '@funnel/schema';
 import { withStudio } from '@/server/api-helpers';
 import { parseJsonBody } from '@/server/parse-body';
-import { PLAN_BOUND_BLOCKS } from '@/server/payments/checkout-target';
+import { pickerPlanKeys } from '@/lib/puck/element-schemas';
+import { isPlanBound, usesPickerPlan } from '@/server/payments/checkout-target';
 import { loadPlans } from '@/server/payments/plans';
 
 export const dynamic = 'force-dynamic';
@@ -18,10 +19,14 @@ function unknownPlanKeys(definition: FunnelDefinition, plans: Record<string, unk
   const unknown = new Set<string>();
   for (const screen of definition.screens) {
     for (const item of screen.content.content) {
-      if (!PLAN_BOUND_BLOCKS.has(item.type)) continue;
-      const key = item.props.planKey;
-      if (typeof key !== 'string') continue;
-      if (!Object.hasOwn(plans, key)) unknown.add(key);
+      const keys = pickerPlanKeys(item);
+      if (isPlanBound(item) && !usesPickerPlan(item)) {
+        const key = item.props.planKey;
+        if (typeof key === 'string' && key !== '') keys.push(key);
+      }
+      for (const key of keys) {
+        if (!Object.hasOwn(plans, key)) unknown.add(key);
+      }
     }
   }
   return [...unknown];

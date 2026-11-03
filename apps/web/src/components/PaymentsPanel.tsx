@@ -25,10 +25,12 @@ type Payment = z.infer<typeof paymentSchema>;
 
 function formatMoney(amount: number, currency: string): string {
   try {
-    return new Intl.NumberFormat(undefined, {
+    const formatter = new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currency.toUpperCase(),
-    }).format(amount / 100);
+    });
+    const digits = formatter.resolvedOptions().maximumFractionDigits ?? 2;
+    return formatter.format(amount / 10 ** digits);
   } catch (error) {
     if (error instanceof RangeError) return `${(amount / 100).toFixed(2)} ${currency}`;
     throw error;

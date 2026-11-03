@@ -95,7 +95,7 @@ sequenceDiagram
   V->>C: POST {slug or host, screenId, runId, planKey, analyticsConsent}
   C->>C: rate limit, published version lookup, plan from the screen's catalogue
   C->>C: nonce = random, payer = HMAC(secret, run:screen:nonce)
-  C->>DB: hasActivePayment(run, screen, payer)?
+  C->>DB: hasActivePayment(funnel, run, screen)?
   alt pending or succeeded already
     C-->>V: 409 payment_exists
   else

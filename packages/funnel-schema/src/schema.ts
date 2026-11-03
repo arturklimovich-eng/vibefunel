@@ -285,6 +285,7 @@ export const slugSchema = z.string().regex(SLUG_PATTERN);
 export const funnelSchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
+  groupId: z.string().min(1).nullable().default(null),
   slug: slugSchema,
   name: z.string().min(1),
   status: z.enum(['draft', 'published']),

@@ -53,7 +53,7 @@ function mapRepositoryError(error: unknown): NextResponse | null {
   if (isNamed(error, 'DomainLimitError')) {
     return NextResponse.json({ error: 'domain_limit' }, { status: 409 });
   }
-  if (isNamed(error, 'DomainNotFoundError')) {
+  if (isNamed(error, 'DomainNotFoundError') || isNamed(error, 'GroupNotFoundError')) {
     return NextResponse.json({ error: 'not_found' }, { status: 404 });
   }
   if (isNamed(error, 'MissingServiceKeyError') || isNamed(error, 'DnsConfigError')) {

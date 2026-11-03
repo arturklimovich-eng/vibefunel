@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { signOut } from '@/app/auth/actions';
 import type { StorageMode } from '@/lib/storage-mode';
+import type { FunnelGroup } from '@/server/funnel-repository';
 import { NewFunnelForm } from './NewFunnelForm';
 import {
   BookIcon,
@@ -18,9 +19,11 @@ import {
 } from './EditorIcons';
 import styles from './StudioDashboard.module.css';
 
-export type StudioSection = 'overview' | 'docs';
+export type StudioSection = 'overview' | 'funnels' | 'docs';
 
-const ShellContext = createContext<{ openCreate: () => void }>({ openCreate: () => {} });
+const ShellContext = createContext<{ openCreate: (groupId?: string | null) => void }>({
+  openCreate: () => {},
+});
 
 export function useStudioShell() {
   return useContext(ShellContext);
@@ -46,6 +49,7 @@ export function StudioShell({
   userEmail,
   funnelCount,
   liveCount,
+  groups,
   search,
   children,
 }: {
@@ -54,10 +58,12 @@ export function StudioShell({
   userEmail: string | null;
   funnelCount: number;
   liveCount: number;
+  groups: FunnelGroup[];
   search?: ReactNode;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
+  const [createIn, setCreateIn] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const name = firstName(userEmail);
   const liveShare = funnelCount > 0 ? (liveCount / funnelCount) * 100 : 0;
@@ -69,7 +75,10 @@ export function StudioShell({
     if (!creating && dialog.open) dialog.close();
   }, [creating]);
 
-  const openCreate = () => setCreating(true);
+  const openCreate = (groupId?: string | null) => {
+    setCreateIn(groupId ?? null);
+    setCreating(true);
+  };
 
   return (
     <ShellContext.Provider value={{ openCreate }}>
@@ -99,8 +108,9 @@ export function StudioShell({
               <HomeIcon size={17} /> Overview
             </Link>
             <Link
-              href={active === 'overview' ? '#funnels' : '/studio#funnels'}
+              href="/studio/funnels"
               className={styles.navItem}
+              aria-current={active === 'funnels' ? 'page' : undefined}
             >
               <FlowIcon size={17} /> Funnels
               <span className={styles.navCount}>{funnelCount}</span>
@@ -124,7 +134,7 @@ export function StudioShell({
               <div className={styles.planBar}>
                 <span style={{ width: `${liveShare}%` }} />
               </div>
-              <button type="button" className={styles.planLink} onClick={openCreate}>
+              <button type="button" className={styles.planLink} onClick={() => openCreate()}>
                 Create a funnel
               </button>
             </div>
@@ -165,12 +175,15 @@ export function StudioShell({
               <Link href="/studio" aria-current={active === 'overview' ? 'page' : undefined}>
                 Overview
               </Link>
+              <Link href="/studio/funnels" aria-current={active === 'funnels' ? 'page' : undefined}>
+                Funnels
+              </Link>
               <Link href="/studio/docs" aria-current={active === 'docs' ? 'page' : undefined}>
                 Docs
               </Link>
             </nav>
             {search}
-            <button type="button" className={styles.createBtn} onClick={openCreate}>
+            <button type="button" className={styles.createBtn} onClick={() => openCreate()}>
               <PlusIcon size={15} /> New funnel
             </button>
           </header>
@@ -199,7 +212,13 @@ export function StudioShell({
               <CloseIcon size={16} />
             </button>
           </div>
-          {creating ? <NewFunnelForm onCancel={() => setCreating(false)} /> : null}
+          {creating ? (
+            <NewFunnelForm
+              groups={groups}
+              initialGroupId={createIn}
+              onCancel={() => setCreating(false)}
+            />
+          ) : null}
         </dialog>
       </div>
     </ShellContext.Provider>

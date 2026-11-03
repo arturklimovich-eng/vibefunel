@@ -14,6 +14,7 @@ import {
   ForbiddenError,
   FunnelNotFoundError,
   FunnelValidationError,
+  GroupNotFoundError,
   RevisionConflictError,
   SlugTakenError,
   VersionUnreadableError,
@@ -22,6 +23,7 @@ import type {
   CustomDomain,
   DomainCheck,
   FunnelDraft,
+  FunnelGroup,
   FunnelRepository,
   PublishedFunnel,
   PublishedReader,
@@ -29,7 +31,9 @@ import type {
 } from './funnel-repository';
 import { parseStoredDefinition } from './stored-definition';
 
-const FUNNEL_COLUMNS = 'id, project_id, slug, name, status, published_version_id, draft_revision';
+const FUNNEL_COLUMNS =
+  'id, project_id, group_id, slug, name, status, published_version_id, draft_revision';
+const GROUP_COLUMNS = 'id, project_id, name, created_at';
 const VERSION_SUMMARY_COLUMNS = 'id, funnel_id, version, created_at';
 const VERSION_COLUMNS = `${VERSION_SUMMARY_COLUMNS}, schema_version, definition`;
 const UNIQUE_VIOLATION = '23505';
@@ -49,12 +53,24 @@ const uuidSchema = z.string().uuid();
 const funnelRowSchema = z.object({
   id: z.string(),
   project_id: z.string(),
+  group_id: z.string().nullable(),
   slug: z.string(),
   name: z.string(),
   status: z.enum(['draft', 'published']),
   published_version_id: z.string().nullable(),
   draft_revision: z.number().int(),
 });
+
+const groupRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  name: z.string(),
+  created_at: z.string(),
+});
+
+function toGroup(row: z.infer<typeof groupRowSchema>): FunnelGroup {
+  return { id: row.id, projectId: row.project_id, name: row.name, createdAt: row.created_at };
+}
 
 const draftRowSchema = z.object({
   id: z.string(),
@@ -127,6 +143,7 @@ function toFunnel(row: z.infer<typeof funnelRowSchema>): Funnel {
   return {
     id: row.id,
     projectId: row.project_id,
+    groupId: row.group_id,
     slug: row.slug,
     name: row.name,
     status: row.status,
@@ -358,15 +375,17 @@ export class SupabaseFunnelRepository implements FunnelRepository {
       }));
   }
 
-  async createFunnel(name: string, slug: string): Promise<Funnel> {
+  async createFunnel(name: string, slug: string, groupId: string | null = null): Promise<Funnel> {
     const ids = await this.memberProjectIds();
-    const projectId = ids[0];
+    const group = groupId === null ? null : await this.requireGroup(groupId);
+    const projectId = group ? group.projectId : ids[0];
     if (!projectId) throw new Error('createFunnel: the current user has no project.');
     const definition = createStarterFunnel();
     const { data, error } = await this.client
       .from('funnels')
       .insert({
         project_id: projectId,
+        group_id: group ? group.id : null,
         slug,
         name,
         status: 'draft',
@@ -380,6 +399,99 @@ export class SupabaseFunnelRepository implements FunnelRepository {
       throw fail('createFunnel', error);
     }
     return toFunnel(funnelRowSchema.parse(data));
+  }
+
+  async moveFunnel(funnelId: string, groupId: string | null): Promise<Funnel> {
+    const funnel = await this.requireFunnel(funnelId);
+    if (groupId !== null) {
+      const group = await this.requireGroup(groupId);
+      if (group.projectId !== funnel.projectId) {
+        throw new GroupNotFoundError(`Project "${groupId}" not found.`);
+      }
+    }
+    const { data, error } = await this.client
+      .from('funnels')
+      .update({ group_id: groupId })
+      .eq('id', funnelId)
+      .eq('project_id', funnel.projectId)
+      .select(FUNNEL_COLUMNS)
+      .maybeSingle();
+    if (error) {
+      if (error.code === FOREIGN_KEY_VIOLATION) {
+        throw new GroupNotFoundError(`Project "${groupId}" not found.`);
+      }
+      throw fail('moveFunnel', error);
+    }
+    if (!data) throw new FunnelNotFoundError(`Funnel "${funnelId}" not found.`);
+    return toFunnel(funnelRowSchema.parse(data));
+  }
+
+  async listGroups(): Promise<FunnelGroup[]> {
+    const ids = await this.memberProjectIds();
+    if (ids.length === 0) return [];
+    const { data, error } = await this.client
+      .from('funnel_groups')
+      .select(GROUP_COLUMNS)
+      .in('project_id', ids)
+      .order('name');
+    if (error) throw fail('listGroups', error);
+    return z.array(groupRowSchema).parse(data).map(toGroup);
+  }
+
+  private async requireGroup(id: string): Promise<FunnelGroup> {
+    const notFound = new GroupNotFoundError(`Project "${id}" not found.`);
+    if (!uuidSchema.safeParse(id).success) throw notFound;
+    const ids = await this.memberProjectIds();
+    if (ids.length === 0) throw notFound;
+    const { data, error } = await this.client
+      .from('funnel_groups')
+      .select(GROUP_COLUMNS)
+      .eq('id', id)
+      .in('project_id', ids)
+      .maybeSingle();
+    if (error) throw fail('getGroup', error);
+    if (!data) throw notFound;
+    return toGroup(groupRowSchema.parse(data));
+  }
+
+  async createGroup(name: string): Promise<FunnelGroup> {
+    const projectId = (await this.memberProjectIds())[0];
+    if (!projectId) throw new Error('createGroup: the current user has no project.');
+    const { data, error } = await this.client
+      .from('funnel_groups')
+      .insert({ project_id: projectId, name })
+      .select(GROUP_COLUMNS)
+      .single();
+    if (error) throw fail('createGroup', error);
+    return toGroup(groupRowSchema.parse(data));
+  }
+
+  async renameGroup(groupId: string, name: string): Promise<FunnelGroup> {
+    const group = await this.requireGroup(groupId);
+    const { data, error } = await this.client
+      .from('funnel_groups')
+      .update({ name })
+      .eq('id', group.id)
+      .eq('project_id', group.projectId)
+      .select(GROUP_COLUMNS)
+      .maybeSingle();
+    if (error) throw fail('renameGroup', error);
+    if (!data) throw new GroupNotFoundError(`Project "${groupId}" not found.`);
+    return toGroup(groupRowSchema.parse(data));
+  }
+
+  async deleteGroup(groupId: string): Promise<void> {
+    const group = await this.requireGroup(groupId);
+    const { data, error } = await this.client
+      .from('funnel_groups')
+      .delete()
+      .eq('id', group.id)
+      .eq('project_id', group.projectId)
+      .select('id');
+    if (error) throw fail('deleteGroup', error);
+    if (z.array(z.object({ id: z.string() })).parse(data).length === 0) {
+      throw new GroupNotFoundError(`Project "${groupId}" not found.`);
+    }
   }
 
   async listDomains(funnelId: string): Promise<CustomDomain[]> {

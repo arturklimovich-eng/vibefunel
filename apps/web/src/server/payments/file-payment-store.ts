@@ -300,6 +300,7 @@ export class FilePaymentStore implements PaymentStore {
       const data = await this.read();
       const rows = data.payments.filter(
         (p) =>
+          p.funnelId === query.funnelId &&
           p.runId === query.runId &&
           p.screenId === query.screenId &&
           p.payerHash !== null &&
@@ -328,11 +329,12 @@ export class FilePaymentStore implements PaymentStore {
     });
   }
 
-  hasActivePayment(runId: string, screenId: string): Promise<boolean> {
+  hasActivePayment(funnelId: string, runId: string, screenId: string): Promise<boolean> {
     return this.withLock(async () => {
       const data = await this.read();
       return data.payments.some(
         (p) =>
+          p.funnelId === funnelId &&
           p.runId === runId &&
           p.screenId === screenId &&
           (p.status === 'pending' || (p.status === 'succeeded' && revocationOf(p) !== 'refunded')),
@@ -344,11 +346,21 @@ export class FilePaymentStore implements PaymentStore {
     return this.funnelProjectId(funnelId);
   }
 
-  listFunnelPayments(projectId: string, funnelId: string, limit: number): Promise<FunnelPayment[]> {
+  listFunnelPayments(
+    projectId: string,
+    funnelId: string,
+    limit: number,
+    since?: string,
+  ): Promise<FunnelPayment[]> {
     return this.withLock(async () => {
       const data = await this.read();
       return data.payments
-        .filter((p) => p.projectId === projectId && p.funnelId === funnelId)
+        .filter(
+          (p) =>
+            p.projectId === projectId &&
+            p.funnelId === funnelId &&
+            (since === undefined || p.createdAt >= since),
+        )
         .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
         .slice(0, limit)
         .map((p) => ({

@@ -47,7 +47,7 @@ sequenceDiagram
   participant D as DB (Postgres)
 
   B->>A: POST /api/payments/checkout {slug, screenId, runId, planKey}
-  A->>D: hasActivePayment(run, screen)
+  A->>D: hasActivePayment(funnel, run, screen)
   A->>S: sessions.create (metadata incl. payer hash)
   A-->>B: clientSecret + Set-Cookie fp_run_RUNID
   B->>S: card entry in embedded iframe
@@ -112,7 +112,7 @@ Stripe POSTs signed events to the webhook route (body limit 1 MiB, 413 above). `
 
 ### Step: Poll status
 
-`GET /api/payments/status?runId=&screenId=[&ref=]` reads the payer hashes from the cookie and asks the store for the payment. It returns `pending` when there is no cookie or no matching row yet; `processing` when a pending row is found; `succeeded`; `failed`; `needs_review` (failed with a funnel, project, plan, amount or currency reason); and `refunded` or `disputed` (see the sibling page). It says `pending` until the webhook lands because the browser return from Stripe and the webhook are independent, and only the webhook writes the row. After a Stripe return the panel polls every 2 s for up to 60 s, then shows "processing" or a timeout. Locally the webhook needs `stripe listen --forward-to localhost:3000/api/payments/stripe/webhook`, with the printed signing secret placed in `STRIPE_WEBHOOK_SECRET`; without it the panel times out.
+`GET /api/payments/status?slug=&runId=&screenId=[&ref=]` resolves the slug to the published funnel, reads the payer hashes from the cookie and asks the store for a payment of that funnel only (a run id carried to another funnel with the same screen id matches nothing). It returns `pending` when there is no cookie or no matching row yet; `processing` when a pending row is found; `succeeded`; `failed`; `needs_review` (failed with a funnel, project, plan, amount or currency reason); and `refunded` or `disputed` (see the sibling page). It says `pending` until the webhook lands because the browser return from Stripe and the webhook are independent, and only the webhook writes the row. After a Stripe return the panel polls every 2 s for up to 60 s, then shows "processing" or a timeout. Locally the webhook needs `stripe listen --forward-to localhost:3000/api/payments/stripe/webhook`, with the printed signing secret placed in `STRIPE_WEBHOOK_SECRET`; without it the panel times out.
 
 **Code:** `apps/web/src/app/api/payments/status/route.ts`, `apps/web/src/server/payments/types.ts` (`toPublicPaymentStatus`), `apps/web/src/server/payments/supabase-payment-store.ts` (`getStatus`), `apps/web/src/lib/payment-status.ts` (`fetchPaymentStatus`), `apps/web/src/lib/puck/CheckoutPanel.tsx` (`POLL_INTERVAL_MS`, `POLL_MAX_MS`).
 **Data:** `payments` filtered by `run_id`, `screen_id`, `payer_hash in (...)` and optionally `provider` plus `provider_ref` (the `session_id` from the return URL).

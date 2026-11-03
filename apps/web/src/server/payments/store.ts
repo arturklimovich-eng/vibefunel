@@ -38,6 +38,7 @@ export interface RecordResult {
 }
 
 export interface StatusQuery {
+  funnelId: string;
   runId: string;
   screenId: string;
   payers: string[];
@@ -61,7 +62,12 @@ export interface PaymentStore {
     limit: number,
   ): Promise<{ total: number; items: StaleDeferred[] }>;
   getStatus(query: StatusQuery): Promise<StatusDetail>;
-  hasActivePayment(runId: string, screenId: string): Promise<boolean>;
+  hasActivePayment(funnelId: string, runId: string, screenId: string): Promise<boolean>;
   getFunnelProjectId(funnelId: string): Promise<string | null>;
-  listFunnelPayments(projectId: string, funnelId: string, limit: number): Promise<FunnelPayment[]>;
+  listFunnelPayments(
+    projectId: string,
+    funnelId: string,
+    limit: number,
+    since?: string,
+  ): Promise<FunnelPayment[]>;
 }

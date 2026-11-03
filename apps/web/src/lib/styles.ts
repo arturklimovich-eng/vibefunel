@@ -410,7 +410,13 @@ export function boxStyle(style: ElementStyle): CSSProperties {
 }
 
 function cssUrl(url: string): string {
-  return `url("${encodeURI(url).replace(/["\\]/g, (c) => `\\${c}`)}")`;
+  let href = url;
+  try {
+    href = new URL(url).href;
+  } catch {
+    href = encodeURI(url);
+  }
+  return `url("${href.replace(/["\\\n\r]/g, (c) => encodeURIComponent(c))}")`;
 }
 
 export const BUILTIN_SCREEN: ScreenStyle = {
@@ -473,6 +479,16 @@ export function screenSurface(screen: Screen | undefined, theme: Theme): ScreenS
       ? style.backgroundVideoUrl
       : null;
   return { surface, body, header: header as CSSProperties, videoUrl };
+}
+
+export function isItemShown(
+  props: Record<string, unknown>,
+  answers: Record<string, string | string[]>,
+  toggles: Record<string, boolean>,
+): boolean {
+  const base = isElementVisible(readElementMeta(props), answers);
+  const id = typeof props.id === 'string' ? props.id : null;
+  return id !== null && toggles[id] === true ? !base : base;
 }
 
 export function isElementVisible(

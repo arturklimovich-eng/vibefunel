@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
   let active: boolean;
   try {
-    active = await getPaymentStore().hasActivePayment(runId, screenId);
+    active = await getPaymentStore().hasActivePayment(target.funnelId, runId, screenId);
   } catch (error) {
     if (isMissingServiceKey(error)) {
       return NextResponse.json({ status: 'not_configured' }, { status: 503 });

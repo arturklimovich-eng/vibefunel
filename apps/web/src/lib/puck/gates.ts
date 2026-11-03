@@ -1,4 +1,5 @@
 import type { Screen } from '@funnel/schema';
+import { isItemShown } from '@/lib/styles';
 import { blockId } from './block-id';
 import { checkboxProps, datePickerProps, ratingProps, textInputProps } from './element-schemas';
 export { defaultPickerPlan, pickerPlanKeys } from './element-schemas';
@@ -7,9 +8,26 @@ function valueOf(values: Record<string, string>, screenId: string, id: string): 
   return (values[`${screenId}:${id}`] ?? '').trim();
 }
 
-export function screenGate(screen: Screen, values: Record<string, string>): string | null {
+export function hiddenBlockIds(
+  screen: Screen,
+  answers: Record<string, string | string[]>,
+  toggles: Record<string, boolean>,
+): Set<string> {
+  const hidden = new Set<string>();
+  for (const [index, item] of screen.content.content.entries()) {
+    if (!isItemShown(item.props, answers, toggles)) hidden.add(blockId(item, index));
+  }
+  return hidden;
+}
+
+export function screenGate(
+  screen: Screen,
+  values: Record<string, string>,
+  hidden: ReadonlySet<string>,
+): string | null {
   for (const [index, item] of screen.content.content.entries()) {
     const id = blockId(item, index);
+    if (hidden.has(id)) continue;
     if (item.type === 'TextInput') {
       const p = textInputProps.safeParse(item.props);
       if (!p.success) continue;

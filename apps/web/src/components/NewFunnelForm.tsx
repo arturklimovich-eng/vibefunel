@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { SLUG_PATTERN } from '@funnel/schema';
 import { FUNNELS_ROUTE, SLUG_INPUT_PATTERN, SLUG_MAX_LENGTH, readJson } from '@/lib/api-routes';
+import type { FunnelGroup } from '@/server/funnel-repository';
 import styles from './StudioDashboard.module.css';
 
 function slugify(value: string): string {
@@ -22,13 +23,24 @@ function createdId(raw: unknown): string | null {
   return typeof funnel.id === 'string' ? funnel.id : null;
 }
 
-export function NewFunnelForm({ onCancel }: { onCancel?: () => void }) {
+export function NewFunnelForm({
+  groups,
+  initialGroupId,
+  onCancel,
+}: {
+  groups: FunnelGroup[];
+  initialGroupId: string | null;
+  onCancel?: () => void;
+}) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [slugTouched, setSlugTouched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [groupId, setGroupId] = useState<string>(
+    initialGroupId && groups.some((g) => g.id === initialGroupId) ? initialGroupId : '',
+  );
 
   const slugValid = SLUG_PATTERN.test(slug);
 
@@ -51,7 +63,7 @@ export function NewFunnelForm({ onCancel }: { onCancel?: () => void }) {
       const res = await fetch(FUNNELS_ROUTE, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: trimmed, slug }),
+        body: JSON.stringify({ name: trimmed, slug, groupId: groupId || null }),
       });
       if (res.status === 409) {
         setError('That slug is already taken.');
@@ -109,6 +121,19 @@ export function NewFunnelForm({ onCancel }: { onCancel?: () => void }) {
           />
         </span>
       </label>
+      {groups.length > 0 ? (
+        <label className={styles.formField}>
+          <span>Project</span>
+          <select value={groupId} onChange={(e) => setGroupId(e.target.value)}>
+            <option value="">No project</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
       {error ? (
         <p role="alert" className={styles.formError}>
           {error}

@@ -126,7 +126,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
       let sawProcessing = false;
       let wait = 0;
       for (let waited = 0; waited <= POLL_MAX_MS; waited += wait) {
-        const result = await fetchStatus(runId, screenId, signal, ref);
+        const result = await fetchStatus(slug, runId, screenId, signal, ref);
         if (signal.aborted) return;
         if (result.kind === 'not_configured') {
           setView({ kind: 'not_configured' });
@@ -225,6 +225,7 @@ export function CheckoutPanel({ planKey }: { planKey: string }) {
           return;
         }
         const result = await fetchStatus(
+          slug,
           runId,
           screenId,
           signal,

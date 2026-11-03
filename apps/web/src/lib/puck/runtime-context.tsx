@@ -37,6 +37,7 @@ export interface RuntimeApi {
   consentPending: boolean;
   decideConsent: (decision: 'granted' | 'denied') => void;
   defaultPlan: string;
+  screenPlanKeys: readonly string[];
 }
 
 const defaultApi: RuntimeApi = {
@@ -66,6 +67,7 @@ const defaultApi: RuntimeApi = {
   consentPending: false,
   decideConsent: () => undefined,
   defaultPlan: '',
+  screenPlanKeys: [],
 };
 
 export const RuntimeContext = createContext<RuntimeApi>(defaultApi);
