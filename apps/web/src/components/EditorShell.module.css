@@ -2372,10 +2372,14 @@
   background: var(--surface);
 }
 
-.flyout {
+.flyoutBridge {
   position: fixed;
-  left: calc(var(--left-w, 248px) + 6px);
+  left: calc(var(--left-w, 248px) - 12px);
   z-index: 45;
+  padding-left: 18px;
+}
+
+.flyout {
   display: grid;
   width: 224px;
   max-height: 520px;
@@ -2601,4 +2605,12 @@
   white-space: nowrap;
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.paramSection > :not(summary) {
+  margin-top: 12px;
+}
+
+.paramSection[open] {
+  gap: 0;
 }

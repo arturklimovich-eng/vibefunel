@@ -93,6 +93,43 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<CategoryId | null>(null);
   const [hover, setHover] = useState<{ id: CategoryId; top: number } | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dragging = useRef(false);
+  const hoverRef = useRef(hover);
+  hoverRef.current = hover;
+
+  const cancelTimers = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  const scheduleClose = () => {
+    cancelTimers();
+    timer.current = setTimeout(() => {
+      if (!dragging.current) setHover(null);
+    }, 350);
+  };
+  const scheduleOpen = (next: { id: CategoryId; top: number }) => {
+    cancelTimers();
+    if (hoverRef.current === null) {
+      setHover(next);
+      return;
+    }
+    if (hoverRef.current.id === next.id) return;
+    timer.current = setTimeout(() => setHover(next), 180);
+  };
+
+  useEffect(() => {
+    const release = () => {
+      if (!dragging.current) return;
+      dragging.current = false;
+      setHover(null);
+    };
+    window.addEventListener('pointerup', release);
+    return () => {
+      window.removeEventListener('pointerup', release);
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, []);
   const dispatch = usePuck((s) => s.dispatch);
   const content = usePuck((s) => s.appState.data.content);
   useApplyPresets();
@@ -209,12 +246,12 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
             <span>All elements</span>
             <span className={shell.addCount}>{baseCount}</span>
           </div>
-          <ul className={shell.categoryList} onMouseLeave={() => setHover(null)}>
+          <ul className={shell.categoryList} onMouseLeave={() => scheduleClose()}>
             {CATEGORIES.filter((c) => (counts.get(c.id) ?? 0) > 0).map((c) => (
               <li
                 key={c.id}
                 onMouseEnter={(e) =>
-                  setHover({ id: c.id, top: e.currentTarget.getBoundingClientRect().top })
+                  scheduleOpen({ id: c.id, top: e.currentTarget.getBoundingClientRect().top })
                 }
               >
                 <button
@@ -231,19 +268,26 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
                   <span className={shell.addCount}>{counts.get(c.id)}</span>
                   <ChevronRight size={13} />
                 </button>
-                {hover?.id === c.id ? (
-                  <div
-                    className={shell.flyout}
-                    style={{ top: Math.max(8, Math.min(hover.top - 40, window.innerHeight - 520)) }}
-                  >
-                    <Drawer>
-                      {available.filter((p) => p.category === c.id).map((p) => card(p, true))}
-                    </Drawer>
-                  </div>
-                ) : null}
               </li>
             ))}
           </ul>
+          {hover ? (
+            <div
+              className={shell.flyoutBridge}
+              style={{ top: Math.max(8, Math.min(hover.top - 40, window.innerHeight - 520)) }}
+              onMouseEnter={cancelTimers}
+              onMouseLeave={() => scheduleClose()}
+              onPointerDown={() => {
+                dragging.current = true;
+              }}
+            >
+              <div className={shell.flyout}>
+                <Drawer>
+                  {available.filter((p) => p.category === hover.id).map((p) => card(p, true))}
+                </Drawer>
+              </div>
+            </div>
+          ) : null}
         </>
       ) : (
         <>
