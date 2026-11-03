@@ -1,8 +1,8 @@
 import type { Data } from '@puckeditor/core';
 import { puckDataSchema } from '@funnel/schema';
-import type { PuckData, Screen, ScreenType } from '@funnel/schema';
+import type { PuckData, Screen } from '@funnel/schema';
 import { blockId } from './block-id';
-import { optionListProps, optionModeForScreenType } from './config';
+import { optionListProps } from './config';
 
 export { blockId };
 
@@ -34,16 +34,4 @@ export function getScreenOptions(screen: Screen): OptionRef[] {
     if (parsed.success) result.push(...parsed.data.options.filter((o) => o.id.length > 0));
   }
   return result;
-}
-
-export function applyOptionMode(content: PuckData, type: ScreenType): PuckData {
-  const mode = optionModeForScreenType(type);
-  if (!mode) return content;
-  let changed = false;
-  const items = content.content.map((item) => {
-    if (item.type !== 'OptionList' || item.props.mode === mode) return item;
-    changed = true;
-    return { ...item, props: { ...item.props, mode } };
-  });
-  return changed ? { ...content, content: items } : content;
 }

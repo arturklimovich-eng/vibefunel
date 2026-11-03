@@ -1,5 +1,6 @@
 'use client';
 
+import { isQuizScreen, quizOf } from '@funnel/schema';
 import type { Condition, Screen } from '@funnel/schema';
 import { getScreenOptions } from '@/lib/puck/adapters';
 import styles from './FunnelEditor.module.css';
@@ -35,8 +36,8 @@ export function normalizeChoice(source: Screen, choice: ConnectionChoice): Conne
   }
   if (choice.kind === 'payment') return { kind: 'always' };
   if (choice.kind === 'option') {
-    const isQuiz = source.type === 'quiz_single' || source.type === 'quiz_multi';
-    const known = isQuiz && getScreenOptions(source).some((o) => o.id === choice.optionId);
+    const known =
+      isQuizScreen(source) && getScreenOptions(source).some((o) => o.id === choice.optionId);
     return known ? choice : { kind: 'always' };
   }
   return choice;
@@ -47,7 +48,7 @@ export function choiceToCondition(source: Screen, requested: ConnectionChoice): 
   if (choice.kind === 'payment') return { kind: 'payment_succeeded', screenId: source.id };
   if (choice.kind === 'always') return { kind: 'always' };
   if (choice.kind === 'default') return { kind: 'default' };
-  return source.type === 'quiz_multi'
+  return quizOf(source)?.mode === 'multi'
     ? { kind: 'answer_includes', screenId: source.id, optionId: choice.optionId }
     : { kind: 'answer_equals', screenId: source.id, optionId: choice.optionId };
 }
@@ -76,8 +77,7 @@ export function ConditionPicker({
       </label>
     );
   }
-  const isQuiz = source.type === 'quiz_single' || source.type === 'quiz_multi';
-  const options = isQuiz ? getScreenOptions(source) : [];
+  const options = isQuizScreen(source) ? getScreenOptions(source) : [];
   return (
     <label className={styles.field}>
       Condition

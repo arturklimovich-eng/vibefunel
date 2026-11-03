@@ -21,6 +21,7 @@ export function contentSecurityPolicy(nonce: string, studio: boolean): string {
   const analytics = originOf(process.env.NEXT_PUBLIC_POSTHOG_HOST || DEFAULT_POSTHOG_HOST);
   const connect = [
     "'self'",
+    'https:',
     'https://*.stripe.com',
     'https://*.solidgate.com',
     'https://*.posthog.com',

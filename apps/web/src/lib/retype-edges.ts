@@ -1,4 +1,4 @@
-import { isPaymentType, isQuizType } from '@funnel/schema';
+import { isPaymentType, isQuizScreen } from '@funnel/schema';
 import type { Edge, Screen, ScreenType } from '@funnel/schema';
 
 export interface RetypeResult {
@@ -9,7 +9,7 @@ export interface RetypeResult {
 export function retypeEdges(edges: Edge[], screen: Screen, newType: ScreenType): RetypeResult {
   const wasPayment = isPaymentType(screen.type);
   const willBePayment = isPaymentType(newType);
-  const willBeQuiz = isQuizType(newType);
+  const willBeQuiz = isQuizScreen(screen);
   let changes = 0;
   let declineKept = false;
   const hasDefault = edges.some(
@@ -25,12 +25,6 @@ export function retypeEdges(edges: Edge[], screen: Screen, newType: ScreenType):
     if (condition.kind === 'answer_equals' || condition.kind === 'answer_includes') {
       if (!willBeQuiz || willBePayment) {
         changes += 1;
-        continue;
-      }
-      const kind = newType === 'quiz_multi' ? 'answer_includes' : 'answer_equals';
-      if (kind !== condition.kind) {
-        changes += 1;
-        result.push({ ...edge, condition: { ...condition, kind } });
         continue;
       }
       result.push(edge);

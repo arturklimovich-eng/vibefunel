@@ -4,10 +4,10 @@ import type { Edge, FunnelDefinition, PuckData, Screen } from './schema';
 type PuckItem = PuckData['content'][number];
 
 function heading(id: string, text: string): PuckItem {
-  return { type: 'Heading', props: { id, text, level: '1' } };
+  return { type: 'Text', props: { id, text, variant: 'title' } };
 }
 function paragraph(id: string, text: string): PuckItem {
-  return { type: 'Paragraph', props: { id, text } };
+  return { type: 'Text', props: { id, text, variant: 'paragraph' } };
 }
 function button(id: string, label: string): PuckItem {
   return { type: 'Button', props: { id, label, action: 'next', url: '' } };
@@ -30,7 +30,7 @@ export function createSeedFunnel(): FunnelDefinition {
   const screens: Screen[] = [
     {
       id: 'welcome',
-      type: 'welcome',
+      type: 'default',
       title: 'Welcome',
       content: puck([
         heading('welcome-h', 'Find your perfect plan'),
@@ -42,7 +42,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'goal',
-      type: 'quiz_single',
+      type: 'default',
       title: 'Your goal',
       content: puck([
         heading('goal-h', 'What is your main goal?'),
@@ -57,7 +57,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'content_lose',
-      type: 'content',
+      type: 'default',
       title: 'Lose weight plan',
       content: puck([
         heading('lose-h', 'A plan to lose weight'),
@@ -69,7 +69,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'content_muscle',
-      type: 'content',
+      type: 'default',
       title: 'Build muscle plan',
       content: puck([
         heading('muscle-h', 'A plan to build muscle'),
@@ -81,7 +81,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'focus',
-      type: 'quiz_multi',
+      type: 'default',
       title: 'Focus areas',
       content: puck([
         heading('focus-h', 'What do you want to focus on?'),
@@ -98,7 +98,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'content_nutrition',
-      type: 'content',
+      type: 'default',
       title: 'Nutrition tips',
       content: puck([
         heading('nutrition-h', 'Nutrition matters'),
@@ -110,7 +110,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'email',
-      type: 'email_capture',
+      type: 'auth',
       title: 'Your email',
       content: puck([
         heading('email-h', 'Where should we send your plan?'),
@@ -164,7 +164,7 @@ export function createSeedFunnel(): FunnelDefinition {
     },
     {
       id: 'success',
-      type: 'success',
+      type: 'finish',
       title: 'Done',
       content: puck([
         heading('success-h', 'You are all set!'),

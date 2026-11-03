@@ -64,7 +64,7 @@ The runtime calls `track` with typed events; `toProperties` turns each into an a
 | `answer_selected` | `screen_id`, `option_count`; `option_ids` only if `NEXT_PUBLIC_ANALYTICS_ANSWER_IDS=true` | on answer |
 | `step_completed` | `screen_id` | on advance |
 | `checkout_started` | `screen_id`, `plan_key` | checkout block click |
-| `funnel_completed` | none | terminal or success screen, once |
+| `funnel_completed` | none | terminal or finish screen, once |
 
 **Code:** `apps/web/src/lib/analytics/events.ts` (`AnalyticsEvent`, `toProperties`, `BrowserAnalyticsEvent`), `apps/web/src/lib/analytics/browser.ts` (`trackBrowserEvent`), `apps/web/src/components/FunnelRuntime.tsx`, `apps/web/src/lib/puck/CheckoutPanel.tsx` (`checkout_started`).
 

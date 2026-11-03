@@ -106,6 +106,30 @@ const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<Screen
 
 const NODE_TYPES = { screen: ScreenNode };
 
+function buttonEdges(definition: FunnelDefinition): FlowEdge[] {
+  const ids = new Set(definition.screens.map((s) => s.id));
+  const out: FlowEdge[] = [];
+  for (const screen of definition.screens) {
+    for (const item of screen.content.content) {
+      const p = item.props;
+      if (item.type !== 'Button' || (p.action ?? 'next') !== 'next') continue;
+      if (typeof p.destination !== 'string' || !ids.has(p.destination)) continue;
+      out.push({
+        id: `button-${screen.id}-${String(p.id)}`,
+        source: screen.id,
+        target: p.destination,
+        type: 'smoothstep',
+        label: typeof p.label === 'string' ? `button: ${p.label}` : 'button',
+        labelBgPadding: [6, 3] as [number, number],
+        labelBgBorderRadius: 6,
+        style: { strokeDasharray: '6 4' },
+        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
+      });
+    }
+  }
+  return out;
+}
+
 function layoutColumns(definition: FunnelDefinition): Map<string, { col: number; row: number }> {
   const depth = new Map<string, number>();
   const outgoing = new Map<string, string[]>();
@@ -191,18 +215,20 @@ export function ScreenCanvas({
   }, [definition, selectedId, typeMeta, severityByScreen]);
 
   const edges = useMemo<FlowEdge[]>(
-    () =>
-      definition.edges.map((e) => ({
+    () => [
+      ...definition.edges.map((e): FlowEdge => ({
         id: e.id,
         source: e.sourceScreenId,
         target: e.targetScreenId,
         type: 'smoothstep',
         label: describeEdge(e),
-        labelBgPadding: [6, 3] as [number, number],
+        labelBgPadding: [6, 3],
         labelBgBorderRadius: 6,
         markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16 },
       })),
-    [definition.edges, describeEdge],
+      ...buttonEdges(definition),
+    ],
+    [definition, describeEdge],
   );
 
   return (

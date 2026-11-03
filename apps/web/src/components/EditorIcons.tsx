@@ -256,3 +256,41 @@ export const StopIcon = (p: P) => (
     <rect x="7" y="7" width="10" height="10" rx="1.5" />
   </Icon>
 );
+
+export const InsertBeforeIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M5 4h14M12 20V9M8 13l4-4 4 4" />
+  </Icon>
+);
+
+export const InsertAfterIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M5 20h14M12 4v11M8 11l4 4 4-4" />
+  </Icon>
+);
+
+export const RenameIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4zM13.5 6.5l4 4" />
+  </Icon>
+);
+
+export const DuplicateIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M4 16V6a2 2 0 0 1 2-2h10M14 11v6M11 14h6" />
+  </Icon>
+);
+
+export const PasteIcon = (p: P) => (
+  <Icon {...p}>
+    <rect x="5" y="4" width="14" height="17" rx="2" />
+    <path d="M9 4V3h6v1M9 11h6M9 15h4" />
+  </Icon>
+);
+
+export const PlayIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M7 4.5v15l12-7.5-12-7.5z" />
+  </Icon>
+);

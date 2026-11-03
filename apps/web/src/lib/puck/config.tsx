@@ -1,12 +1,25 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
+import type { CSSProperties } from 'react';
 import Image from 'next/image';
 import { z } from 'zod';
 import type { Config } from '@puckeditor/core';
 import type { ScreenType } from '@funnel/schema';
-import { emailInputProps, emailKey, isValidEmail } from '@/lib/email';
 import { randomId } from '@/lib/ids';
+import { boxStyle, textStyle } from '@/lib/styles';
+import { framed, isEditingRender } from './frame';
+import { SELECTED_PLAN_KEY } from './element-schemas';
+import { allowedTypesFor } from './catalog';
+import { contentComponents } from './elements/content';
+import { flowComponents } from './elements/flow';
+import { inputComponents } from './elements/inputs';
+import { layoutComponents } from './elements/layout';
+import { paywallComponents } from './elements/paywall';
+import { buttonComponents } from './elements/button';
+import { textComponents } from './elements/text';
+import { EmailInputBlock } from './elements/email';
+import type { BlockProps } from './frame';
 import { CheckoutPanel } from './CheckoutPanel';
 import { PlanField } from './PlanField';
 import { useRuntime } from './runtime-context';
@@ -23,14 +36,20 @@ export function isHttpsUrl(value: string): boolean {
 const headingProps = z.object({ text: z.string(), level: z.enum(['1', '2', '3']).default('1') });
 const paragraphProps = z.object({ text: z.string() });
 const imageProps = z.object({ src: z.string(), alt: z.string().default('') });
-const buttonProps = z.object({
-  label: z.string(),
-  action: z.enum(['next', 'skip', 'url']).default('next'),
-  url: z.string().default(''),
-});
 export const optionListProps = z.object({
   mode: z.enum(['single', 'multi']).default('single'),
-  options: z.array(z.object({ id: z.string(), label: z.string() })).default([]),
+  layout: z.enum(['list', 'grid', 'cards', 'cover', 'popup']).default('list'),
+  question: z.string().default(''),
+  options: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        emoji: z.string().max(8).optional(),
+        image: z.string().max(2000).optional(),
+      }),
+    )
+    .default([]),
 });
 const priceCardProps = z.object({
   title: z.string(),
@@ -39,7 +58,10 @@ const priceCardProps = z.object({
   features: z.array(z.object({ text: z.string() })).default([]),
   highlighted: z.boolean().default(false),
 });
-const checkoutBlockProps = z.object({ planKey: z.string().default('') });
+const checkoutBlockProps = z.object({
+  planKey: z.string().default(''),
+  source: z.enum(['fixed', 'picker']).default('fixed'),
+});
 const resultSummaryProps = z.object({
   title: z.string().default('Your answers'),
   showAnswers: z.boolean().default(false),
@@ -49,64 +71,66 @@ function newOptionId(): string {
   return `opt_${randomId(8)}`;
 }
 
-function Heading(props: Record<string, unknown>) {
+function Heading(props: BlockProps) {
   const parsed = headingProps.safeParse(props);
   if (!parsed.success) return null;
   const { text, level } = parsed.data;
-  if (level === '2') return <h2 className={styles.heading}>{text}</h2>;
-  if (level === '3') return <h3 className={styles.heading}>{text}</h3>;
-  return <h1 className={styles.heading}>{text}</h1>;
+  const style = textStyle(props.blockStyle);
+  if (level === '2')
+    return (
+      <h2 className={styles.heading} data-level="2" style={style}>
+        {text}
+      </h2>
+    );
+  if (level === '3')
+    return (
+      <h3 className={styles.heading} data-level="3" style={style}>
+        {text}
+      </h3>
+    );
+  return (
+    <h1 className={styles.heading} style={style}>
+      {text}
+    </h1>
+  );
 }
 
-function Paragraph(props: Record<string, unknown>) {
+function Paragraph(props: BlockProps) {
   const parsed = paragraphProps.safeParse(props);
   if (!parsed.success) return null;
-  return <p className={styles.paragraph}>{parsed.data.text}</p>;
+  return (
+    <p className={styles.paragraph} style={textStyle(props.blockStyle)}>
+      {parsed.data.text}
+    </p>
+  );
 }
 
-function ImageBlock(props: Record<string, unknown>) {
+function ImageBlock(props: BlockProps) {
   const parsed = imageProps.safeParse(props);
   if (!parsed.success) return null;
   const { src, alt } = parsed.data;
   if (!isHttpsUrl(src)) {
     return <p className={styles.placeholder}>Image needs an https:// URL.</p>;
   }
+  const { radius, width } = props.blockStyle;
   return (
-    <Image className={styles.image} src={src} alt={alt} width={800} height={600} unoptimized />
+    <Image
+      className={styles.image}
+      src={src}
+      alt={alt}
+      width={800}
+      height={600}
+      unoptimized
+      style={boxStyle({ radius, width })}
+    />
   );
 }
 
-function ButtonBlock(props: Record<string, unknown>) {
-  const runtime = useRuntime();
-  const parsed = buttonProps.safeParse(props);
-  if (!parsed.success) return null;
-  const { label, action, url } = parsed.data;
-  if (action === 'url') {
-    if (!isHttpsUrl(url)) {
-      return <p className={styles.placeholder}>Button needs an https:// URL.</p>;
-    }
-    return (
-      <a className={styles.button} href={url} target="_blank" rel="noopener noreferrer">
-        {label}
-      </a>
-    );
-  }
-  return (
-    <button
-      type="button"
-      className={styles.button}
-      onClick={() => runtime.next(action === 'skip' ? { fallbackOnly: true } : undefined)}
-    >
-      {label}
-    </button>
-  );
-}
-
-function OptionListBlock(props: Record<string, unknown>) {
+function OptionListBlock(props: BlockProps) {
   const runtime = useRuntime();
   const parsed = optionListProps.safeParse(props);
   if (!parsed.success) return null;
-  const { mode, options } = parsed.data;
+  const { mode, layout, options } = parsed.data;
   const screenId = runtime.screenId;
   const current = screenId === null ? undefined : runtime.answers[screenId];
   const selected = current === undefined ? [] : typeof current === 'string' ? [current] : current;
@@ -123,19 +147,55 @@ function OptionListBlock(props: Record<string, unknown>) {
     runtime.setAnswer(screenId, next);
   };
 
+  const { accentColor, ...rest } = props.blockStyle;
+  const optionCss = { ...boxStyle({ ...rest, width: undefined }), ...textStyle(rest) };
+  if (layout === 'popup') {
+    return (
+      <OptionPopup
+        question={parsed.data.question}
+        options={options}
+        editing={isEditingRender(props)}
+        answered={selected.length > 0}
+        optionCss={optionCss}
+        onChoose={choose}
+      />
+    );
+  }
   return (
-    <fieldset className={styles.options}>
+    <fieldset className={styles.options} data-layout={layout}>
       {options.map((option) => {
         const isSelected = selected.includes(option.id);
+        const image = option.image && isHttpsUrl(option.image) ? option.image : null;
         return (
           <button
             key={option.id}
             type="button"
             aria-pressed={isSelected}
             className={isSelected ? `${styles.option} ${styles.optionSelected}` : styles.option}
+            data-layout={layout}
+            style={
+              isSelected && accentColor ? { ...optionCss, borderColor: accentColor } : optionCss
+            }
             onClick={() => choose(option.id)}
           >
-            {option.label}
+            {image ? (
+              <Image
+                className={styles.optionImage}
+                src={image}
+                alt=""
+                width={240}
+                height={180}
+                unoptimized
+              />
+            ) : option.emoji ? (
+              <span className={styles.optionEmoji} aria-hidden="true">
+                {option.emoji}
+              </span>
+            ) : null}
+            <span className={styles.optionLabel}>{option.label}</span>
+            {mode === 'multi' ? (
+              <span className={styles.optionCheck} data-checked={isSelected} aria-hidden="true" />
+            ) : null}
           </button>
         );
       })}
@@ -143,79 +203,72 @@ function OptionListBlock(props: Record<string, unknown>) {
   );
 }
 
-function EmailInputBlock(props: Record<string, unknown>) {
-  const runtime = useRuntime();
-  const parsed = emailInputProps.safeParse(props);
-  const [touched, setTouched] = useState(false);
-  const inputId = useId();
-  if (!parsed.success || typeof props.id !== 'string') {
+function OptionPopup({
+  question,
+  options,
+  editing,
+  answered,
+  optionCss,
+  onChoose,
+}: {
+  question: string;
+  options: { id: string; label: string; emoji?: string }[];
+  editing: boolean;
+  answered: boolean;
+  optionCss: CSSProperties;
+  onChoose: (id: string) => void;
+}) {
+  const [dismissed, setDismissed] = useState(false);
+  const card = (
+    <div className={styles.questionCard}>
+      <p className={styles.questionText}>{question}</p>
+      <div className={styles.questionActions}>
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={styles.option}
+            style={optionCss}
+            onClick={() => {
+              onChoose(o.id);
+              setDismissed(true);
+            }}
+          >
+            {o.emoji ? `${o.emoji} ` : ''}
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+  if (editing) {
     return (
-      <p className={styles.placeholder} role="alert">
-        Invalid email block: its settings could not be read, so this screen cannot continue.
-      </p>
+      <div>
+        <span className={styles.editorTag}>Popup question · opens over the screen</span>
+        {card}
+      </div>
     );
   }
-  const { label, placeholder, required, consentLabel } = parsed.data;
-  const screenId = runtime.screenId;
-  const key = screenId === null ? null : emailKey(screenId, props.id);
-  const value = key === null ? '' : (runtime.emails[key] ?? '');
-  const consented = key === null ? false : runtime.consents[key] === true;
-  const invalid = touched && value.trim().length > 0 && !isValidEmail(value);
-  const missing = touched && required && value.trim().length === 0;
-  const errorId = `${inputId}-error`;
+  if (dismissed || answered) return null;
   return (
-    <div className={styles.field}>
-      <label htmlFor={inputId} className={styles.fieldLabel}>
-        {label}
-        {required ? ' *' : ''}
-      </label>
-      <input
-        id={inputId}
-        type="email"
-        autoComplete="email"
-        inputMode="email"
-        className={styles.input}
-        placeholder={placeholder}
-        value={value}
-        required={required}
-        maxLength={254}
-        aria-invalid={invalid || missing}
-        aria-describedby={invalid || missing ? errorId : undefined}
-        onChange={(event) => {
-          if (key !== null) runtime.setEmail(key, event.target.value);
-        }}
-        onBlur={() => setTouched(true)}
-      />
-      {invalid || missing ? (
-        <p id={errorId} className={styles.fieldError}>
-          {invalid ? 'Enter a valid email address.' : 'This field is required.'}
-        </p>
-      ) : null}
-      {consentLabel.trim().length > 0 ? (
-        <label className={styles.consentRow}>
-          <input
-            type="checkbox"
-            checked={consented}
-            onChange={(event) => {
-              if (key !== null) runtime.setConsent(key, event.target.checked);
-            }}
-          />
-          <span>{consentLabel}</span>
-        </label>
-      ) : null}
+    <div className={styles.questionOverlay} role="dialog" aria-modal="true" aria-label={question}>
+      {card}
     </div>
   );
 }
 
-function PriceCardBlock(props: Record<string, unknown>) {
+function PriceCardBlock(props: BlockProps) {
   const parsed = priceCardProps.safeParse(props);
   if (!parsed.success) return null;
   const { title, price, period, features, highlighted } = parsed.data;
+  const { accentColor, ...rest } = props.blockStyle;
+  const css = { ...boxStyle({ ...rest, width: undefined }), ...textStyle(rest) };
   return (
     <section
       className={
         highlighted ? `${styles.priceCard} ${styles.priceCardHighlighted}` : styles.priceCard
       }
+      style={highlighted && accentColor ? { ...css, borderColor: accentColor } : css}
     >
       <h2 className={styles.priceTitle}>{title}</h2>
       <p className={styles.price}>
@@ -233,20 +286,25 @@ function PriceCardBlock(props: Record<string, unknown>) {
   );
 }
 
-function CheckoutBlockView(props: Record<string, unknown>) {
+function CheckoutBlockView(props: BlockProps) {
+  const runtime = useRuntime();
   const parsed = checkoutBlockProps.safeParse(props);
   if (!parsed.success) return null;
-  return <CheckoutPanel planKey={parsed.data.planKey} />;
+  const planKey =
+    parsed.data.source === 'picker'
+      ? runtime.values[SELECTED_PLAN_KEY] || runtime.defaultPlan
+      : parsed.data.planKey;
+  return <CheckoutPanel planKey={planKey} />;
 }
 
-function ResultSummaryBlock(props: Record<string, unknown>) {
+function ResultSummaryBlock(props: BlockProps) {
   const runtime = useRuntime();
   const parsed = resultSummaryProps.safeParse(props);
   if (!parsed.success) return null;
   const { title, showAnswers } = parsed.data;
   if (!showAnswers || runtime.answerSummary.length === 0) return null;
   return (
-    <section className={styles.summary}>
+    <section className={styles.summary} style={textStyle(props.blockStyle)}>
       <h2 className={styles.priceTitle}>{title}</h2>
       <dl className={styles.summaryList}>
         {runtime.answerSummary.map((item) => (
@@ -262,79 +320,89 @@ function ResultSummaryBlock(props: Record<string, unknown>) {
 
 export const puckConfig: Config = {
   components: {
+    ...layoutComponents,
+    ...contentComponents,
+    ...inputComponents,
+    ...flowComponents,
+    ...paywallComponents,
+    ...buttonComponents,
+    ...textComponents,
     Heading: {
-      label: 'Heading',
+      label: 'Title',
       fields: {
         text: { type: 'text' },
         level: {
-          type: 'select',
+          type: 'radio',
+          label: 'Type',
           options: [
-            { label: 'H1', value: '1' },
-            { label: 'H2', value: '2' },
-            { label: 'H3', value: '3' },
+            { label: 'Title', value: '1' },
+            { label: 'Subtitle', value: '2' },
+            { label: 'Small title', value: '3' },
           ],
         },
       },
       defaultProps: { text: 'Heading', level: '1' },
-      render: (props) => <Heading {...props} />,
+      render: framed('Heading', Heading),
     },
     Paragraph: {
-      label: 'Paragraph',
+      label: 'Text',
       fields: { text: { type: 'textarea' } },
       defaultProps: { text: 'Some text' },
-      render: (props) => <Paragraph {...props} />,
+      render: framed('Paragraph', Paragraph),
     },
     Image: {
       label: 'Image',
       fields: { src: { type: 'text', label: 'Image URL (https only)' }, alt: { type: 'text' } },
       defaultProps: { src: '', alt: '' },
-      render: (props) => <ImageBlock {...props} />,
-    },
-    Button: {
-      label: 'Button',
-      fields: {
-        label: { type: 'text' },
-        action: {
-          type: 'radio',
-          options: [
-            { label: 'Next screen', value: 'next' },
-            { label: 'Default path (skip or decline)', value: 'skip' },
-            { label: 'Open URL', value: 'url' },
-          ],
-        },
-        url: { type: 'text', label: 'URL (https only)' },
-      },
-      defaultProps: { label: 'Continue', action: 'next', url: '' },
-      render: (props) => <ButtonBlock {...props} />,
+      render: framed('Image', ImageBlock),
     },
     OptionList: {
-      label: 'Option list',
+      label: 'Options',
       fields: {
         mode: {
           type: 'radio',
+          label: 'Selection',
           options: [
             { label: 'Single choice', value: 'single' },
             { label: 'Multiple choice', value: 'multi' },
           ],
         },
+        layout: {
+          type: 'radio',
+          label: 'Layout',
+          options: [
+            { label: 'List', value: 'list' },
+            { label: 'Grid', value: 'grid' },
+            { label: 'Cards', value: 'cards' },
+            { label: 'Cover', value: 'cover' },
+            { label: 'Popup', value: 'popup' },
+          ],
+        },
+        question: { type: 'text', label: 'Popup question' },
         options: {
           type: 'array',
-          arrayFields: { id: { type: 'text', label: 'Option id' }, label: { type: 'text' } },
+          arrayFields: {
+            label: { type: 'text' },
+            emoji: { type: 'text', label: 'Emoji' },
+            image: { type: 'text', label: 'Image URL (https)' },
+            id: { type: 'text', label: 'Option id (used by conditions)' },
+          },
           defaultItemProps: () => ({ id: newOptionId(), label: 'New option' }),
           getItemSummary: (item) => item.label || 'Option',
         },
       },
       defaultProps: {
         mode: 'single',
+        layout: 'list',
         options: [
           { id: 'option_a', label: 'Option A' },
           { id: 'option_b', label: 'Option B' },
         ],
       },
-      render: (props) => <OptionListBlock {...props} />,
+      render: framed('OptionList', OptionListBlock),
     },
     EmailInput: {
-      label: 'Email input',
+      label: 'Email Form',
       fields: {
         label: { type: 'text' },
         placeholder: { type: 'text' },
@@ -353,10 +421,10 @@ export const puckConfig: Config = {
         required: true,
         consentLabel: '',
       },
-      render: (props) => <EmailInputBlock {...props} />,
+      render: framed('EmailInput', EmailInputBlock),
     },
     PriceCard: {
-      label: 'Price card',
+      label: 'Price Card',
       fields: {
         title: { type: 'text' },
         price: { type: 'text' },
@@ -382,11 +450,19 @@ export const puckConfig: Config = {
         features: [{ text: 'Feature' }],
         highlighted: false,
       },
-      render: (props) => <PriceCardBlock {...props} />,
+      render: framed('PriceCard', PriceCardBlock),
     },
     CheckoutBlock: {
       label: 'Checkout',
       fields: {
+        source: {
+          type: 'radio',
+          label: 'Plan',
+          options: [
+            { label: 'Fixed plan', value: 'fixed' },
+            { label: 'Picked on the paywall', value: 'picker' },
+          ],
+        },
         planKey: {
           type: 'custom',
           label: 'Plan',
@@ -400,17 +476,17 @@ export const puckConfig: Config = {
           ),
         },
       },
-      defaultProps: { planKey: '' },
-      render: (props) => <CheckoutBlockView {...props} />,
+      defaultProps: { planKey: '', source: 'fixed' },
+      render: framed('CheckoutBlock', CheckoutBlockView),
     },
     PaymentPlaceholder: {
       label: 'Checkout (legacy placeholder)',
       fields: {},
       defaultProps: {},
-      render: (props) => <CheckoutBlockView {...props} />,
+      render: framed('PaymentPlaceholder', CheckoutBlockView),
     },
     ResultSummary: {
-      label: 'Result summary',
+      label: 'Result Summary',
       fields: {
         title: { type: 'text' },
         showAnswers: {
@@ -422,7 +498,7 @@ export const puckConfig: Config = {
         },
       },
       defaultProps: { title: 'Your answers', showAnswers: false },
-      render: (props) => <ResultSummaryBlock {...props} />,
+      render: framed('ResultSummary', ResultSummaryBlock),
     },
   },
 };
@@ -433,60 +509,14 @@ export const SKIP_SCREEN_TYPES: ReadonlySet<ScreenType> = new Set<ScreenType>([
   'upsell',
 ]);
 
-const COMMON_BLOCKS = ['Heading', 'Paragraph', 'Image', 'Button'] as const;
-
-const ALLOWED_COMPONENTS: Record<ScreenType, readonly string[]> = {
-  welcome: COMMON_BLOCKS,
-  quiz_single: [...COMMON_BLOCKS, 'OptionList'],
-  quiz_multi: [...COMMON_BLOCKS, 'OptionList'],
-  content: COMMON_BLOCKS,
-  email_capture: [...COMMON_BLOCKS, 'EmailInput'],
-  paywall: [...COMMON_BLOCKS, 'PriceCard'],
-  checkout: [...COMMON_BLOCKS, 'PriceCard', 'CheckoutBlock'],
-  upsell: [...COMMON_BLOCKS, 'PriceCard', 'CheckoutBlock'],
-  success: [...COMMON_BLOCKS, 'ResultSummary'],
-};
-
 export function allowedComponentsForScreenType(type: ScreenType): readonly string[] {
-  return ALLOWED_COMPONENTS[type];
-}
-
-export function optionModeForScreenType(type: ScreenType): 'single' | 'multi' | null {
-  if (type === 'quiz_single') return 'single';
-  if (type === 'quiz_multi') return 'multi';
-  return null;
+  return allowedTypesFor(type);
 }
 
 export function configForScreenType(type: ScreenType): Config {
-  const allowed = new Set<string>(ALLOWED_COMPONENTS[type]);
+  const allowed = new Set<string>(allowedTypesFor(type));
   const components = Object.fromEntries(
     Object.entries(puckConfig.components).filter(([name]) => allowed.has(name)),
   );
-  const buttonBase = components.Button;
-  if (buttonBase && !SKIP_SCREEN_TYPES.has(type)) {
-    components.Button = {
-      ...buttonBase,
-      fields: {
-        ...buttonBase.fields,
-        action: {
-          type: 'radio',
-          options: [
-            { label: 'Next screen', value: 'next' },
-            { label: 'Open URL', value: 'url' },
-          ],
-        },
-      },
-    };
-  }
-  const mode = optionModeForScreenType(type);
-  const base = components.OptionList;
-  const optionsField = base?.fields?.options;
-  if (mode && base && optionsField) {
-    components.OptionList = {
-      ...base,
-      fields: { options: optionsField },
-      defaultProps: { ...base.defaultProps, mode },
-    };
-  }
   return { ...puckConfig, components };
 }

@@ -5,7 +5,7 @@ import type { CSSProperties } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { TargetAndTransition } from 'motion/react';
 import { Render } from '@puckeditor/core';
-import { migrate, nextScreen } from '@funnel/schema';
+import { isPaymentType, isQuizScreen, migrate, nextScreen, quizOf } from '@funnel/schema';
 import type { Answers, AnimationPreset, FunnelDefinition, Payments, Screen } from '@funnel/schema';
 import type { AnalyticsScope } from '@/lib/analytics/events';
 import { useFunnelAnalytics } from '@/lib/analytics/use-funnel-analytics';
@@ -15,11 +15,14 @@ import { fetchPaymentStatus } from '@/lib/payment-status';
 import { getScreenOptions, toPuckData } from '@/lib/puck/adapters';
 import { puckConfig } from '@/lib/puck/config';
 import { RuntimeContext } from '@/lib/puck/runtime-context';
+import { ThemeContext } from '@/lib/puck/theme-context';
 import type { AnswerSummaryItem, RuntimeApi } from '@/lib/puck/runtime-context';
 import { advance, retreat } from '@/lib/run-state';
 import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storage';
 import type { HistoryEntry, RunState } from '@/lib/run-state';
 import { longestPathFrom } from '@/lib/progress';
+import { readElementStyle, screenSurface } from '@/lib/styles';
+import { defaultPickerPlan, screenGate } from '@/lib/puck/gates';
 import { ConsentBanner } from './ConsentBanner';
 import { ScreenHeaderBar } from './ScreenHeaderBar';
 import styles from './FunnelRuntime.module.css';
@@ -240,6 +243,8 @@ function RuntimeInner({
   const [answers, setAnswers] = useState<Answers>({});
   const [emails, setEmails] = useState<Record<string, string>>({});
   const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [toggles, setToggles] = useState<Record<string, boolean>>({});
   const [payments, setPayments] = useState<Payments>({});
   const [runId, setRunId] = useState<string | null>(null);
   const [returnScreenId, setReturnScreenId] = useState<string | null>(null);
@@ -256,6 +261,7 @@ function RuntimeInner({
 
   const screen = definition.screens.find((s) => s.id === currentScreenId);
   const pathLengths = useMemo(() => longestPathFrom(definition), [definition]);
+  const defaultPlan = useMemo(() => defaultPickerPlan(definition), [definition]);
 
   const analyticsScope = useMemo<AnalyticsScope>(
     () => ({ projectId, funnelId, funnelVersion, runId }),
@@ -276,7 +282,7 @@ function RuntimeInner({
     if (screen.type === 'paywall') track({ name: 'paywall_view', screenId: screen.id });
     if (completedRef.current) return;
     const terminal =
-      screen.type === 'success' || !definition.edges.some((e) => e.sourceScreenId === screen.id);
+      screen.type === 'finish' || !definition.edges.some((e) => e.sourceScreenId === screen.id);
     if (terminal) {
       completedRef.current = true;
       track({ name: 'funnel_completed' });
@@ -322,6 +328,15 @@ function RuntimeInner({
     setConsents((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const toggle = useCallback((id: string) => {
+    setToggles((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
+
+  const setValue = useCallback((key: string, value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    setMessage(null);
+  }, []);
+
   const clearReturn = useCallback(() => {
     setReturnScreenId(null);
     setReturnRef(null);
@@ -335,14 +350,20 @@ function RuntimeInner({
   }, []);
 
   const next = useCallback(
-    (options?: { fallbackOnly?: boolean }) => {
+    (options?: { fallbackOnly?: boolean; target?: string }) => {
       if (!screen || screen.id !== currentScreenRef.current) return;
+      const direct =
+        options?.target &&
+        !isPaymentType(screen.type) &&
+        definition.screens.some((s) => s.id === options.target)
+          ? options.target
+          : null;
       const hasOutgoing = definition.edges.some((e) => e.sourceScreenId === screen.id);
-      if (!hasOutgoing) {
+      if (!hasOutgoing && direct === null) {
         setMessage('You have reached the end of this funnel.');
         return;
       }
-      if (screen.type === 'quiz_single' || screen.type === 'quiz_multi') {
+      if (isQuizScreen(screen)) {
         const given = Object.prototype.hasOwnProperty.call(answers, screen.id)
           ? answers[screen.id]
           : undefined;
@@ -352,6 +373,11 @@ function RuntimeInner({
           setMessage('Please choose an option to continue.');
           return;
         }
+      }
+      const gate = screenGate(screen, values);
+      if (gate !== null) {
+        setMessage(gate);
+        return;
       }
       const email = emailBlocks(screen);
       if (!email.valid) {
@@ -369,7 +395,7 @@ function RuntimeInner({
           return;
         }
       }
-      const targetId = nextScreen(definition, screen.id, answers, payments, options);
+      const targetId = direct ?? nextScreen(definition, screen.id, answers, payments, options);
       if (targetId === null) {
         if (screen.type === 'checkout' || screen.type === 'upsell') {
           if (options?.fallbackOnly) {
@@ -418,7 +444,7 @@ function RuntimeInner({
       setPayments(advanced.payments);
       setCurrentScreenId(advanced.currentScreenId);
     },
-    [answers, consents, definition, emails, history, payments, runId, slug, track, screen],
+    [answers, consents, definition, emails, history, payments, runId, slug, track, screen, values],
   );
 
   useEffect(() => {
@@ -434,7 +460,7 @@ function RuntimeInner({
       !screen ||
       screen.id !== autoFor ||
       !screen.autoNavigation ||
-      screen.type !== 'quiz_single'
+      quizOf(screen)?.mode !== 'single'
     ) {
       setAutoFor(null);
       return;
@@ -572,15 +598,22 @@ function RuntimeInner({
       answers,
       emails,
       consents,
+      values,
+      toggles,
+      toggle,
       payments,
       answerSummary,
       setAnswer,
       setEmail,
       setConsent,
+      setValue,
       confirmPayment,
       next,
       track,
       analyticsConsent: analytics.hasConsent,
+      consentPending: analytics.showBanner,
+      decideConsent: analytics.decide,
+      defaultPlan,
     }),
     [
       funnelId,
@@ -593,15 +626,22 @@ function RuntimeInner({
       answers,
       emails,
       consents,
+      values,
+      toggles,
+      toggle,
       payments,
       answerSummary,
       setAnswer,
       setEmail,
       setConsent,
+      setValue,
       confirmPayment,
       next,
       track,
       analytics.hasConsent,
+      analytics.showBanner,
+      analytics.decide,
+      defaultPlan,
     ],
   );
 
@@ -610,6 +650,20 @@ function RuntimeInner({
     () => (screenContent === undefined ? null : toPuckData(screenContent)),
     [screenContent],
   );
+  const splitData = useMemo(() => {
+    if (puckData === null) return null;
+    const attached = puckData.content.filter(
+      (item) => readElementStyle(item.props).position === 'attached',
+    );
+    if (attached.length === 0) return { main: puckData, attached: null };
+    return {
+      main: {
+        ...puckData,
+        content: puckData.content.filter((item) => !attached.includes(item)),
+      },
+      attached: { ...puckData, content: attached },
+    };
+  }, [puckData]);
 
   const pageClass = embedded ? styles.pageEmbedded : styles.page;
 
@@ -627,7 +681,7 @@ function RuntimeInner({
     );
   }
 
-  if (fatal !== null || !screen || puckData === null) {
+  if (fatal !== null || !screen || puckData === null || splitData === null) {
     return (
       <main className={pageClass}>
         <div className={styles.card} role="alert">
@@ -649,27 +703,47 @@ function RuntimeInner({
   const animation = animated ? preset : PRESETS.none;
   const stepNumber = history.length + 1;
   const stepTotal = Math.max(stepNumber, history.length + (pathLengths.get(screen.id) ?? 1));
+  const surface = screenSurface(screen, definition.theme);
   const themeStyle: CSSProperties & Record<'--funnel-primary' | '--funnel-on-primary', string> = {
     '--funnel-primary': definition.theme.primaryColor,
     '--funnel-on-primary': contrastingForeground(definition.theme.primaryColor),
-    background: definition.theme.backgroundColor,
     color: definition.theme.textColor,
     fontSize: `${definition.theme.fontScale ?? 1}rem`,
+    ...surface.surface,
   };
 
   const content = (
     <RuntimeContext.Provider value={api}>
-      <Render config={puckConfig} data={puckData} />
-      <p className={styles.message} role="status" aria-live="polite">
-        {message}
-      </p>
+      <ThemeContext.Provider value={definition.theme}>
+        <Render config={puckConfig} data={splitData.main} />
+        <p className={styles.message} role="status" aria-live="polite">
+          {message}
+        </p>
+        {splitData.attached ? (
+          <div className={styles.attached}>
+            <Render config={puckConfig} data={splitData.attached} />
+          </div>
+        ) : null}
+      </ThemeContext.Provider>
     </RuntimeContext.Provider>
   );
 
   return (
     <main className={pageClass} style={themeStyle}>
+      {surface.videoUrl ? (
+        <video
+          key={surface.videoUrl}
+          className={styles.bgVideo}
+          src={surface.videoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          aria-hidden="true"
+        />
+      ) : null}
       {label ? <div className={styles.badge}>{label}</div> : null}
-      <div className={styles.card} ref={cardRef} tabIndex={-1}>
+      <div className={styles.card} ref={cardRef} tabIndex={-1} style={surface.body}>
         <p className={styles.srOnly} aria-live="polite">
           Step {stepNumber} of up to {stepTotal}: {screen.title}
         </p>
@@ -682,6 +756,7 @@ function RuntimeInner({
         />
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
+            className={styles.screenBody}
             key={screen.id}
             initial={animation.initial}
             animate={preset.animate}
@@ -692,7 +767,8 @@ function RuntimeInner({
           </motion.div>
         </AnimatePresence>
       </div>
-      {analytics.showBanner ? (
+      {analytics.showBanner &&
+      !screen.content.content.some((item) => item.type === 'CookieConsent') ? (
         <ConsentBanner
           onDecide={analytics.decide}
           compact={screen.type === 'checkout' || screen.type === 'upsell'}

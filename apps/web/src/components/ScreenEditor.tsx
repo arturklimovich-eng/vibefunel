@@ -5,9 +5,14 @@ import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Puck, createUsePuck } from '@puckeditor/core';
 import '@puckeditor/core/puck.css';
-import type { PuckData, ScreenType } from '@funnel/schema';
-import { applyOptionMode, fromPuckData, toPuckData } from '@/lib/puck/adapters';
+import type { PuckData, ScreenType, Theme } from '@funnel/schema';
+import { fromPuckData, toPuckData } from '@/lib/puck/adapters';
 import { configForScreenType } from '@/lib/puck/config';
+import { ThemeContext } from '@/lib/puck/theme-context';
+import { EditorDataContext } from '@/lib/puck/editor-context';
+import { insertTracker } from '@/lib/puck/insert-tracker';
+import { AddElementPanel } from './AddElementPanel';
+import { LayersPanel } from './LayersPanel';
 
 export interface ScreenEditorSlots {
   preview: HTMLElement | null;
@@ -18,7 +23,9 @@ export interface ScreenEditorSlots {
 
 export interface EditorSelection {
   id: string;
+  type: string;
   label: string;
+  props: Record<string, unknown>;
 }
 
 export interface EditorBridgeState {
@@ -33,11 +40,14 @@ export interface EditorCommands {
   duplicate: () => void;
   remove: () => void;
   deselect: () => void;
+  updateProps: (patch: Record<string, unknown>) => void;
 }
 
 interface ScreenEditorProps {
   screenId: string;
   screenType: ScreenType;
+  theme: Theme;
+  screens: { id: string; title: string }[];
   content: PuckData;
   slots: ScreenEditorSlots;
   commandsRef: RefObject<EditorCommands | null>;
@@ -56,6 +66,10 @@ function Bridge({
 }) {
   const selectedId = usePuck((s) => s.selectedItem?.props.id as string | undefined);
   const selectedType = usePuck((s) => s.selectedItem?.type);
+  const selectedProps = usePuck(
+    (s) => s.selectedItem?.props as Record<string, unknown> | undefined,
+  );
+  const getItemBySelector = usePuck((s) => s.getItemBySelector);
   const label = usePuck((s) => {
     const type = s.selectedItem?.type;
     if (!type) return undefined;
@@ -70,11 +84,18 @@ function Bridge({
   useEffect(() => {
     onBridgeChange({
       selection:
-        selectedId && selectedType ? { id: selectedId, label: label ?? selectedType } : null,
+        selectedId && selectedType
+          ? {
+              id: selectedId,
+              type: selectedType,
+              label: label ?? selectedType,
+              props: selectedProps ?? {},
+            }
+          : null,
       canUndo,
       canRedo,
     });
-  }, [selectedId, selectedType, label, canUndo, canRedo, onBridgeChange]);
+  }, [selectedId, selectedType, selectedProps, label, canUndo, canRedo, onBridgeChange]);
 
   useEffect(() => {
     commandsRef.current = {
@@ -91,8 +112,24 @@ function Bridge({
         dispatch({ type: 'remove', index: selector.index, zone: selector.zone });
       },
       deselect: () => dispatch({ type: 'setUi', ui: { itemSelector: null } }),
+      updateProps: (patch) => {
+        const selector = selectedId ? getSelectorForId(selectedId) : undefined;
+        const item = selector ? getItemBySelector(selector) : undefined;
+        if (!selector || !item) return;
+        const props: Record<string, unknown> = { ...item.props };
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined) delete props[key];
+          else props[key] = value;
+        }
+        dispatch({
+          type: 'replace',
+          destinationIndex: selector.index,
+          destinationZone: selector.zone,
+          data: { ...item, props: { ...props, id: item.props.id } },
+        });
+      },
     };
-  }, [commandsRef, history, dispatch, getSelectorForId, selectedId]);
+  }, [commandsRef, history, dispatch, getSelectorForId, getItemBySelector, selectedId]);
 
   useEffect(
     () => () => {
@@ -106,6 +143,9 @@ function Bridge({
 
 export function ScreenEditor({
   screenType,
+  theme,
+  screens,
+  screenId,
   content,
   slots,
   commandsRef,
@@ -113,22 +153,31 @@ export function ScreenEditor({
   onChange,
 }: ScreenEditorProps) {
   const [config] = useState(() => configForScreenType(screenType));
-  const [initialData] = useState(() => toPuckData(applyOptionMode(content, screenType)));
+  const [initialData] = useState(() => toPuckData(content));
   return (
-    <Puck
-      config={config}
-      data={initialData}
-      iframe={{ enabled: false }}
-      onChange={(data) => {
-        const parsed = fromPuckData(data);
-        if (parsed) onChange(applyOptionMode(parsed, screenType));
-      }}
-    >
-      <Bridge commandsRef={commandsRef} onBridgeChange={onBridgeChange} />
-      {slots.preview ? createPortal(<Puck.Preview />, slots.preview) : null}
-      {slots.fields ? createPortal(<Puck.Fields />, slots.fields) : null}
-      {slots.blocks ? createPortal(<Puck.Components />, slots.blocks) : null}
-      {slots.outline ? createPortal(<Puck.Outline />, slots.outline) : null}
-    </Puck>
+    <ThemeContext.Provider value={theme}>
+      <EditorDataContext.Provider value={{ screens, screenId, screenType }}>
+        <Puck
+          config={config}
+          data={initialData}
+          iframe={{ enabled: false }}
+          onAction={(action) => {
+            insertTracker.lastAction = action.type;
+          }}
+          onChange={(data) => {
+            const parsed = fromPuckData(data);
+            if (parsed) onChange(parsed);
+          }}
+        >
+          <Bridge commandsRef={commandsRef} onBridgeChange={onBridgeChange} />
+          {slots.preview ? createPortal(<Puck.Preview />, slots.preview) : null}
+          {slots.fields ? createPortal(<Puck.Fields />, slots.fields) : null}
+          {slots.blocks
+            ? createPortal(<AddElementPanel screenType={screenType} />, slots.blocks)
+            : null}
+          {slots.outline ? createPortal(<LayersPanel />, slots.outline) : null}
+        </Puck>
+      </EditorDataContext.Provider>
+    </ThemeContext.Provider>
   );
 }

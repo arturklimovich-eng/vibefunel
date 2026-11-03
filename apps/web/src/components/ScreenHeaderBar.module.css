@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0;
 }
 
 .progress {
@@ -13,9 +13,9 @@
 .track {
   position: relative;
   flex: 1;
-  height: 4px;
+  height: var(--header-line-height, 4px);
   border-radius: 999px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+  background: var(--header-track, color-mix(in srgb, currentColor 14%, transparent));
   overflow: hidden;
 }
 
@@ -23,7 +23,7 @@
   position: absolute;
   inset: 0 auto 0 0;
   border-radius: inherit;
-  background: var(--funnel-primary, #4f46e5);
+  background: var(--header-line, var(--funnel-primary, #4f46e5));
   transition: width 0.3s ease-out;
 }
 
@@ -62,7 +62,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: inherit;
+  color: var(--header-back, inherit);
   cursor: pointer;
 }
 
@@ -77,14 +77,16 @@
 
 .title {
   overflow: hidden;
-  font-size: 1.25rem;
-  font-weight: 700;
+  color: var(--header-title, inherit);
+  font-family: var(--header-font, inherit);
+  font-size: var(--header-size, 1.25rem);
+  font-weight: var(--header-weight, 700);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .logo {
-  max-height: 1.75rem;
+  max-height: var(--header-logo, 1.75rem);
   max-width: 7rem;
   object-fit: contain;
 }

@@ -2,33 +2,30 @@ import { z } from 'zod';
 
 z.config({ jitless: true });
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 4;
 
-export const SCREEN_TYPES = [
-  'welcome',
-  'quiz_single',
-  'quiz_multi',
-  'content',
-  'email_capture',
-  'paywall',
-  'checkout',
-  'upsell',
-  'success',
-] as const;
+export const SCREEN_TYPES = ['default', 'auth', 'paywall', 'checkout', 'upsell', 'finish'] as const;
 export const screenTypeSchema = z.enum(SCREEN_TYPES);
 export type ScreenType = z.infer<typeof screenTypeSchema>;
 
-export const QUIZ_SCREEN_TYPES: ReadonlySet<ScreenType> = new Set(['quiz_single', 'quiz_multi']);
+export const LEGACY_SCREEN_TYPES: Readonly<Record<string, ScreenType>> = {
+  welcome: 'default',
+  quiz_single: 'default',
+  quiz_multi: 'default',
+  content: 'default',
+  email_capture: 'auth',
+  paywall: 'paywall',
+  checkout: 'checkout',
+  upsell: 'upsell',
+  success: 'finish',
+};
+
 export const PAYMENT_SCREEN_TYPES: ReadonlySet<ScreenType> = new Set(['checkout', 'upsell']);
 export const SKIP_SCREEN_TYPES: ReadonlySet<ScreenType> = new Set([
   'paywall',
   'checkout',
   'upsell',
 ]);
-
-export function isQuizType(type: ScreenType): boolean {
-  return QUIZ_SCREEN_TYPES.has(type);
-}
 
 export function isPaymentType(type: ScreenType): boolean {
   return PAYMENT_SCREEN_TYPES.has(type);
@@ -135,6 +132,16 @@ export const puckDataSchema = z
   });
 export type PuckData = z.infer<typeof puckDataSchema>;
 
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
+const FUNCTIONAL_COLOR = /^(?:rgba?|hsla?)\(\s*[-+0-9.,%/\s]{1,60}(?:deg)?[-+0-9.,%/\s]{0,60}\)$/i;
+
+export const colorSchema = z
+  .string()
+  .max(80)
+  .refine((v) => HEX_COLOR.test(v) || FUNCTIONAL_COLOR.test(v), {
+    message: 'Must be a hex, rgb(), rgba(), hsl() or hsla() color.',
+  });
+
 export const positionSchema = z.object({ x: z.number(), y: z.number() });
 
 export const MAX_URL_LENGTH = 2000;
@@ -170,6 +177,47 @@ export const screenHeaderSchema = z.object({
 });
 export type ScreenHeader = z.infer<typeof screenHeaderSchema>;
 
+export const FONT_FAMILIES = ['inherit', 'sans', 'serif', 'mono', 'rounded'] as const;
+export const fontFamilySchema = z.enum(FONT_FAMILIES);
+export type FontFamily = z.infer<typeof fontFamilySchema>;
+
+export const FONT_WEIGHTS = [
+  'thin',
+  'extralight',
+  'light',
+  'regular',
+  'medium',
+  'semibold',
+  'bold',
+  'extrabold',
+  'black',
+] as const;
+export const fontWeightSchema = z.enum(FONT_WEIGHTS);
+export type FontWeight = z.infer<typeof fontWeightSchema>;
+
+const spacingSchema = z.number().int().min(0).max(200);
+
+export const screenStyleSchema = z.object({
+  paddingTop: spacingSchema.optional(),
+  paddingBottom: spacingSchema.optional(),
+  paddingX: spacingSchema.optional(),
+  fontFamily: fontFamilySchema.optional(),
+  backgroundColor: colorSchema.optional(),
+  backgroundMedia: z.enum(['image', 'video']).optional(),
+  backgroundImageUrl: urlStringSchema.optional(),
+  backgroundVideoUrl: urlStringSchema.optional(),
+  backButtonColor: colorSchema.optional(),
+  titleColor: colorSchema.optional(),
+  headerFontFamily: fontFamilySchema.optional(),
+  headerFontSize: z.number().int().min(8).max(48).optional(),
+  headerFontWeight: fontWeightSchema.optional(),
+  lineColor: colorSchema.optional(),
+  lineBackground: colorSchema.optional(),
+  lineHeight: z.number().int().min(1).max(16).optional(),
+  logoSize: z.number().int().min(12).max(96).optional(),
+});
+export type ScreenStyle = z.infer<typeof screenStyleSchema>;
+
 export const screenSchema = z.object({
   id: idSchema,
   type: screenTypeSchema,
@@ -180,6 +228,7 @@ export const screenSchema = z.object({
   header: screenHeaderSchema.optional(),
   group: z.string().max(MAX_GROUP_NAME_LENGTH).optional(),
   autoNavigation: z.boolean().optional(),
+  style: screenStyleSchema.optional(),
 });
 export type Screen = z.infer<typeof screenSchema>;
 
@@ -200,16 +249,6 @@ export const edgeSchema = z.object({
 });
 export type Edge = z.infer<typeof edgeSchema>;
 
-const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
-const FUNCTIONAL_COLOR = /^(?:rgba?|hsla?)\(\s*[-+0-9.,%/\s]{1,60}(?:deg)?[-+0-9.,%/\s]{0,60}\)$/i;
-
-export const colorSchema = z
-  .string()
-  .max(80)
-  .refine((v) => HEX_COLOR.test(v) || FUNCTIONAL_COLOR.test(v), {
-    message: 'Must be a hex, rgb(), rgba(), hsl() or hsla() color.',
-  });
-
 export const MIN_FONT_SCALE = 0.75;
 export const MAX_FONT_SCALE = 1.5;
 
@@ -219,6 +258,14 @@ export const themeSchema = z.object({
   textColor: colorSchema,
   fontScale: z.number().min(MIN_FONT_SCALE).max(MAX_FONT_SCALE).optional(),
   logoUrl: urlStringSchema.optional(),
+  screen: screenStyleSchema.optional(),
+  elements: z
+    .record(
+      z.string().max(40),
+      z.record(z.string().max(40), z.union([z.string().max(200), z.number(), z.boolean()])),
+    )
+    .refine((v) => Object.keys(v).length <= 30, { message: 'Too many element theme groups.' })
+    .optional(),
 });
 export type Theme = z.infer<typeof themeSchema>;
 

@@ -14,6 +14,7 @@ flowchart LR
     AUTH["Auth and access"]
     OVER["Studio overview"]
     AUTHOR["Authoring and publishing"]
+    EL["Screen elements"]
     DOM["Custom domains"]
     AI["AI assistant (UI preview)"]
   end
@@ -29,6 +30,8 @@ flowchart LR
   LEAD -->|"leads, opt-ins"| OVER
   PAY -->|"paid orders, revenue"| OVER
   AI -->|"patch proposals"| AUTHOR
+  AUTHOR -->|"add, style"| EL
+  EL -->|"render, gates"| RUN
   AUTHOR -->|"publish version"| RUN
   DOM -->|"host rewrite"| RUN
   RUN -->|"email screen"| LEAD
@@ -40,6 +43,7 @@ flowchart LR
   PAY --> AN
   click AUTH "./70-auth-access.md"
   click AUTHOR "./10-authoring.md"
+  click EL "./12-elements.md"
   click OVER "./15-studio-overview.md"
   click DOM "./50-custom-domains.md"
   click RUN "./20-runtime.md"

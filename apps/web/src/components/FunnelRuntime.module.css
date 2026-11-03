@@ -3,12 +3,41 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 1.5rem 1rem;
+  padding: 1.5rem 0;
 }
 
 .card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   width: 100%;
   max-width: 480px;
+}
+
+.screenBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.attached {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.bgVideo {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
 }
 
 .badge {
@@ -35,16 +64,20 @@
 }
 
 @media (min-width: 640px) {
+  .card {
+    flex: none;
+  }
+
   .page {
     justify-content: center;
-    padding: 3rem 1rem;
+    padding: 3rem 0;
   }
 }
 
 .pageEmbedded {
   composes: page;
   min-height: 100%;
-  padding: 1rem;
+  padding: 1rem 0;
 }
 
 .backButton {

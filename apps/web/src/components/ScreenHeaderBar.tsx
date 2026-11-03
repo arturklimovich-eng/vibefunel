@@ -2,6 +2,7 @@ import Image from 'next/image';
 import type { FunnelDefinition, Screen } from '@funnel/schema';
 import { isHttpsUrl } from '@funnel/schema';
 import { DEFAULT_SEGMENTS, progressFills } from '@/lib/progress';
+import { screenSurface } from '@/lib/styles';
 import type { StepPosition } from '@/lib/progress';
 import styles from './ScreenHeaderBar.module.css';
 
@@ -58,7 +59,7 @@ export function ScreenHeaderBar({
   ) : null;
 
   return (
-    <div className={styles.bar}>
+    <div className={styles.bar} style={screenSurface(screen, definition.theme).header}>
       {fills.length > 0 ? (
         <div
           className={styles.progress}

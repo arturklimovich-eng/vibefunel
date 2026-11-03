@@ -81,8 +81,9 @@ FunnelDefinition {
 
 Screen {
   id;
-  type: 'welcome' | 'quiz_single' | 'quiz_multi' | 'content' | 'email_capture'
-      | 'paywall' | 'checkout' | 'upsell' | 'success';
+  type: 'default' | 'auth' | 'paywall' | 'checkout' | 'upsell' | 'finish';
+  // schema v4 (v3: six types; v4: Heading/Paragraph became one Text type with variant);
+  // a screen is a quiz when it has an Options element (OptionList)
   title;
   content: PuckData;       // stored as-is
   animation: { preset: 'none' | 'fade' | 'slide_up' | 'slide_left'; durationMs?: number };
@@ -112,7 +113,7 @@ The `EmailInput` block props are `label`, `placeholder`, `required` and `consent
 
 Evaluation: for the current screen, take the first matching outgoing edge in order. `default` is the fallback. `payment_succeeded` matches only when the runtime payment state for that screen is `succeeded`, which is set only from a server-confirmed status; checkout and upsell screens may leave only through `payment_succeeded` edges (purchase) or at most one `default` edge (explicit decline, reachable only by a Button with action `skip`; the plain next action never takes it); `always` and `answer_*` edges there are `payment_bypass` errors. At evaluation time `nextScreen` ignores every non-`payment_succeeded` edge on checkout and upsell (even in a legacy or published definition) and checks `payments[sourceScreenId]`; `condition.screenId` must equal the source (`condition_screen_mismatch`).
 
-Button action `skip` means "take the first `default` edge only" (`fallbackOnly`). It is allowed only on paywall, checkout and upsell screens (validation error `skip_not_allowed` elsewhere, warning `skip_without_default` when no `default` edge exists) and on any other screen the runtime treats it exactly like `next`. A `default` edge from checkout/upsell to a success screen raises the warning `decline_to_success`. No match is a dead end; validation reports dead ends, unreachable screens and cycles as warnings at save time and rejects them at publish time. A checkout or upsell screen without a `payment_succeeded` edge is a dead end for a paying visitor and is reported the same way.
+Button action `skip` means "take the first `default` edge only" (`fallbackOnly`). It is allowed only on paywall, checkout and upsell screens (validation error `skip_not_allowed` elsewhere, warning `skip_without_default` when no `default` edge exists) and on any other screen the runtime treats it exactly like `next`. A `default` edge from checkout/upsell to a finish screen raises the warning `decline_to_success`. No match is a dead end; validation reports dead ends, unreachable screens and cycles as warnings at save time and rejects them at publish time. A checkout or upsell screen without a `payment_succeeded` edge is a dead end for a paying visitor and is reported the same way.
 
 Why no expressions: the Condition is a closed tagged union of five kinds, each compared against stored answers or payment status by id. There is no parser, no `eval`, no string interpreted as code, so a funnel JSON from a malicious tenant cannot execute anything. Adding a kind requires a schema change, a migration and a code change.
 

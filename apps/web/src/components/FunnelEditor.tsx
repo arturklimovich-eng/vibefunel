@@ -1,11 +1,22 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties, DragEvent } from 'react';
+import type {
+  CSSProperties,
+  DragEvent,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
+} from 'react';
 import Link from 'next/link';
 import type { Connection } from '@xyflow/react';
 import { z } from 'zod';
-import { MAX_PROGRESS_SEGMENTS, PROGRESS_TYPES, SCREEN_TYPES } from '@funnel/schema';
+import {
+  MAX_PROGRESS_SEGMENTS,
+  PROGRESS_TYPES,
+  SCREEN_TYPES,
+  isQuizScreen,
+  quizOf,
+} from '@funnel/schema';
 import type {
   Condition,
   Edge,
@@ -19,10 +30,10 @@ import type {
 import { funnelRoutes, readJson } from '@/lib/api-routes';
 import { randomId } from '@/lib/ids';
 import { STUDIO_NARROW_MEDIA_QUERY } from '@/lib/layout';
-import { applyOptionMode, getScreenOptions } from '@/lib/puck/adapters';
+import { getScreenOptions } from '@/lib/puck/adapters';
 import { retypeEdges } from '@/lib/retype-edges';
 import { allowedComponentsForScreenType } from '@/lib/puck/config';
-import { createScreenContent } from '@/lib/puck/templates';
+import { createQuizContent, createScreenContent } from '@/lib/puck/templates';
 import { parseCurrentRevision, parseIssues, useDraftSaver } from '@/lib/use-draft-saver';
 import type { SaveState, UiIssue } from '@/lib/use-draft-saver';
 import { AnimationSettings } from './AnimationSettings';
@@ -33,6 +44,10 @@ import { PreviewPane } from './PreviewPane';
 import { ScreenEditor } from './ScreenEditor';
 import type { EditorBridgeState, EditorCommands, ScreenEditorSlots } from './ScreenEditor';
 import { ThemeEditor } from './ThemeEditor';
+import { ElementInspector } from './ElementInspector';
+import { ScreenStyles } from './ScreenStyles';
+import { inheritedScreenStyle, screenSurface } from '@/lib/styles';
+import { ThemeDefaults } from './ThemeDefaults';
 import { ValidationPanel } from './ValidationPanel';
 import { VersionsPanel } from './VersionsPanel';
 import { DomainsPanel } from './DomainsPanel';
@@ -57,15 +72,21 @@ import {
   CloseIcon,
   CopyIcon,
   DotsIcon,
+  DuplicateIcon,
   ExternalIcon,
   EyeIcon,
   GearIcon,
   GridIcon,
+  InsertAfterIcon,
+  InsertBeforeIcon,
   LogoMark,
   MagicIcon,
+  PasteIcon,
   PhoneIcon,
+  PlayIcon,
   PlusIcon,
   Redo,
+  RenameIcon,
   SearchIcon,
   SlidersIcon,
   TranslateIcon,
@@ -81,6 +102,48 @@ type NarrowPanel = 'screens' | 'main' | 'inspector';
 type AddMenuAnchor = 'bottom';
 type LeftTab = 'screens' | 'elements';
 type RightTab = 'parameters' | 'styles';
+
+type PanelSide = 'left' | 'right';
+
+interface ScreenMenuState {
+  id: string;
+  x: number;
+  y: number;
+  insert?: 'before' | 'after';
+}
+
+const PANEL_LIMITS: Record<PanelSide, { min: number; max: number }> = {
+  left: { min: 200, max: 480 },
+  right: { min: 280, max: 600 },
+};
+const CENTER_MIN = 360;
+const PANEL_STORAGE_KEY = 'funnel-editor-panels';
+const MENU_WIDTH = 220;
+
+function readPanelWidths(): Record<PanelSide, number | null> {
+  try {
+    const raw: unknown = JSON.parse(window.localStorage.getItem(PANEL_STORAGE_KEY) ?? 'null');
+    const parsed = z
+      .object({ left: z.number().nullable(), right: z.number().nullable() })
+      .safeParse(raw);
+    if (parsed.success) return parsed.data;
+  } catch {
+    return { left: null, right: null };
+  }
+  return { left: null, right: null };
+}
+
+function writePanelWidths(widths: Record<PanelSide, number | null>) {
+  try {
+    window.localStorage.setItem(PANEL_STORAGE_KEY, JSON.stringify(widths));
+  } catch {
+    return;
+  }
+}
+
+function isMacPlatform(): boolean {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent);
+}
 
 interface PendingConnection {
   source: string;
@@ -106,16 +169,32 @@ const PROGRESS_LABELS = { line: 'Line', segments: 'Segments', groups: 'Groups' }
 const PROGRESS_OPTIONS = PROGRESS_TYPES.map((value) => ({ value, label: PROGRESS_LABELS[value] }));
 
 const SCREEN_META: Record<ScreenType, { label: string; color: string }> = {
-  welcome: { label: 'Landing', color: '#f0503a' },
-  quiz_single: { label: 'Question', color: '#6e56f8' },
-  quiz_multi: { label: 'Multi-choice', color: '#8b5cf6' },
-  content: { label: 'Content', color: '#3b82f6' },
-  email_capture: { label: 'Email capture', color: '#0ea5e9' },
-  paywall: { label: 'Pricing', color: '#202126' },
-  checkout: { label: 'Payment', color: '#1f8a5b' },
+  default: { label: 'Default', color: '#6e56f8' },
+  auth: { label: 'Auth', color: '#0ea5e9' },
+  paywall: { label: 'Paywall', color: '#9aa0ad' },
+  checkout: { label: 'Checkout', color: '#1f8a5b' },
   upsell: { label: 'Upsell', color: '#db2777' },
-  success: { label: 'Success', color: '#e89a2a' },
+  finish: { label: 'Finish', color: '#e89a2a' },
 };
+
+type AddChoice = {
+  key: string;
+  label: string;
+  hint: string;
+  type: ScreenType;
+  quiz?: 'single' | 'multi';
+};
+
+const ADD_CHOICES: AddChoice[] = [
+  { key: 'default', label: 'Default', hint: 'Blank screen', type: 'default' },
+  { key: 'single', label: 'Question', hint: 'Single choice', type: 'default', quiz: 'single' },
+  { key: 'multi', label: 'Multi-choice', hint: 'Multiple choice', type: 'default', quiz: 'multi' },
+  { key: 'auth', label: 'Auth', hint: 'Email capture', type: 'auth' },
+  { key: 'paywall', label: 'Paywall', hint: 'Plans', type: 'paywall' },
+  { key: 'checkout', label: 'Checkout', hint: 'Payment', type: 'checkout' },
+  { key: 'upsell', label: 'Upsell', hint: 'One-click offer', type: 'upsell' },
+  { key: 'finish', label: 'Finish', hint: 'Thank you', type: 'finish' },
+];
 
 const NARROW_TABS: { id: NarrowPanel; label: string }[] = [
   { id: 'screens', label: 'Screens' },
@@ -155,12 +234,12 @@ function describeCondition(condition: Condition, source: Screen | undefined): st
   return condition.kind === 'answer_equals' ? `is "${text}"` : `includes "${text}"`;
 }
 
-function newScreen(type: ScreenType, index: number): Screen {
+function newScreen(type: ScreenType, index: number, quiz?: 'single' | 'multi'): Screen {
   return {
     id: shortId('screen'),
     type,
-    title: SCREEN_META[type].label,
-    content: createScreenContent(type),
+    title: quiz ? (quiz === 'single' ? 'Question' : 'Multi-choice') : SCREEN_META[type].label,
+    content: quiz ? createQuizContent(quiz) : createScreenContent(type),
     animation: { preset: 'fade' },
     position: { x: (index % 5) * 220, y: 460 + Math.floor(index / 5) * 110 },
   };
@@ -189,11 +268,22 @@ export function FunnelEditor({
   const [mode, setMode] = useState<Mode>(initialMode);
   const [narrowPanel, setNarrowPanel] = useState<NarrowPanel>('main');
   const [addMenu, setAddMenu] = useState<AddMenuAnchor | null>(null);
-  const [rowMenu, setRowMenu] = useState<string | null>(null);
+  const [screenMenu, setScreenMenu] = useState<ScreenMenuState | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; draft: string } | null>(null);
+  const [clipboard, setClipboard] = useState<Screen | null>(null);
+  const [panelWidths, setPanelWidths] = useState<Record<PanelSide, number | null>>({
+    left: null,
+    right: null,
+  });
+  const [resizing, setResizing] = useState<PanelSide | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const leftRef = useRef<HTMLElement>(null);
+  const rightRef = useRef<HTMLElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const [leftTab, setLeftTab] = useState<LeftTab>('screens');
+  const [addingElement, setAddingElement] = useState(false);
   const [rightTab, setRightTab] = useState<RightTab>('parameters');
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -247,7 +337,7 @@ export function FunnelEditor({
     setSelectedId(id);
     setConnectChoice({ kind: 'always' });
     setConnectTarget('');
-    setRowMenu(null);
+    setScreenMenu(null);
   }, []);
 
   const issueScreenId = useCallback(
@@ -301,15 +391,15 @@ export function FunnelEditor({
     updateScreen(id, { content });
   };
 
-  const addScreen = (type: ScreenType) => {
-    const screen = newScreen(type, definition.screens.length);
+  const addScreen = (type: ScreenType, quiz?: 'single' | 'multi') => {
+    const screen = newScreen(type, definition.screens.length, quiz);
     mutate((d) => ({ ...d, screens: [...d.screens, screen] }));
     selectScreen(screen.id);
     setAddMenu(null);
   };
 
   const deleteScreen = (id: string) => {
-    setRowMenu(null);
+    setScreenMenu(null);
     if (id === definition.startScreenId) {
       setNotice('The start screen cannot be deleted. Set another start screen first.');
       return;
@@ -335,7 +425,7 @@ export function FunnelEditor({
   };
 
   const setStart = (id: string) => {
-    setRowMenu(null);
+    setScreenMenu(null);
     mutate((d) => ({ ...d, startScreenId: id }));
   };
 
@@ -353,6 +443,180 @@ export function FunnelEditor({
     });
   };
 
+  const insertScreen = (screen: Screen, anchorId: string, place: 'before' | 'after') => {
+    mutate((d) => {
+      const anchor = d.screens.findIndex((s) => s.id === anchorId);
+      const screens = [...d.screens];
+      const at = anchor < 0 ? screens.length : place === 'before' ? anchor : anchor + 1;
+      screens.splice(at, 0, screen);
+      return { ...d, screens };
+    });
+    selectScreen(screen.id);
+    setNotice(null);
+  };
+
+  const cloneScreen = (source: Screen): Screen => ({
+    ...structuredClone(source),
+    id: shortId('screen'),
+    title: source.title ? `${source.title} copy` : 'Copy',
+    position: { x: source.position.x + 40, y: source.position.y + 40 },
+  });
+
+  const insertNewScreen = (
+    anchorId: string,
+    place: 'before' | 'after',
+    type: ScreenType,
+    quiz?: 'single' | 'multi',
+  ) => {
+    const anchor = screensById.get(anchorId);
+    const screen = newScreen(type, definition.screens.length, quiz);
+    if (anchor) screen.position = { x: anchor.position.x + 40, y: anchor.position.y + 40 };
+    insertScreen(screen, anchorId, place);
+  };
+
+  const copyScreen = (id: string) => {
+    setScreenMenu(null);
+    const screen = screensById.get(id);
+    if (!screen) return;
+    setClipboard(structuredClone(screen));
+    setNotice(`Copied "${screen.title || screen.id}". Paste with the screen menu or Ctrl+V.`);
+  };
+
+  const duplicateScreen = (id: string) => {
+    setScreenMenu(null);
+    const screen = screensById.get(id);
+    if (screen) insertScreen(cloneScreen(screen), id, 'after');
+  };
+
+  const pasteScreen = (anchorId: string) => {
+    setScreenMenu(null);
+    if (clipboard) insertScreen(cloneScreen(clipboard), anchorId, 'after');
+  };
+
+  const startRename = (id: string) => {
+    setScreenMenu(null);
+    const screen = screensById.get(id);
+    if (screen) setRenaming({ id, draft: screen.title });
+  };
+
+  const commitRename = () => {
+    if (!renaming) return;
+    const title = renaming.draft.trim();
+    if (title !== '' && title !== screensById.get(renaming.id)?.title) {
+      updateScreen(renaming.id, { title });
+    }
+    setRenaming(null);
+  };
+
+  const openScreenMenu = (id: string, x: number, y: number) => {
+    const maxX = window.innerWidth - MENU_WIDTH - 8;
+    const maxY = window.innerHeight - 360;
+    setScreenMenu({ id, x: Math.max(8, Math.min(x, maxX)), y: Math.max(8, Math.min(y, maxY)) });
+    setAddMenu(null);
+  };
+
+  const onScreenListKeyDown = (event: ReactKeyboardEvent<HTMLOListElement>) => {
+    if (!(event.target instanceof HTMLElement) || event.target.closest('input')) return;
+    const row = event.target.closest<HTMLElement>('[data-screen-id]');
+    const id = row?.dataset.screenId;
+    if (!id) return;
+    const mod = event.metaKey || event.ctrlKey;
+    const key = event.key.toLowerCase();
+    if (mod && key === 'c') copyScreen(id);
+    else if (mod && key === 'd') duplicateScreen(id);
+    else if (mod && key === 'v') pasteScreen(id);
+    else if (!mod && (event.key === 'Delete' || event.key === 'Backspace')) deleteScreen(id);
+    else if (!mod && event.key === 'F2') startRename(id);
+    else if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+      const rect = event.target.getBoundingClientRect();
+      openScreenMenu(id, rect.left + 24, rect.bottom);
+    } else return;
+    event.preventDefault();
+  };
+
+  const panelLimit = (side: PanelSide, otherWidth: number) => {
+    const bodyWidth = bodyRef.current?.clientWidth ?? window.innerWidth;
+    const { min, max } = PANEL_LIMITS[side];
+    return { min, max: Math.max(min, Math.min(max, bodyWidth - otherWidth - CENTER_MIN)) };
+  };
+
+  const applyPanelWidth = (side: PanelSide, width: number | null) => {
+    setPanelWidths((current) => {
+      const next = { ...current, [side]: width };
+      writePanelWidths(next);
+      return next;
+    });
+  };
+
+  const startPanelResize = (side: PanelSide, event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const panel = (side === 'left' ? leftRef : rightRef).current;
+    const other = (side === 'left' ? rightRef : leftRef).current;
+    const body = bodyRef.current;
+    if (!panel || !body) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startWidth = panel.getBoundingClientRect().width;
+    const { min, max } = panelLimit(side, other?.getBoundingClientRect().width ?? 0);
+    let width = startWidth;
+    setResizing(side);
+    const onMove = (e: PointerEvent) => {
+      const delta = side === 'left' ? e.clientX - startX : startX - e.clientX;
+      width = Math.round(Math.max(min, Math.min(max, startWidth + delta)));
+      body.style.setProperty(side === 'left' ? '--left-w' : '--right-w', `${width}px`);
+    };
+    const onUp = () => {
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      handle.removeEventListener('pointercancel', onUp);
+      setResizing(null);
+      if (width !== startWidth) applyPanelWidth(side, width);
+    };
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointercancel', onUp);
+  };
+
+  const onResizeKey = (side: PanelSide, event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const panel = (side === 'left' ? leftRef : rightRef).current;
+    const other = (side === 'left' ? rightRef : leftRef).current;
+    if (!panel) return;
+    const grow = side === 'left' ? 'ArrowRight' : 'ArrowLeft';
+    const shrink = side === 'left' ? 'ArrowLeft' : 'ArrowRight';
+    if (event.key !== grow && event.key !== shrink && event.key !== 'Home') return;
+    event.preventDefault();
+    if (event.key === 'Home') {
+      applyPanelWidth(side, null);
+      return;
+    }
+    const { min, max } = panelLimit(side, other?.getBoundingClientRect().width ?? 0);
+    const step = event.shiftKey ? 48 : 16;
+    const current = panel.getBoundingClientRect().width;
+    const next = current + (event.key === grow ? step : -step);
+    applyPanelWidth(side, Math.round(Math.max(min, Math.min(max, next))));
+  };
+
+  const resizeHandle = (side: PanelSide) => (
+    <div
+      className={shell.resizeHandle}
+      data-side={side}
+      data-active={resizing === side}
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={side === 'left' ? 'Resize screens panel' : 'Resize settings panel'}
+      aria-valuemin={PANEL_LIMITS[side].min}
+      aria-valuemax={PANEL_LIMITS[side].max}
+      aria-valuenow={panelWidths[side] ?? undefined}
+      tabIndex={0}
+      title="Drag to resize, double-click to reset"
+      onPointerDown={(e) => startPanelResize(side, e)}
+      onDoubleClick={() => applyPanelWidth(side, null)}
+      onKeyDown={(e) => onResizeKey(side, e)}
+    />
+  );
+
   const addEdge = (source: string, target: string, condition: Condition) => {
     const edge: Edge = {
       id: shortId('edge'),
@@ -368,7 +632,7 @@ export function FunnelEditor({
     if (source === target) return;
     const sourceScreen = screensById.get(source);
     if (!sourceScreen) return;
-    const isQuiz = sourceScreen.type === 'quiz_single' || sourceScreen.type === 'quiz_multi';
+    const isQuiz = isQuizScreen(sourceScreen);
     if (isPaymentScreen(sourceScreen)) {
       setPending({ source, target, choice: { kind: 'payment' } });
       return;
@@ -409,23 +673,37 @@ export function FunnelEditor({
   }, [dirty]);
 
   useEffect(() => {
-    if (!addMenu && !rowMenu) return;
+    const stored = readPanelWidths();
+    if (stored.left === null && stored.right === null) return;
+    const frame = requestAnimationFrame(() => setPanelWidths(stored));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    if (!addMenu && !screenMenu) return;
+    const closeAll = () => {
+      setAddMenu(null);
+      setScreenMenu(null);
+    };
     const close = (event: MouseEvent | globalThis.KeyboardEvent) => {
       if (event instanceof KeyboardEvent) {
         if (event.key !== 'Escape') return;
       } else if (event.target instanceof Element && event.target.closest('[data-menu]')) {
         return;
       }
-      setAddMenu(null);
-      setRowMenu(null);
+      closeAll();
     };
     document.addEventListener('mousedown', close);
     document.addEventListener('keydown', close);
+    window.addEventListener('resize', closeAll);
+    window.addEventListener('blur', closeAll);
     return () => {
       document.removeEventListener('mousedown', close);
       document.removeEventListener('keydown', close);
+      window.removeEventListener('resize', closeAll);
+      window.removeEventListener('blur', closeAll);
     };
-  }, [addMenu, rowMenu]);
+  }, [addMenu, screenMenu]);
 
   useEffect(() => {
     const dialog = settingsRef.current;
@@ -469,13 +747,10 @@ export function FunnelEditor({
           ? {
               ...s,
               type,
-              content: applyOptionMode(
-                {
-                  ...s.content,
-                  content: s.content.content.filter((item) => allowed.has(item.type)),
-                },
-                type,
-              ),
+              content: {
+                ...s.content,
+                content: s.content.content.filter((item) => allowed.has(item.type)),
+              },
             }
           : s,
       ),
@@ -565,6 +840,8 @@ export function FunnelEditor({
   };
 
   const theme = definition.theme;
+  const screenList = definition.screens.map((sc) => ({ id: sc.id, title: sc.title }));
+  const surface = screenSurface(selected, theme);
   const phoneStyle = {
     '--funnel-primary': theme.primaryColor,
     '--funnel-on-primary': contrastingForeground(theme.primaryColor),
@@ -591,6 +868,7 @@ export function FunnelEditor({
       )
     : definition.screens;
   const elementCount = selected?.content.content.length ?? 0;
+  const modKey = isMacPlatform() ? '⌘' : 'Ctrl+';
 
   const addMenuList = (anchor: AddMenuAnchor) =>
     addMenu === anchor ? (
@@ -601,17 +879,20 @@ export function FunnelEditor({
         role="menu"
         aria-label="Screen type"
       >
-        {SCREEN_TYPES.map((t) => (
-          <li key={t} role="none">
+        {ADD_CHOICES.map((c) => (
+          <li key={c.key} role="none">
             <button
               type="button"
               role="menuitem"
               className={shell.menuItem}
-              onClick={() => addScreen(t)}
+              onClick={() => addScreen(c.type, c.quiz)}
             >
-              <span className={shell.menuSwatch} style={{ background: SCREEN_META[t].color }} />
-              {SCREEN_META[t].label}
-              <span className={shell.menuHint}>{t}</span>
+              <span
+                className={shell.menuSwatch}
+                style={{ background: SCREEN_META[c.type].color }}
+              />
+              {c.label}
+              <span className={shell.menuHint}>{c.hint}</span>
             </button>
           </li>
         ))}
@@ -790,8 +1071,10 @@ export function FunnelEditor({
           checked={selected.autoNavigation ?? false}
           onChange={(autoNavigation) => updateScreen(selected.id, { autoNavigation })}
         />
-        {selected.autoNavigation && selected.type !== 'quiz_single' ? (
-          <p className={shell.muted}>Auto navigation works on single-choice quiz screens.</p>
+        {selected.autoNavigation && quizOf(selected)?.mode !== 'single' ? (
+          <p className={shell.muted}>
+            Auto navigation works on screens with a single-choice Options element.
+          </p>
         ) : null}
       </details>
 
@@ -985,8 +1268,24 @@ export function FunnelEditor({
         </div>
       ) : null}
 
-      <div className={shell.body}>
-        <aside className={shell.left} data-panel="screens" aria-label="Screens and elements">
+      <div
+        ref={bodyRef}
+        className={shell.body}
+        data-resizing={resizing ?? undefined}
+        style={
+          {
+            ...(panelWidths.left !== null ? { '--left-w': `${panelWidths.left}px` } : {}),
+            ...(panelWidths.right !== null ? { '--right-w': `${panelWidths.right}px` } : {}),
+          } as CSSProperties
+        }
+      >
+        <aside
+          ref={leftRef}
+          className={shell.left}
+          data-panel="screens"
+          aria-label="Screens and elements"
+        >
+          {resizeHandle('left')}
           <div className={shell.tabs} role="tablist" aria-label="Left panel">
             <button
               type="button"
@@ -1022,7 +1321,7 @@ export function FunnelEditor({
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
-            <ol className={shell.screenList}>
+            <ol className={shell.screenList} onKeyDown={onScreenListKeyDown}>
               {visibleScreens.map((screen, visibleIndex) => {
                 const groupName = screen.group?.trim() ?? '';
                 const prevGroup = visibleScreens[visibleIndex - 1]?.group?.trim() ?? '';
@@ -1036,15 +1335,36 @@ export function FunnelEditor({
                 const meta = SCREEN_META[screen.type];
                 const severity = severityByScreen.get(screen.id);
                 const isSelected = screen.id === selected?.id;
+                const isRenaming = renaming?.id === screen.id;
+                const menuOpen = screenMenu?.id === screen.id;
+                const thumb = (
+                  <span className={shell.thumb} aria-hidden="true">
+                    <span className={shell.thumbIsland} />
+                    <span className={shell.thumbAccent} />
+                    <span className={shell.thumbLine} />
+                    <span className={shell.thumbLineShort} />
+                    <span className={shell.thumbCta} />
+                  </span>
+                );
+                const metaLine = (
+                  <span className={shell.screenMeta}>
+                    {index + 1} · /{screen.id}
+                    {screen.id === definition.startScreenId ? (
+                      <span className={shell.startBadge}>Start</span>
+                    ) : null}
+                  </span>
+                );
                 return [
                   groupLabel,
                   <li
                     key={screen.id}
                     className={shell.screenRow}
+                    data-screen-id={screen.id}
                     data-grouped={groupName !== ''}
                     data-selected={isSelected}
+                    data-menu-open={menuOpen}
                     data-dragging={dragId === screen.id}
-                    draggable={normalizedQuery === ''}
+                    draggable={normalizedQuery === '' && !isRenaming}
                     onDragStart={(e) => {
                       setDragId(screen.id);
                       e.dataTransfer.effectAllowed = 'move';
@@ -1054,77 +1374,78 @@ export function FunnelEditor({
                       if (dragId) e.preventDefault();
                     }}
                     onDrop={(e) => onRowDrop(e, screen.id)}
+                    onContextMenu={(e) => {
+                      if (isRenaming) return;
+                      e.preventDefault();
+                      selectScreen(screen.id);
+                      openScreenMenu(screen.id, e.clientX, e.clientY);
+                    }}
                     style={{ '--type-color': meta.color } as CSSProperties}
                   >
-                    <button
-                      type="button"
-                      className={shell.screenMain}
-                      aria-current={isSelected ? 'true' : undefined}
-                      onClick={() => openScreen(screen.id)}
-                      onDoubleClick={() => setMode('editor')}
-                    >
-                      <span className={shell.thumb} aria-hidden="true">
-                        <span className={shell.thumbIsland} />
-                        <span className={shell.thumbAccent} />
-                        <span className={shell.thumbLine} />
-                        <span className={shell.thumbLineShort} />
-                        <span className={shell.thumbCta} />
-                      </span>
-                      <span className={shell.screenText}>
-                        <span className={shell.screenTitle}>
-                          {screen.title || screen.id}
-                          {severity ? (
-                            <span
-                              className={shell.severityDot}
-                              data-severity={severity}
-                              aria-label={`has ${severity}s`}
-                              role="img"
-                            />
-                          ) : null}
+                    {isRenaming ? (
+                      <div className={shell.screenMain} data-renaming="true">
+                        {thumb}
+                        <span className={shell.screenText}>
+                          <input
+                            className={shell.renameInput}
+                            aria-label="Screen name"
+                            maxLength={200}
+                            autoFocus
+                            value={renaming.draft}
+                            onFocus={(e) => e.currentTarget.select()}
+                            onChange={(e) => setRenaming({ id: screen.id, draft: e.target.value })}
+                            onBlur={commitRename}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRename();
+                              if (e.key === 'Escape') setRenaming(null);
+                            }}
+                          />
+                          {metaLine}
                         </span>
-                        <span className={shell.screenMeta}>
-                          {index + 1} · /{screen.id}
-                          {screen.id === definition.startScreenId ? (
-                            <span className={shell.startBadge}>Start</span>
-                          ) : null}
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className={shell.screenMain}
+                        aria-current={isSelected ? 'true' : undefined}
+                        onClick={() => openScreen(screen.id)}
+                        onDoubleClick={() => setMode('editor')}
+                      >
+                        {thumb}
+                        <span className={shell.screenText}>
+                          <span className={shell.screenTitle}>
+                            {screen.title || screen.id}
+                            {severity ? (
+                              <span
+                                className={shell.severityDot}
+                                data-severity={severity}
+                                aria-label={`has ${severity}s`}
+                                role="img"
+                              />
+                            ) : null}
+                          </span>
+                          {metaLine}
                         </span>
-                      </span>
-                    </button>
+                      </button>
+                    )}
                     <div className={shell.menuHost} data-menu>
                       <button
                         type="button"
                         className={shell.rowMenuBtn}
                         aria-label={`Actions for ${screen.title || screen.id}`}
-                        aria-expanded={rowMenu === screen.id}
-                        onClick={() => setRowMenu((m) => (m === screen.id ? null : screen.id))}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                        onClick={(e) => {
+                          if (menuOpen) {
+                            setScreenMenu(null);
+                            return;
+                          }
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          openScreenMenu(screen.id, rect.right - MENU_WIDTH, rect.bottom + 4);
+                        }}
                       >
                         <DotsIcon />
                       </button>
-                      {rowMenu === screen.id ? (
-                        <ul className={shell.menu} data-anchor="row" role="menu">
-                          <li role="none">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={shell.menuItem}
-                              disabled={screen.id === definition.startScreenId}
-                              onClick={() => setStart(screen.id)}
-                            >
-                              Set as start screen
-                            </button>
-                          </li>
-                          <li role="none">
-                            <button
-                              type="button"
-                              role="menuitem"
-                              className={shell.menuItemDanger}
-                              onClick={() => deleteScreen(screen.id)}
-                            >
-                              Delete screen
-                            </button>
-                          </li>
-                        </ul>
-                      ) : null}
                     </div>
                   </li>,
                 ];
@@ -1135,19 +1456,38 @@ export function FunnelEditor({
             ) : null}
           </div>
 
-          <div className={shell.leftScroll} hidden={leftTab !== 'elements'}>
-            <section className={shell.elementsSection} aria-label="Layers">
-              <h3 className={shell.sectionTitle}>On this screen</h3>
-              <div ref={outlineSlotRef} className={shell.outlineSlot} />
-            </section>
-            <section className={shell.elementsSection} aria-label="Add elements">
-              <h3 className={shell.sectionTitle}>Add elements</h3>
-              <p className={shell.muted}>Drag onto the phone to add.</p>
-              <div ref={blocksSlotRef} className={shell.blocksSlot} />
-            </section>
+          <div className={shell.leftScroll} hidden={leftTab !== 'elements' || addingElement}>
+            <div ref={outlineSlotRef} className={shell.outlineSlot} />
+          </div>
+          <div className={shell.leftScroll} hidden={leftTab !== 'elements' || !addingElement}>
+            <div className={shell.addTitle}>
+              <button
+                type="button"
+                className={shell.iconBtn}
+                aria-label="Close add element"
+                onClick={() => setAddingElement(false)}
+              >
+                <CloseIcon size={14} />
+              </button>
+              <h3>Add Element</h3>
+            </div>
+            <div ref={blocksSlotRef} className={shell.blocksSlot} />
           </div>
 
-          <div className={shell.leftFoot}>
+          <div className={shell.leftFoot} hidden={leftTab !== 'elements' || addingElement}>
+            <button
+              type="button"
+              className={shell.footWide}
+              onClick={() => {
+                setAddingElement(true);
+                setMode('editor');
+              }}
+            >
+              <PlusIcon size={14} /> Add element
+            </button>
+          </div>
+
+          <div className={shell.leftFoot} hidden={leftTab !== 'screens'}>
             <div className={shell.menuHost} data-menu>
               <button
                 type="button"
@@ -1211,9 +1551,32 @@ export function FunnelEditor({
           </div>
 
           <div className={shell.stage} hidden={mode !== 'editor'}>
-            <div className={shell.phone}>
+            <div
+              className={shell.phone}
+              data-selected={!elementMode && selected ? 'true' : undefined}
+            >
               <span className={shell.island} aria-hidden="true" />
-              <div className={shell.phoneScreen} style={phoneStyle}>
+              <div
+                className={shell.phoneScreen}
+                style={{ ...phoneStyle, ...surface.surface }}
+                onMouseDown={(e) => {
+                  if (!(e.target instanceof Element)) return;
+                  if (e.target.closest('[data-puck-component], button, input, a')) return;
+                  if (bridge.selection) commandsRef.current?.deselect();
+                }}
+              >
+                {surface.videoUrl ? (
+                  <video
+                    key={surface.videoUrl}
+                    className={shell.phoneVideo}
+                    src={surface.videoUrl}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    aria-hidden="true"
+                  />
+                ) : null}
                 {selected ? (
                   <div className={shell.phoneHeader}>
                     <ScreenHeaderBar
@@ -1224,12 +1587,22 @@ export function FunnelEditor({
                     />
                   </div>
                 ) : null}
-                <div ref={previewSlotRef} className={shell.previewSlot} />
+                <div ref={previewSlotRef} className={shell.previewSlot} style={surface.body} />
               </div>
             </div>
-            <p className={shell.hintPill}>
-              {bridge.selection ? `Editing ${bridge.selection.label}` : 'Tap any element to edit'}
-            </p>
+            {!elementMode && selected ? (
+              <p className={shell.screenPill}>
+                <span>{selectedIndex + 1}</span>
+                <span aria-hidden="true">·</span>
+                {selected.title || selected.id}
+              </p>
+            ) : (
+              <p className={shell.hintPill}>
+                {bridge.selection
+                  ? `Editing ${bridge.selection.label} · click the empty screen area to edit the screen`
+                  : 'Tap any element to edit'}
+              </p>
+            )}
           </div>
 
           {mode === 'flow' ? (
@@ -1352,7 +1725,8 @@ export function FunnelEditor({
           ) : null}
         </main>
 
-        <aside className={shell.right} data-panel="inspector" aria-label="Settings">
+        <aside ref={rightRef} className={shell.right} data-panel="inspector" aria-label="Settings">
+          {resizeHandle('right')}
           <AssistantPanel
             hidden={!assistantOpen}
             definition={definition}
@@ -1395,44 +1769,40 @@ export function FunnelEditor({
             className={shell.inspectorScroll}
             style={assistantOpen ? { display: 'none' } : undefined}
           >
-            <div hidden={rightTab !== 'parameters'}>
-              <div className={shell.inspectorHead}>
-                <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
-                  {elementMode
-                    ? (bridge.selection?.label ?? 'Element')
-                    : (selected?.title ?? 'Screen')}
-                </h2>
-                {elementMode ? (
-                  <button
-                    type="button"
-                    className={shell.iconBtn}
-                    aria-label="Back to screen parameters"
-                    onClick={() => commandsRef.current?.deselect()}
-                  >
-                    <CloseIcon size={15} />
-                  </button>
-                ) : null}
-              </div>
-              <div ref={fieldsSlotRef} className={shell.fieldsSlot} hidden={!elementMode} />
-              {elementMode ? (
-                <div className={shell.elementActions}>
-                  <button
-                    type="button"
-                    className={shell.plainAction}
-                    onClick={() => commandsRef.current?.duplicate()}
-                  >
-                    <CopyIcon size={15} /> Duplicate element
-                  </button>
-                  <button
-                    type="button"
-                    className={shell.dangerLink}
-                    onClick={() => commandsRef.current?.remove()}
-                  >
-                    <TrashIcon size={15} /> Delete element
-                  </button>
-                </div>
-              ) : (
-                <>
+            {elementMode && bridge.selection && selected ? (
+              <ElementInspector
+                key={bridge.selection.id}
+                element={bridge.selection}
+                tab={rightTab}
+                screen={selected}
+                screens={definition.screens}
+                theme={definition.theme}
+                fieldsSlotRef={fieldsSlotRef}
+                onBack={() => commandsRef.current?.deselect()}
+                onUpdate={(patch) => commandsRef.current?.updateProps(patch)}
+                onSaveToTheme={(key, style) =>
+                  mutate((d) => ({
+                    ...d,
+                    theme: {
+                      ...d.theme,
+                      elements: {
+                        ...d.theme.elements,
+                        [key]: { ...d.theme.elements?.[key], ...style },
+                      },
+                    },
+                  }))
+                }
+                onDuplicate={() => commandsRef.current?.duplicate()}
+                onDelete={() => commandsRef.current?.remove()}
+              />
+            ) : (
+              <>
+                <div hidden={rightTab !== 'parameters'}>
+                  <div className={shell.inspectorHead}>
+                    <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
+                      {selected?.title ?? 'Screen'}
+                    </h2>
+                  </div>
                   {screenParameters}
                   {mode === 'flow' || issues.length > 0 ? (
                     <div className={shell.validationWrap}>
@@ -1444,36 +1814,37 @@ export function FunnelEditor({
                       />
                     </div>
                   ) : null}
-                </>
-              )}
-            </div>
-            <div hidden={rightTab !== 'styles'} className={shell.stylesPane}>
-              <p className={shell.muted}>Theme applies to every screen of this funnel.</p>
-              <ThemeEditor
-                theme={definition.theme}
-                onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
-              />
-              <label className={shell.paramRow}>
-                <span className={shell.paramLabel}>Logo URL</span>
-                <input
-                  className={shell.input}
-                  type="url"
-                  placeholder="https://…"
-                  maxLength={2000}
-                  value={definition.theme.logoUrl ?? ''}
-                  onChange={(e) =>
-                    mutate((d) => ({
-                      ...d,
-                      theme: {
-                        ...d.theme,
-                        logoUrl: e.target.value === '' ? undefined : e.target.value,
-                      },
-                    }))
-                  }
-                />
-              </label>
-              <p className={shell.muted}>Shown in screen headers with Show Logo turned on.</p>
-            </div>
+                </div>
+                <div hidden={rightTab !== 'styles'}>
+                  <div className={shell.inspectorHead}>
+                    <h2 className={shell.panelTitle}>{selected?.title ?? 'Screen'}</h2>
+                  </div>
+                  {selected ? (
+                    <ScreenStyles
+                      style={selected.style}
+                      inherited={inheritedScreenStyle(definition.theme)}
+                      theme={definition.theme}
+                      saveLabel="Save as theme default for all screens"
+                      onChange={(style) => updateScreen(selected.id, { style })}
+                      onSave={() => {
+                        const style = selected.style;
+                        mutate((d) => ({
+                          ...d,
+                          theme: { ...d.theme, screen: { ...d.theme.screen, ...style } },
+                          screens: d.screens.map((sc) =>
+                            sc.id === selected.id ? { ...sc, style: undefined } : sc,
+                          ),
+                        }));
+                      }}
+                    />
+                  ) : null}
+                  <p className={shell.stylesNote}>
+                    ⚡ marks values changed on this screen. The whole theme (colors, logo, element
+                    and screen defaults) is in Funnel settings → Theme.
+                  </p>
+                </div>
+              </>
+            )}
           </div>
         </aside>
       </div>
@@ -1492,11 +1863,138 @@ export function FunnelEditor({
         ))}
       </nav>
 
+      {screenMenu && screensById.has(screenMenu.id) ? (
+        <div
+          className={shell.contextMenu}
+          data-menu
+          role="menu"
+          aria-label={screenMenu.insert ? 'Screen type' : 'Screen actions'}
+          style={{ left: screenMenu.x, top: screenMenu.y, width: MENU_WIDTH }}
+        >
+          {screenMenu.insert ? (
+            <>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextBack}
+                onClick={() => setScreenMenu({ ...screenMenu, insert: undefined })}
+              >
+                <ChevronLeft size={14} /> Insert {screenMenu.insert}
+              </button>
+              <div className={shell.contextSep} role="separator" />
+              {ADD_CHOICES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => {
+                    const place = screenMenu.insert ?? 'after';
+                    setScreenMenu(null);
+                    insertNewScreen(screenMenu.id, place, c.type, c.quiz);
+                  }}
+                >
+                  <span
+                    className={shell.menuSwatch}
+                    style={{ background: SCREEN_META[c.type].color }}
+                  />
+                  {c.label}
+                  <span className={shell.menuHint}>{c.hint}</span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className={shell.contextLabel}>Insert</div>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                onClick={() => setScreenMenu({ ...screenMenu, insert: 'before' })}
+              >
+                <InsertBeforeIcon size={15} /> Before
+                <ChevronRight size={13} className={shell.contextChevron} />
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                onClick={() => setScreenMenu({ ...screenMenu, insert: 'after' })}
+              >
+                <InsertAfterIcon size={15} /> After
+                <ChevronRight size={13} className={shell.contextChevron} />
+              </button>
+              <div className={shell.contextSep} role="separator" />
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                onClick={() => startRename(screenMenu.id)}
+              >
+                <RenameIcon size={15} /> Rename
+                <kbd className={shell.contextKbd}>F2</kbd>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                onClick={() => copyScreen(screenMenu.id)}
+              >
+                <CopyIcon size={15} /> Copy
+                <kbd className={shell.contextKbd}>{modKey}C</kbd>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                onClick={() => duplicateScreen(screenMenu.id)}
+              >
+                <DuplicateIcon size={15} /> Duplicate
+                <kbd className={shell.contextKbd}>{modKey}D</kbd>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                disabled={!clipboard}
+                onClick={() => pasteScreen(screenMenu.id)}
+              >
+                <PasteIcon size={15} /> Paste
+                <kbd className={shell.contextKbd}>{modKey}V</kbd>
+              </button>
+              <div className={shell.contextSep} role="separator" />
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                disabled={screenMenu.id === definition.startScreenId}
+                onClick={() => setStart(screenMenu.id)}
+              >
+                <PlayIcon size={15} /> Set as start
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className={shell.contextItem}
+                data-danger="true"
+                disabled={screenMenu.id === definition.startScreenId}
+                onClick={() => deleteScreen(screenMenu.id)}
+              >
+                <TrashIcon size={15} /> Delete
+                <kbd className={shell.contextKbd}>Del</kbd>
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+
       {selected ? (
         <ScreenEditor
           key={`${selected.id}-${selected.type}`}
           screenId={selected.id}
           screenType={selected.type}
+          theme={definition.theme}
+          screens={screenList}
           content={selected.content}
           slots={slots}
           commandsRef={commandsRef}
@@ -1529,6 +2027,38 @@ export function FunnelEditor({
         </div>
         {settingsOpen ? (
           <div className={shell.drawerBody}>
+            <div className={styles.panel}>
+              <h2 className={styles.panelHeading}>Theme</h2>
+              <ThemeEditor
+                theme={definition.theme}
+                onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
+              />
+              <label className={styles.field}>
+                Logo URL
+                <input
+                  type="url"
+                  placeholder="https://…"
+                  maxLength={2000}
+                  value={definition.theme.logoUrl ?? ''}
+                  onChange={(e) =>
+                    mutate((d) => ({
+                      ...d,
+                      theme: {
+                        ...d.theme,
+                        logoUrl: e.target.value === '' ? undefined : e.target.value,
+                      },
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <div className={styles.panel}>
+              <h2 className={styles.panelHeading}>Theme defaults</h2>
+              <ThemeDefaults
+                theme={definition.theme}
+                onChange={(theme) => mutate((d) => ({ ...d, theme }))}
+              />
+            </div>
             <div className={styles.panel}>
               <h2 className={styles.panelHeading}>Behaviour</h2>
               <label className={styles.checkRow}>

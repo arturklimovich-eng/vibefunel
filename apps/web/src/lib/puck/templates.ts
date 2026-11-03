@@ -8,11 +8,11 @@ function uid(prefix: string): string {
 }
 
 function heading(text: string): PuckItem {
-  return { type: 'Heading', props: { id: uid('h'), text, level: '1' } };
+  return { type: 'Text', props: { id: uid('el'), text, variant: 'title' } };
 }
 
 function paragraph(text: string): PuckItem {
-  return { type: 'Paragraph', props: { id: uid('p'), text } };
+  return { type: 'Text', props: { id: uid('el'), text, variant: 'paragraph' } };
 }
 
 function nextButton(label: string): PuckItem {
@@ -55,23 +55,18 @@ function optionList(mode: 'single' | 'multi'): PuckItem {
   };
 }
 
+function attached(item: PuckItem): PuckItem {
+  return { ...item, props: { ...item.props, style: { position: 'attached' } } };
+}
+
 function templateItems(type: ScreenType): PuckItem[] {
   switch (type) {
-    case 'welcome':
-      return [heading('Welcome'), paragraph('Tell visitors what to expect.'), nextButton('Start')];
-    case 'quiz_single':
-      return [heading('Pick one option'), optionList('single'), nextButton('Continue')];
-    case 'quiz_multi':
-      return [heading('Pick all that apply'), optionList('multi'), nextButton('Continue')];
-    case 'content':
+    case 'default':
+      return [heading('New screen'), attached(nextButton('Continue'))];
+    case 'auth':
       return [
-        heading('Did you know?'),
-        paragraph('Share something useful.'),
-        nextButton('Continue'),
-      ];
-    case 'email_capture':
-      return [
-        heading('Where should we send your result?'),
+        heading('Save your progress'),
+        paragraph('Enter your email to keep your result.'),
         {
           type: 'EmailInput',
           props: {
@@ -81,13 +76,13 @@ function templateItems(type: ScreenType): PuckItem[] {
             required: true,
           },
         },
-        nextButton('Continue'),
+        attached(nextButton('Continue')),
       ];
     case 'paywall':
       return [
         heading('Choose your plan'),
         priceCard('Monthly', '$19', true),
-        nextButton('Continue to checkout'),
+        attached(nextButton('Continue to checkout')),
       ];
     case 'checkout':
       return [heading('Checkout'), priceCard('Monthly', '$19', false), checkoutBlock()];
@@ -99,7 +94,7 @@ function templateItems(type: ScreenType): PuckItem[] {
         checkoutBlock(),
         skipButton('No thanks'),
       ];
-    case 'success':
+    case 'finish':
       return [
         heading('You are all set!'),
         paragraph('Thanks for completing the funnel.'),
@@ -109,6 +104,17 @@ function templateItems(type: ScreenType): PuckItem[] {
         },
       ];
   }
+}
+
+export function createQuizContent(mode: 'single' | 'multi'): PuckData {
+  return {
+    root: { props: {} },
+    content: [
+      heading(mode === 'single' ? 'Pick one option' : 'Pick all that apply'),
+      optionList(mode),
+      attached(nextButton('Continue')),
+    ],
+  };
 }
 
 export function createScreenContent(type: ScreenType): PuckData {

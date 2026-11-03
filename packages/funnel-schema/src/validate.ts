@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isPaymentType, isQuizType, isSkipType } from './schema';
+import { isPaymentType, isSkipType } from './schema';
 import type { Edge, FunnelDefinition, Screen } from './schema';
 
 export type IssueSeverity = 'error' | 'warning';
@@ -20,10 +20,13 @@ export type IssueCode =
   | 'edge_unreachable'
   | 'option_mode_mismatch'
   | 'quiz_without_options'
+  | 'multiple_option_lists'
   | 'payment_bypass'
   | 'skip_not_allowed'
   | 'skip_without_default'
   | 'checkout_without_plan'
+  | 'plan_picker_unbound'
+  | 'button_destination_missing'
   | 'decline_to_success'
   | 'condition_source_not_payment'
   | 'schema_invalid';
@@ -50,7 +53,7 @@ export interface ValidationResult {
   warnings: ValidationIssue[];
 }
 
-const TERMINAL_TYPES: ReadonlySet<string> = new Set(['success']);
+const TERMINAL_TYPES: ReadonlySet<string> = new Set(['finish']);
 
 const optionListSchema = z.object({
   mode: z.enum(['single', 'multi']).default('single'),
@@ -87,7 +90,11 @@ function getOptionLists(screen: Screen): OptionListInfo[] {
 }
 
 function isQuiz(screen: Screen): boolean {
-  return isQuizType(screen.type);
+  return scanOptionLists(screen).lists.length > 0;
+}
+
+function quizMode(screen: Screen): 'single' | 'multi' | undefined {
+  return scanOptionLists(screen).lists[0]?.mode;
 }
 
 function isFallbackEdge(edge: Edge): boolean {
@@ -168,6 +175,28 @@ export function validateFunnel(
       });
     }
     if (sourceOk && targetOk) adjacency.get(e.sourceScreenId)?.push(e.targetScreenId);
+  }
+
+  const buttonLinked = new Set<string>();
+  for (const s of definition.screens) {
+    if (isPaymentScreen(s)) continue;
+    for (const item of s.content.content) {
+      if (item.type !== 'Button') continue;
+      const action = item.props.action ?? 'next';
+      const destination = item.props.destination;
+      if (action !== 'next' || typeof destination !== 'string' || destination === '') continue;
+      if (screenIds.has(destination)) {
+        adjacency.get(s.id)?.push(destination);
+        buttonLinked.add(s.id);
+      } else {
+        issues.push({
+          code: 'button_destination_missing',
+          severity: gateSeverity,
+          message: `A button on screen "${s.id}" goes to screen "${destination}", which does not exist.`,
+          screenId: s.id,
+        });
+      }
+    }
   }
 
   for (const e of definition.edges) {
@@ -251,7 +280,6 @@ export function validateFunnel(
 
   for (const s of definition.screens) {
     if (!isQuiz(s)) continue;
-    const expected = s.type === 'quiz_single' ? 'single' : 'multi';
     const { lists, invalid } = scanOptionLists(s);
     for (const detail of invalid) {
       issues.push({
@@ -264,17 +292,61 @@ export function validateFunnel(
     if (invalid.length === 0 && !lists.some((l) => l.optionIds.length > 0)) {
       issues.push({
         code: 'quiz_without_options',
-        severity: 'error',
-        message: `Screen "${s.id}" is ${s.type} but has no option list with at least one option.`,
+        severity: gateSeverity,
+        message: `Screen "${s.id}" has an Options element without options.`,
         screenId: s.id,
       });
     }
-    for (const list of lists) {
-      if (list.mode !== expected) {
+    if (lists.length > 1) {
+      issues.push({
+        code: 'multiple_option_lists',
+        severity: gateSeverity,
+        message: `Screen "${s.id}" has ${lists.length} Options elements. Use one per screen so the answer is unambiguous.`,
+        screenId: s.id,
+      });
+    }
+  }
+
+  for (const e of definition.edges) {
+    const c = e.condition;
+    if (c.kind !== 'answer_equals' && c.kind !== 'answer_includes') continue;
+    const source = screensById.get(e.sourceScreenId);
+    const mode = source ? quizMode(source) : undefined;
+    if (!source || !mode) continue;
+    const expected = mode === 'multi' ? 'answer_includes' : 'answer_equals';
+    if (c.kind !== expected) {
+      issues.push({
+        code: 'option_mode_mismatch',
+        severity: 'error',
+        message: `Edge "${e.id}" uses "${c.kind}" but the Options element on "${source.id}" is ${mode === 'multi' ? 'multiple' : 'single'} choice.`,
+        edgeId: e.id,
+        screenId: source.id,
+      });
+    }
+  }
+
+  const PICKERS = new Set([
+    'PlanPicker',
+    'PlanPickerComposite',
+    'BillingPlanPicker',
+    'TrialPicker',
+  ]);
+  let pickerPlans = 0;
+  for (const s of definition.screens) {
+    for (const item of s.content.content) {
+      if (!PICKERS.has(item.type)) continue;
+      const items = Array.isArray(item.props.items) ? item.props.items : [];
+      const keys = items.map((i: unknown) =>
+        typeof i === 'object' && i !== null && 'planKey' in i && typeof i.planKey === 'string'
+          ? i.planKey
+          : '',
+      );
+      pickerPlans += keys.filter((k) => k !== '').length;
+      if (keys.some((k) => k === '')) {
         issues.push({
-          code: 'option_mode_mismatch',
-          severity: 'error',
-          message: `Screen "${s.id}" is ${s.type} but its option list mode is "${list.mode}".`,
+          code: 'plan_picker_unbound',
+          severity: gateSeverity,
+          message: `Screen "${s.id}" has a plan picker option without a Stripe plan selected.`,
           screenId: s.id,
         });
       }
@@ -283,17 +355,20 @@ export function validateFunnel(
 
   for (const s of definition.screens) {
     if (!isPaymentScreen(s)) continue;
-    const bound = s.content.content.some(
-      (item) =>
-        item.type === 'CheckoutBlock' &&
-        typeof item.props.planKey === 'string' &&
-        item.props.planKey !== '',
-    );
+    const bound = s.content.content.some((item) => {
+      const purchase = item.type === 'Button' && item.props.action === 'purchase';
+      if (item.type !== 'CheckoutBlock' && item.type !== 'WalletButton' && !purchase) return false;
+      const fromPicker =
+        item.props.source === 'picker' ||
+        ((item.type === 'WalletButton' || purchase) && item.props.source !== 'fixed');
+      if (fromPicker) return pickerPlans > 0;
+      return typeof item.props.planKey === 'string' && item.props.planKey !== '';
+    });
     if (!bound) {
       issues.push({
         code: 'checkout_without_plan',
         severity: gateSeverity,
-        message: `Screen "${s.id}" is ${s.type} but has no Checkout block with a plan selected.`,
+        message: `Screen "${s.id}" is ${s.type} but has no Checkout or Wallet Button with a plan (fixed, or picked on a paywall that lists plans).`,
         screenId: s.id,
       });
     }
@@ -331,7 +406,7 @@ export function validateFunnel(
       target &&
       isPaymentScreen(source) &&
       e.condition.kind === 'default' &&
-      target.type === 'success'
+      target.type === 'finish'
     ) {
       issues.push({
         code: 'decline_to_success',
@@ -443,7 +518,7 @@ export function validateFunnel(
           screenId: s.id,
         });
       }
-    } else if (!outgoing.some(isFallbackEdge)) {
+    } else if (!outgoing.some(isFallbackEdge) && !buttonLinked.has(s.id)) {
       issues.push({
         code: 'dead_end',
         severity: gateSeverity,

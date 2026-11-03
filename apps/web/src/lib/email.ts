@@ -14,6 +14,8 @@ export const emailInputProps = z.object({
 
 export type EmailInputProps = z.infer<typeof emailInputProps>;
 
+export const EMAIL_BLOCK_TYPES: ReadonlySet<string> = new Set(['EmailInput', 'EmailOAuth']);
+
 export interface EmailBlock {
   blockId: string;
   props: EmailInputProps | null;
@@ -35,7 +37,7 @@ export function normalizeEmail(value: string): string {
 export function emailBlocksOf(screen: Screen): EmailBlock[] {
   const blocks: EmailBlock[] = [];
   screen.content.content.forEach((item, index) => {
-    if (item.type !== 'EmailInput') return;
+    if (!EMAIL_BLOCK_TYPES.has(item.type)) return;
     const parsed = emailInputProps.safeParse(item.props);
     blocks.push({ blockId: blockId(item, index), props: parsed.success ? parsed.data : null });
   });

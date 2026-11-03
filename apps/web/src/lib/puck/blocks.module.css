@@ -86,6 +86,7 @@
 }
 
 .input {
+  color-scheme: light;
   width: 100%;
   padding: 0.875rem 1rem;
   border: 2px solid #d1d5db;
@@ -118,6 +119,7 @@
 }
 
 .consentRow input {
+  color-scheme: light;
   flex: none;
   width: 1.125rem;
   height: 1.125rem;
@@ -199,4 +201,304 @@
 .summaryRow dd {
   margin: 0;
   font-weight: 600;
+}
+
+.frame {
+  margin: 0;
+  margin-inline: var(--ox, var(--ox-default, 0));
+}
+
+:global(.funnel-slot) .frame {
+  margin-inline: var(--ox, 0);
+}
+
+.frame a {
+  color: var(--link-color, inherit);
+  font-weight: var(--link-weight, inherit);
+  text-decoration: var(--link-decoration, underline);
+}
+
+.frame > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.frame[data-position='attached'] {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: auto;
+}
+
+.frame[data-position='attached_scroll'] {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+}
+
+.frame[data-hidden='true'] {
+  opacity: 0.35;
+  outline: 1px dashed #9ca3af;
+  outline-offset: 2px;
+}
+
+.frame[data-animation] {
+  animation: blockSlide 0.6s ease-out both;
+}
+
+.frame[data-animation='slow'] {
+  animation-duration: 1.1s;
+}
+
+.frame[data-animation='fast'] {
+  animation-duration: 0.35s;
+}
+
+.frame[data-animation='rapid'] {
+  animation-duration: 0.2s;
+}
+
+@keyframes blockSlide {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-animation] {
+    animation: none;
+  }
+}
+
+.options[data-layout='grid'],
+.options[data-layout='cards'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font: inherit;
+}
+
+.option[data-layout='grid'] {
+  flex-direction: column;
+  justify-content: center;
+  padding: 1rem 0.75rem;
+  text-align: center;
+}
+
+.option[data-layout='cards'] {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  text-align: center;
+}
+
+.option[data-layout='cards'] .optionLabel {
+  padding: 0.75rem;
+}
+
+.optionLabel {
+  flex: 1;
+}
+
+.optionEmoji {
+  flex: none;
+  font-size: 1.5em;
+  line-height: 1;
+}
+
+.option[data-layout='grid'] .optionEmoji {
+  font-size: 2em;
+}
+
+.optionImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.option:not([data-layout='cards']) .optionImage {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 8px;
+  aspect-ratio: auto;
+}
+
+.optionCheck {
+  flex: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid #d1d5db;
+  border-radius: 6px;
+}
+
+.optionCheck[data-checked='true'] {
+  border-color: var(--funnel-primary, #4f46e5);
+  background: var(--funnel-primary, #4f46e5)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E")
+    center / 80% no-repeat;
+}
+
+.option[data-layout='grid'] .optionCheck,
+.option[data-layout='cards'] .optionCheck {
+  display: none;
+}
+
+.frame[data-effect='pulse'] > * {
+  animation: effectPulse 1.6s ease-in-out infinite;
+}
+
+.frame[data-effect='bounce'] > * {
+  animation: effectBounce 2s ease-in-out infinite;
+}
+
+.frame[data-effect='shine'] > * {
+  position: relative;
+  overflow: hidden;
+}
+
+.frame[data-effect='shine'] > *::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgb(255 255 255 / 0.45) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: effectShine 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes effectPulse {
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@keyframes effectBounce {
+  0%,
+  70%,
+  100% {
+    transform: translateY(0);
+  }
+  80% {
+    transform: translateY(-6px);
+  }
+  90% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes effectShine {
+  60%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .frame[data-effect] > *,
+  .frame[data-effect] > *::after {
+    animation: none;
+  }
+}
+
+.options[data-layout='cover'] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.option[data-layout='cover'] {
+  position: relative;
+  min-height: 9rem;
+  padding: 0;
+  overflow: hidden;
+  background: #e5e7eb;
+}
+
+.option[data-layout='cover'] .optionImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  aspect-ratio: auto;
+}
+
+.option[data-layout='cover'] .optionLabel {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 0.6rem 0.75rem;
+  background: linear-gradient(transparent, rgb(0 0 0 / 0.65));
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+}
+
+.option[data-layout='cover'] .optionEmoji,
+.option[data-layout='cover'] .optionCheck {
+  display: none;
+}
+
+.editorTag {
+  display: inline-block;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.questionOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  align-items: end;
+  padding: 1rem;
+  background: rgb(0 0 0 / 0.45);
+}
+
+.questionCard {
+  display: grid;
+  gap: 1rem;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  padding: 1.25rem;
+  border-radius: 18px;
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 24px 60px -20px rgb(0 0 0 / 0.5);
+}
+
+.questionText {
+  margin: 0;
+  font-size: 1.125em;
+  font-weight: 700;
+  text-align: center;
+}
+
+.questionActions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.5rem;
+}
+
+.questionActions .option {
+  justify-content: center;
+  text-align: center;
 }

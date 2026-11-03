@@ -58,6 +58,8 @@ sequenceDiagram
   A-->>B: succeeded
 ```
 
+A checkout or upsell screen can also take its plan from a plan picker on the paywall (Checkout block with Plan = *Picked on the paywall*, or a Wallet Button); the server then only accepts plans listed in a picker of the published funnel ([Screen elements](./12-elements.md#step-plan-pickers)).
+
 ## Steps
 
 ### Step: Start checkout

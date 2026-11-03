@@ -1,4 +1,9 @@
-import { CURRENT_SCHEMA_VERSION, MAX_ANIMATION_MS, funnelDefinitionSchema } from './schema';
+import {
+  CURRENT_SCHEMA_VERSION,
+  LEGACY_SCREEN_TYPES,
+  MAX_ANIMATION_MS,
+  funnelDefinitionSchema,
+} from './schema';
 import type { FunnelDefinition } from './schema';
 
 type RawDefinition = Record<string, unknown>;
@@ -10,10 +15,63 @@ function clampScreenAnimation(screen: unknown): unknown {
   return { ...screen, animation: { ...screen.animation, durationMs: MAX_ANIMATION_MS } };
 }
 
+function retypeScreen(screen: unknown): unknown {
+  if (!isRecord(screen) || typeof screen.type !== 'string') return screen;
+  const legacy = screen.type;
+  const type = LEGACY_SCREEN_TYPES[legacy] ?? legacy;
+  const mode = legacy === 'quiz_multi' ? 'multi' : legacy === 'quiz_single' ? 'single' : null;
+  let content = screen.content;
+  if (mode && isRecord(content) && Array.isArray(content.content)) {
+    content = {
+      ...content,
+      content: content.content.map((item: unknown) =>
+        isRecord(item) && item.type === 'OptionList' && isRecord(item.props)
+          ? { ...item, props: { ...item.props, mode } }
+          : item,
+      ),
+    };
+  }
+  return { ...screen, type, content };
+}
+
+function toTextItem(item: unknown): unknown {
+  if (!isRecord(item) || !isRecord(item.props)) return item;
+  if (item.type === 'Heading') {
+    const { level, ...props } = item.props;
+    return {
+      ...item,
+      type: 'Text',
+      props: { ...props, variant: level === '1' || level === undefined ? 'title' : 'subtitle' },
+    };
+  }
+  if (item.type === 'Paragraph') {
+    return { ...item, type: 'Text', props: { ...item.props, variant: 'paragraph' } };
+  }
+  return item;
+}
+
+function textScreen(screen: unknown): unknown {
+  if (!isRecord(screen) || !isRecord(screen.content) || !Array.isArray(screen.content.content)) {
+    return screen;
+  }
+  return {
+    ...screen,
+    content: { ...screen.content, content: screen.content.content.map(toTextItem) },
+  };
+}
+
 export const MIGRATIONS: Readonly<Record<number, (json: RawDefinition) => RawDefinition>> = {
   1: (json) => ({
     ...json,
     screens: Array.isArray(json.screens) ? json.screens.map(clampScreenAnimation) : json.screens,
+  }),
+  2: (json) => ({
+    ...json,
+    screens: Array.isArray(json.screens) ? json.screens.map(retypeScreen) : json.screens,
+  }),
+  3: (json) => ({
+    ...json,
+    screens: Array.isArray(json.screens) ? json.screens.map(textScreen) : json.screens,
   }),
 };
 
