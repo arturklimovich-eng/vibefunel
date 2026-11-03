@@ -1,7 +1,7 @@
 'use client';
 
-import { memo, useMemo } from 'react';
-import type { CSSProperties } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   Background,
   BackgroundVariant,
@@ -10,6 +10,8 @@ import {
   MarkerType,
   Position,
   ReactFlow,
+  useReactFlow,
+  useViewport,
   type Connection,
   type Edge as FlowEdge,
   type Node as FlowNode,
@@ -17,23 +19,25 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { Render } from '@puckeditor/core';
+import type { FunnelDefinition, Screen, Theme } from '@funnel/schema';
 import { depthFromStart, longestPathFrom, previewStep } from '@/lib/progress';
 import type { StepPosition } from '@/lib/progress';
-import { ScreenHeaderBar } from './ScreenHeaderBar';
-import type { FunnelDefinition, Screen, Theme } from '@funnel/schema';
 import { toPuckData } from '@/lib/puck/adapters';
 import { puckConfig } from '@/lib/puck/config';
+import { ThemeContext } from '@/lib/puck/theme-context';
+import { screenSurface } from '@/lib/styles';
 import { contrastingForeground } from './FunnelRuntime';
+import { ScreenHeaderBar } from './ScreenHeaderBar';
 import styles from './EditorShell.module.css';
 
-const DEVICE_W = 390;
-const DEVICE_H = 844;
-const NODE_W = 220;
-const SCALE = NODE_W / DEVICE_W;
-const NODE_H = Math.round(DEVICE_H * SCALE);
-const COL_GAP = 120;
-const ROW_GAP = 90;
-const LABEL_H = 34;
+export const PHONE_W = 380;
+export const PHONE_H = 780;
+const HEAD_H = 30;
+const PILL_H = 56;
+const COL_GAP = 200;
+const ROW_GAP = 120;
+
+export type CanvasMode = 'editor' | 'flow';
 
 export interface ScreenNodeData extends Record<string, unknown> {
   screen: Screen;
@@ -44,36 +48,69 @@ export interface ScreenNodeData extends Record<string, unknown> {
   typeColor: string;
   isStart: boolean;
   severity: 'error' | 'warning' | undefined;
+  editing: boolean;
+  showPill: boolean;
 }
 
 type ScreenFlowNode = FlowNode<ScreenNodeData, 'screen'>;
 
-function screenStyle(theme: Theme): CSSProperties {
+export function phoneVars(theme: Theme): CSSProperties {
   return {
     '--funnel-primary': theme.primaryColor,
     '--funnel-on-primary': contrastingForeground(theme.primaryColor),
     background: theme.backgroundColor,
     color: theme.textColor,
     fontSize: `${theme.fontScale ?? 1}rem`,
-    width: DEVICE_W,
-    height: DEVICE_H,
-    transform: `scale(${SCALE})`,
   } as CSSProperties;
+}
+
+function StaticScreen({
+  screen,
+  definition,
+  position,
+}: {
+  screen: Screen;
+  definition: FunnelDefinition;
+  position: StepPosition;
+}) {
+  const puckData = useMemo(() => toPuckData(screen.content), [screen.content]);
+  const surface = screenSurface(screen, definition.theme);
+  return (
+    <div
+      className={styles.phoneScreen}
+      style={{ ...phoneVars(definition.theme), ...surface.surface }}
+      inert
+    >
+      {surface.videoUrl ? (
+        <video className={styles.phoneVideo} src={surface.videoUrl} muted aria-hidden="true" />
+      ) : null}
+      <div className={styles.phoneHeader}>
+        <ScreenHeaderBar
+          definition={definition}
+          screen={screen}
+          position={position}
+          canGoBack={position.step > 1}
+        />
+      </div>
+      <div className={styles.previewSlot} style={surface.body}>
+        <Render config={puckConfig} data={puckData} />
+      </div>
+    </div>
+  );
 }
 
 const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<ScreenFlowNode>) {
   const { screen, definition, position, index, typeLabel, typeColor, isStart, severity } = data;
-  const puckData = useMemo(() => toPuckData(screen.content), [screen.content]);
   return (
     <div
       className={styles.canvasNode}
       data-selected={selected}
+      data-editing={data.editing}
       data-severity={severity}
-      style={{ '--type-color': typeColor, width: NODE_W } as CSSProperties}
+      style={{ '--type-color': typeColor, width: PHONE_W } as CSSProperties}
     >
-      <div className={styles.canvasNodeHead}>
-        <span className={styles.canvasNodeIndex}>{String(index + 1).padStart(2, '0')}</span>
-        <span className={styles.canvasNodeTitle}>{screen.title || screen.id}</span>
+      <div className={styles.canvasNodeHead} style={{ height: HEAD_H }}>
+        <span className={styles.canvasNodeType}>{typeLabel}</span>
         {isStart ? <span className={styles.startBadge}>Start</span> : null}
         {severity ? (
           <span
@@ -84,27 +121,29 @@ const ScreenNode = memo(function ScreenNode({ data, selected }: NodeProps<Screen
           />
         ) : null}
       </div>
-      <div className={styles.canvasDevice} style={{ height: NODE_H }}>
+      <div
+        className={styles.canvasPhone}
+        data-selected={selected && data.showPill ? 'true' : undefined}
+        style={{ height: PHONE_H }}
+      >
         <Handle type="target" position={Position.Left} className={styles.canvasHandle} />
-        <div className={styles.canvasScreen} style={screenStyle(definition.theme)} inert>
-          <div className={styles.canvasScreenInner}>
-            <ScreenHeaderBar
-              definition={definition}
-              screen={screen}
-              position={position}
-              canGoBack={position.step > 1}
-            />
-            <Render config={puckConfig} data={puckData} />
-          </div>
-        </div>
+        <span className={styles.island} aria-hidden="true" />
+        <StaticScreen screen={screen} definition={definition} position={position} />
         <Handle type="source" position={Position.Right} className={styles.canvasHandle} />
       </div>
-      <span className={styles.canvasNodeType}>{typeLabel}</span>
+      <div className={styles.canvasPillRow} style={{ height: PILL_H }}>
+        <span className={styles.canvasPill} data-active={selected && data.showPill}>
+          <span>{index + 1}</span>
+          <span aria-hidden="true">·</span>
+          {screen.title || screen.id}
+        </span>
+      </div>
     </div>
   );
 });
 
 const NODE_TYPES = { screen: ScreenNode };
+const NODE_H = HEAD_H + PHONE_H + PILL_H;
 
 function buttonEdges(definition: FunnelDefinition): FlowEdge[] {
   const ids = new Set(definition.screens.map((s) => s.id));
@@ -165,23 +204,83 @@ function layoutColumns(definition: FunnelDefinition): Map<string, { col: number;
   return placed;
 }
 
+function EditOverlay({
+  node,
+  renderEditing,
+}: {
+  node: ScreenFlowNode | undefined;
+  renderEditing: () => ReactNode;
+}) {
+  const { x, y, zoom } = useViewport();
+  if (!node || Math.abs(zoom - 1) > 0.01) return null;
+  return (
+    <div
+      className={`${styles.canvasPhone} ${styles.canvasOverlay} nodrag nopan nowheel`}
+      data-selected={node.data.showPill ? 'true' : undefined}
+      style={{
+        left: node.position.x * zoom + x,
+        top: (node.position.y + HEAD_H) * zoom + y,
+        width: PHONE_W,
+        height: PHONE_H,
+      }}
+    >
+      <span className={styles.island} aria-hidden="true" />
+      {renderEditing()}
+    </div>
+  );
+}
+
+function Focus({
+  mode,
+  selectedId,
+  nodes,
+}: {
+  mode: CanvasMode;
+  selectedId: string | undefined;
+  nodes: ScreenFlowNode[];
+}) {
+  const flow = useReactFlow();
+  const first = useRef(true);
+  const target = mode === 'editor' ? (selectedId ?? null) : null;
+  const node = target ? nodes.find((n) => n.id === target) : undefined;
+  const x = node?.position.x;
+  const y = node?.position.y;
+  useEffect(() => {
+    const duration = first.current ? 0 : 450;
+    first.current = false;
+    if (mode === 'editor' && x !== undefined && y !== undefined) {
+      void flow.setCenter(x + PHONE_W / 2, y + HEAD_H + PHONE_H / 2 + PILL_H / 2, {
+        zoom: 1,
+        duration,
+      });
+      return;
+    }
+    void flow.fitView({ padding: 0.12, duration, maxZoom: 1 });
+  }, [flow, mode, target, x, y]);
+  return null;
+}
+
 export function ScreenCanvas({
   definition,
+  mode,
   selectedId,
+  showPill,
+  renderEditing,
   typeMeta,
   severityByScreen,
   describeEdge,
-  onSelect,
-  onOpen,
+  onFocusScreen,
   onConnect,
 }: {
   definition: FunnelDefinition;
+  mode: CanvasMode;
   selectedId: string | undefined;
+  showPill: boolean;
+  renderEditing: () => ReactNode;
   typeMeta: (screen: Screen) => { label: string; color: string };
   severityByScreen: Map<string, 'error' | 'warning'>;
   describeEdge: (edge: FunnelDefinition['edges'][number]) => string;
-  onSelect: (id: string) => void;
-  onOpen: (id: string) => void;
+  onFocusScreen: (id: string) => void;
   onConnect: (connection: Connection) => void;
 }) {
   const nodes = useMemo<ScreenFlowNode[]>(() => {
@@ -191,12 +290,13 @@ export function ScreenCanvas({
     return definition.screens.map((screen, index) => {
       const slot = placed.get(screen.id) ?? { col: 0, row: index };
       const meta = typeMeta(screen);
+      const editing = mode === 'editor' && screen.id === selectedId;
       return {
         id: screen.id,
         type: 'screen',
         position: {
-          x: slot.col * (NODE_W + COL_GAP),
-          y: slot.row * (NODE_H + LABEL_H * 2 + ROW_GAP),
+          x: slot.col * (PHONE_W + COL_GAP),
+          y: slot.row * (NODE_H + ROW_GAP),
         },
         selected: screen.id === selectedId,
         draggable: false,
@@ -209,10 +309,12 @@ export function ScreenCanvas({
           typeColor: meta.color,
           isStart: screen.id === definition.startScreenId,
           severity: severityByScreen.get(screen.id),
+          editing,
+          showPill: editing ? showPill : true,
         },
       };
     });
-  }, [definition, selectedId, typeMeta, severityByScreen]);
+  }, [definition, selectedId, mode, showPill, typeMeta, severityByScreen]);
 
   const edges = useMemo<FlowEdge[]>(
     () => [
@@ -232,27 +334,35 @@ export function ScreenCanvas({
   );
 
   return (
-    <ReactFlow
-      className={styles.canvasFlow}
-      colorMode="dark"
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={NODE_TYPES}
-      nodesDraggable={false}
-      nodesFocusable
-      edgesFocusable={false}
-      elementsSelectable
-      onConnect={onConnect}
-      onNodeClick={(_event, node) => onSelect(node.id)}
-      onNodeDoubleClick={(_event, node) => onOpen(node.id)}
-      deleteKeyCode={null}
-      fitView
-      fitViewOptions={{ padding: 0.15 }}
-      minZoom={0.1}
-      maxZoom={1.5}
-    >
-      <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
-      <Controls showInteractive={false} position="bottom-right" />
-    </ReactFlow>
+    <ThemeContext.Provider value={definition.theme}>
+      <ReactFlow
+        className={styles.canvasFlow}
+        colorMode="dark"
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        nodesDraggable={false}
+        nodesFocusable={false}
+        edgesFocusable={false}
+        elementsSelectable
+        onConnect={onConnect}
+        onNodeClick={(_event, node) => {
+          if (mode === 'editor' && node.id === selectedId) return;
+          onFocusScreen(node.id);
+        }}
+        deleteKeyCode={null}
+        zoomOnDoubleClick={false}
+        minZoom={0.08}
+        maxZoom={1.5}
+      >
+        <Focus mode={mode} selectedId={selectedId} nodes={nodes} />
+        <EditOverlay
+          node={mode === 'editor' ? nodes.find((n) => n.id === selectedId) : undefined}
+          renderEditing={renderEditing}
+        />
+        <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
+        <Controls showInteractive={false} position="bottom-right" />
+      </ReactFlow>
+    </ThemeContext.Provider>
   );
 }

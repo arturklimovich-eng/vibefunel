@@ -851,6 +851,41 @@ export function FunnelEditor({
   } as CSSProperties;
 
   const elementMode = mode === 'editor' && bridge.selection !== null;
+
+  const renderEditing = () =>
+    selected ? (
+      <div
+        className={shell.phoneScreen}
+        style={{ ...phoneStyle, ...surface.surface }}
+        onMouseDown={(e) => {
+          if (!(e.target instanceof Element)) return;
+          if (e.target.closest('[data-puck-component], button, input, a')) return;
+          if (bridge.selection) commandsRef.current?.deselect();
+        }}
+      >
+        {surface.videoUrl ? (
+          <video
+            key={surface.videoUrl}
+            className={shell.phoneVideo}
+            src={surface.videoUrl}
+            autoPlay
+            muted
+            loop
+            playsInline
+            aria-hidden="true"
+          />
+        ) : null}
+        <div className={shell.phoneHeader}>
+          <ScreenHeaderBar
+            definition={definition}
+            screen={selected}
+            position={selectedPosition}
+            canGoBack={selectedPosition.step > 1}
+          />
+        </div>
+        <div ref={previewSlotRef} className={shell.previewSlot} style={surface.body} />
+      </div>
+    ) : null;
   const depths = useMemo(() => depthFromStart(definition), [definition]);
   const lengths = useMemo(() => longestPathFrom(definition), [definition]);
   const groups = useMemo(() => screenGroups(definition), [definition]);
@@ -1550,105 +1585,57 @@ export function FunnelEditor({
             </span>
           </div>
 
-          <div className={shell.stage} hidden={mode !== 'editor'}>
-            <div
-              className={shell.phone}
-              data-selected={!elementMode && selected ? 'true' : undefined}
-            >
-              <span className={shell.island} aria-hidden="true" />
-              <div
-                className={shell.phoneScreen}
-                style={{ ...phoneStyle, ...surface.surface }}
-                onMouseDown={(e) => {
-                  if (!(e.target instanceof Element)) return;
-                  if (e.target.closest('[data-puck-component], button, input, a')) return;
-                  if (bridge.selection) commandsRef.current?.deselect();
-                }}
-              >
-                {surface.videoUrl ? (
-                  <video
-                    key={surface.videoUrl}
-                    className={shell.phoneVideo}
-                    src={surface.videoUrl}
-                    autoPlay
-                    muted
-                    loop
-                    playsInline
-                    aria-hidden="true"
+          <div className={shell.flowStage}>
+            <ScreenCanvas
+              definition={definition}
+              mode={mode}
+              selectedId={selected?.id}
+              showPill={!elementMode}
+              renderEditing={renderEditing}
+              typeMeta={typeMeta}
+              severityByScreen={severityByScreen}
+              describeEdge={describeEdge}
+              onFocusScreen={(id) => {
+                selectScreen(id);
+                setMode('editor');
+              }}
+              onConnect={onConnect}
+            />
+            {pending && pendingSource ? (
+              <div className={shell.pendingCard} role="dialog" aria-label="New connection">
+                <strong>
+                  Connect {pendingSource.title} to{' '}
+                  {screensById.get(pending.target)?.title ?? pending.target}
+                </strong>
+                <div className={shell.inlineFields}>
+                  <ConditionPicker
+                    source={pendingSource}
+                    value={pending.choice}
+                    onChange={(choice) => setPending({ ...pending, choice })}
                   />
-                ) : null}
-                {selected ? (
-                  <div className={shell.phoneHeader}>
-                    <ScreenHeaderBar
-                      definition={definition}
-                      screen={selected}
-                      position={selectedPosition}
-                      canGoBack={selectedPosition.step > 1}
-                    />
-                  </div>
-                ) : null}
-                <div ref={previewSlotRef} className={shell.previewSlot} style={surface.body} />
+                </div>
+                <div className={shell.pendingActions}>
+                  <button
+                    type="button"
+                    className={shell.outlineBtn}
+                    onClick={() => setPending(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="button" className={shell.primaryBtn} onClick={confirmPending}>
+                    Add connection
+                  </button>
+                </div>
               </div>
-            </div>
-            {!elementMode && selected ? (
-              <p className={shell.screenPill}>
-                <span>{selectedIndex + 1}</span>
-                <span aria-hidden="true">·</span>
-                {selected.title || selected.id}
-              </p>
-            ) : (
-              <p className={shell.hintPill}>
+            ) : null}
+            {mode === 'editor' ? (
+              <p className={shell.canvasHint}>
                 {bridge.selection
                   ? `Editing ${bridge.selection.label} · click the empty screen area to edit the screen`
-                  : 'Tap any element to edit'}
+                  : 'Click any element to edit it · Canvas zooms out to the whole funnel'}
               </p>
-            )}
+            ) : null}
           </div>
-
-          {mode === 'flow' ? (
-            <div className={shell.flowStage}>
-              <ScreenCanvas
-                definition={definition}
-                selectedId={selected?.id}
-                typeMeta={typeMeta}
-                severityByScreen={severityByScreen}
-                describeEdge={describeEdge}
-                onSelect={selectScreen}
-                onOpen={(id) => {
-                  selectScreen(id);
-                  setMode('editor');
-                }}
-                onConnect={onConnect}
-              />
-              {pending && pendingSource ? (
-                <div className={shell.pendingCard} role="dialog" aria-label="New connection">
-                  <strong>
-                    Connect {pendingSource.title} to{' '}
-                    {screensById.get(pending.target)?.title ?? pending.target}
-                  </strong>
-                  <div className={shell.inlineFields}>
-                    <ConditionPicker
-                      source={pendingSource}
-                      value={pending.choice}
-                      onChange={(choice) => setPending({ ...pending, choice })}
-                    />
-                  </div>
-                  <div className={shell.pendingActions}>
-                    <button
-                      type="button"
-                      className={shell.outlineBtn}
-                      onClick={() => setPending(null)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="button" className={shell.primaryBtn} onClick={confirmPending}>
-                      Add connection
-                    </button>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ) : null}
 
           <div className={shell.rail} role="toolbar" aria-label="Assistant tools">
             <button

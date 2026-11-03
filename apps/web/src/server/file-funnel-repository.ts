@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   MigrationError,
   createSeedFunnel,
+  createStarterFunnel,
   funnelSchema,
   funnelVersionSchema,
   migrate,
@@ -554,7 +555,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
       const existing = await this.listFunnels();
       if (existing.some((f) => f.slug === slug)) throw new SlugTakenError(slug);
       const id = randomUUID();
-      const definition = createSeedFunnel();
+      const definition = createStarterFunnel();
       const funnel: Funnel = {
         id,
         projectId: 'local',

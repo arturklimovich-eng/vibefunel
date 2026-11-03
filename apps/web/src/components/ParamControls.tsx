@@ -56,7 +56,7 @@ export function Segmented<T extends string>({
   value,
   onChange,
   onReset,
-  inline = false,
+  inline = true,
 }: {
   label: string;
   options: readonly { value: T; label: string }[];

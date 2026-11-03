@@ -261,3 +261,39 @@ export function createSeedFunnel(): FunnelDefinition {
     theme: { primaryColor: '#4f46e5', backgroundColor: '#ffffff', textColor: '#111827' },
   };
 }
+
+export function createStarterFunnel(): FunnelDefinition {
+  return {
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    startScreenId: 'screen_1',
+    screens: [
+      {
+        id: 'screen_1',
+        type: 'default',
+        title: 'New Screen 1',
+        content: puck([
+          heading('el_title', 'Your headline'),
+          paragraph('el_text', 'Tell visitors what this funnel is about.'),
+          {
+            type: 'Button',
+            props: {
+              id: 'el_button',
+              label: 'Continue',
+              action: 'next',
+              style: { position: 'attached' },
+            },
+          },
+        ]),
+        animation: { preset: 'fade' },
+        position: { x: 0, y: 0 },
+      },
+    ],
+    edges: [],
+    theme: {
+      primaryColor: '#111111',
+      backgroundColor: '#ffffff',
+      textColor: '#111111',
+      screen: { lineColor: '#F8545D' },
+    },
+  };
+}

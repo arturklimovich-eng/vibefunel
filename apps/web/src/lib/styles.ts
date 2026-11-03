@@ -262,6 +262,7 @@ export function builtinTokens(theme: Theme): Record<TokenKey, ElementStyle> {
       ...textBase,
     },
     button: {
+      position: 'attached',
       offsetTop: 16,
       offsetBottom: 32,
       offsetX: SIDE,

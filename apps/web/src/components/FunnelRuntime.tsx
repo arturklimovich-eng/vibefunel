@@ -21,7 +21,7 @@ import { advance, retreat } from '@/lib/run-state';
 import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storage';
 import type { HistoryEntry, RunState } from '@/lib/run-state';
 import { longestPathFrom } from '@/lib/progress';
-import { readElementStyle, screenSurface } from '@/lib/styles';
+import { resolveStyle, screenSurface } from '@/lib/styles';
 import { defaultPickerPlan, screenGate } from '@/lib/puck/gates';
 import { ConsentBanner } from './ConsentBanner';
 import { ScreenHeaderBar } from './ScreenHeaderBar';
@@ -653,7 +653,7 @@ function RuntimeInner({
   const splitData = useMemo(() => {
     if (puckData === null) return null;
     const attached = puckData.content.filter(
-      (item) => readElementStyle(item.props).position === 'attached',
+      (item) => resolveStyle(item.type, item.props, definition.theme).position === 'attached',
     );
     if (attached.length === 0) return { main: puckData, attached: null };
     return {
@@ -663,7 +663,7 @@ function RuntimeInner({
       },
       attached: { ...puckData, content: attached },
     };
-  }, [puckData]);
+  }, [puckData, definition.theme]);
 
   const pageClass = embedded ? styles.pageEmbedded : styles.page;
 

@@ -1103,7 +1103,9 @@
 }
 
 .phoneScreen {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
   color-scheme: light;
   overflow-y: auto;
@@ -1115,7 +1117,7 @@
 }
 
 .previewSlot {
-  min-height: 100%;
+  flex: 1 0 auto;
   padding: 0 0 8px;
 }
 
@@ -1238,9 +1240,14 @@
   cursor: pointer;
 }
 
+.canvasFlow :global(.react-flow__node-screen:has([data-editing='true'])) {
+  cursor: default;
+  z-index: 5 !important;
+}
+
 .canvasNode {
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
 .canvasNodeHead {
@@ -1399,10 +1406,6 @@
 }
 
 .fieldsSlot :global([class*='_Input-label_']) {
-  text-transform: capitalize;
-}
-
-.fieldsSlot :global([class*='_Input-label_']) {
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
@@ -1451,7 +1454,7 @@
 
 .paramGroup {
   display: grid;
-  gap: 8px;
+  gap: 12px;
   padding: 10px 16px 14px;
   border-bottom: 1px solid var(--line);
 }
@@ -1463,8 +1466,8 @@
 
 .paramSection[open] {
   display: grid;
-  gap: 10px;
-  padding-bottom: 16px;
+  gap: 12px;
+  padding-bottom: 18px;
 }
 
 .paramSummary {
@@ -1780,7 +1783,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 26px;
+  min-height: 30px;
   cursor: pointer;
 }
 
@@ -1913,10 +1916,26 @@
 }
 
 .previewSlot > div,
+.previewSlot div:has(:global([data-puck-dropzone])),
 .previewSlot :global([data-puck-dropzone]) {
   display: flex;
-  flex: 1;
+  flex: 1 0 auto;
   flex-direction: column;
+}
+
+.previewSlot
+  :global(
+    [data-puck-component]:has([data-position='attached']):not(
+        [data-puck-component]:has([data-position='attached']) ~ [data-puck-component]
+      )
+  ) {
+  margin-top: auto;
+}
+
+.previewSlot :global([data-puck-component]:has([data-position='attached'])) {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
 }
 
 .screenPill {
@@ -2493,4 +2512,93 @@
 
 .layerTag {
   margin-right: 4px;
+}
+
+.canvasPhone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 11px;
+  border-radius: 52px;
+  background: #0b0b0d;
+  box-shadow:
+    0 0 0 2px #2e2e35,
+    0 0 0 3px #0b0b0d,
+    0 40px 80px -30px rgb(0 0 0 / 0.75);
+  transition: box-shadow 0.15s;
+}
+
+.canvasPhone[data-selected='true'] {
+  box-shadow:
+    0 0 0 2px #2e2e35,
+    0 0 0 3px #0b0b0d,
+    0 0 0 7px var(--accent-line),
+    0 0 36px 4px rgb(75 123 245 / 0.25),
+    0 40px 80px -30px rgb(0 0 0 / 0.75);
+}
+
+.canvasNode[data-severity='error'] .canvasPhone {
+  box-shadow:
+    0 0 0 2px #2e2e35,
+    0 0 0 3px #0b0b0d,
+    0 0 0 6px var(--danger),
+    0 40px 80px -30px rgb(0 0 0 / 0.75);
+}
+
+.canvasPhone .phoneScreen {
+  pointer-events: none;
+}
+
+.canvasOverlay {
+  position: absolute;
+  z-index: 4;
+  cursor: auto;
+}
+
+.canvasOverlay .phoneScreen {
+  pointer-events: auto;
+}
+
+.canvasPillRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.canvasPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 6px 16px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.canvasPill[data-active='true'] {
+  background: var(--accent);
+  color: #fff;
+}
+
+.canvasHint {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  z-index: 6;
+  margin: 0;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
 }

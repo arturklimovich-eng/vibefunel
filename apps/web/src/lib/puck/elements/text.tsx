@@ -73,7 +73,7 @@ export const textComponents: Components = {
         ['subtitle', 'Subtitle'],
         ['paragraph', 'Paragraph'],
       ]),
-      text: textarea('Text (**bold**, *italic*, [link](https://…))'),
+      text: textarea('Text · **bold**  *italic*  [link](https://…)'),
     },
     defaultProps: { variant: 'paragraph', text: 'Some text' },
     render: framed('Text', Text),

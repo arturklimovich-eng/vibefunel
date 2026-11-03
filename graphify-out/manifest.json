@@ -252,15 +252,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793712812.810183,
-    "seen": 1793713426.50798,
-    "ast_hash": "32491fa8a01ccb3e00c1f832caf12b8d",
+    "mtime": 1793715466.2255163,
+    "seen": 1793715838.256732,
+    "ast_hash": "6fe596540fdc121be3c7821a4a463d53",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
-    "mtime": 1793712494.922215,
-    "seen": 1793713426.5079827,
-    "ast_hash": "6535d15b4ad783ff9ce4df2346343228",
+    "mtime": 1793715329.7534368,
+    "seen": 1793715838.2567337,
+    "ast_hash": "63422f0f060e23b53c71d03712c264bc",
     "semantic_hash": ""
   },
   "apps/web/src/components/NewFunnelForm.tsx": {
@@ -510,9 +510,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/file-funnel-repository.ts": {
-    "mtime": 1793387630.2815442,
-    "seen": 1793397859.1270056,
-    "ast_hash": "bfc295d0997422703b286ed205488c37",
+    "mtime": 1793715318.0186608,
+    "seen": 1793715838.256847,
+    "ast_hash": "1eb58853e12bfbe67f81231d0c660e38",
     "semantic_hash": ""
   },
   "apps/web/src/server/funnel-repository.ts": {
@@ -642,9 +642,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/supabase-funnel-repository.ts": {
-    "mtime": 1793387082.5201087,
-    "seen": 1793397859.1270332,
-    "ast_hash": "5c4d323cb5ad426edecd392483b5d66b",
+    "mtime": 1793715318.0196555,
+    "seen": 1793715838.2568882,
+    "ast_hash": "6213763be2c9aef23c7b6fd98f90545c",
     "semantic_hash": ""
   },
   "apps/web/src/server/validate-definition.ts": {
@@ -708,9 +708,9 @@
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/seed.ts": {
-    "mtime": 1793712269.8476212,
-    "seen": 1793713426.508411,
-    "ast_hash": "4496f435d362a7047ce5d17dbdc9f264",
+    "mtime": 1793715468.1914296,
+    "seen": 1793715838.2569041,
+    "ast_hash": "63baa03e0a92e7758e53e054d32bdd46",
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/validate.ts": {
@@ -936,9 +936,9 @@
     "semantic_hash": ""
   },
   "docs/features/10-authoring.md": {
-    "mtime": 1793709621.991112,
-    "seen": 1793709627.9102054,
-    "ast_hash": "f43053f06ac1208b112d98294dcecb75",
+    "mtime": 1793715817.2195725,
+    "seen": 1793715838.2569463,
+    "ast_hash": "8dbf97e19d048b98aee5a73fe503d505",
     "semantic_hash": ""
   },
   "docs/features/20-runtime.md": {
@@ -1128,9 +1128,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenCanvas.tsx": {
-    "mtime": 1793712897.4047997,
-    "seen": 1793713426.50801,
-    "ast_hash": "821cf1900a1163086c35d2f12fa8994d",
+    "mtime": 1793715656.7704723,
+    "seen": 1793715838.2567456,
+    "ast_hash": "a856e4018032c9ef5b22b473ee7a9710",
     "semantic_hash": ""
   },
   "docs/features/80-ai-assistant.md": {
@@ -1140,9 +1140,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ParamControls.tsx": {
-    "mtime": 1793712025.8800511,
-    "seen": 1793713426.508,
-    "ast_hash": "dbd4e83af956ab4acdbb515e23c15f97",
+    "mtime": 1793715710.5015764,
+    "seen": 1793715838.256741,
+    "ast_hash": "d77460cd376ed8635a8597d176507846",
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenHeaderBar.tsx": {
@@ -1176,9 +1176,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/styles.ts": {
-    "mtime": 1793712815.3279397,
-    "seen": 1793713426.508201,
-    "ast_hash": "03c4aa51f9ce5296601e46fc8dc25e06",
+    "mtime": 1793715329.7524412,
+    "seen": 1793715838.256824,
+    "ast_hash": "4a0366182d3a60dc6fce5b4e68006e5a",
     "semantic_hash": ""
   },
   "apps/web/src/components/AddElementPanel.tsx": {
@@ -1260,9 +1260,9 @@
     "semantic_hash": ""
   },
   "docs/features/12-elements.md": {
-    "mtime": 1793713416.9412515,
-    "seen": 1793713426.5085182,
-    "ast_hash": "48704510161ab07a87ca834744c7ed73",
+    "mtime": 1793715817.2195725,
+    "seen": 1793715838.2569478,
+    "ast_hash": "87885c15a6c529332c450462a3aaade6",
     "semantic_hash": ""
   },
   "apps/web/src/components/LayersPanel.tsx": {
@@ -1296,9 +1296,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/elements/text.tsx": {
-    "mtime": 1793712281.8773737,
-    "seen": 1793713426.5081644,
-    "ast_hash": "abfbc855006d22c369f734093a5e7979",
+    "mtime": 1793715710.5015764,
+    "seen": 1793715838.2568088,
+    "ast_hash": "57430d4e7107b4bbdef29a6cde067e0e",
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/insert-tracker.ts": {

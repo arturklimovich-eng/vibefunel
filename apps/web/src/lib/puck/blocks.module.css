@@ -212,6 +212,11 @@
   margin-inline: var(--ox, 0);
 }
 
+:global(.funnel-slot) .frame[data-position] {
+  position: static;
+  margin-top: 0;
+}
+
 .frame a {
   color: var(--link-color, inherit);
   font-weight: var(--link-weight, inherit);

@@ -1,5 +1,5 @@
 import 'server-only';
-import { createSeedFunnel, slugSchema, validateFunnel } from '@funnel/schema';
+import { createStarterFunnel, slugSchema, validateFunnel } from '@funnel/schema';
 import type { Funnel, FunnelDefinition, FunnelVersion } from '@funnel/schema';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
@@ -362,7 +362,7 @@ export class SupabaseFunnelRepository implements FunnelRepository {
     const ids = await this.memberProjectIds();
     const projectId = ids[0];
     if (!projectId) throw new Error('createFunnel: the current user has no project.');
-    const definition = createSeedFunnel();
+    const definition = createStarterFunnel();
     const { data, error } = await this.client
       .from('funnels')
       .insert({
