@@ -2614,3 +2614,14 @@
 .paramSection[open] {
   gap: 0;
 }
+
+.presetCard,
+.elementItem {
+  cursor: pointer;
+}
+
+.presetCard:hover .elementAdd,
+.elementItem:hover .elementAdd {
+  background: var(--accent);
+  color: #fff;
+}

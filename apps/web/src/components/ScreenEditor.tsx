@@ -11,6 +11,7 @@ import { configForScreenType } from '@/lib/puck/config';
 import { ThemeContext } from '@/lib/puck/theme-context';
 import { EditorDataContext } from '@/lib/puck/editor-context';
 import { insertTracker } from '@/lib/puck/insert-tracker';
+import { installPortalHitTest } from '@/lib/puck/portal-hit-test';
 import { AddElementPanel } from './AddElementPanel';
 import { LayersPanel } from './LayersPanel';
 
@@ -153,6 +154,7 @@ export function ScreenEditor({
   onChange,
 }: ScreenEditorProps) {
   const [config] = useState(() => configForScreenType(screenType));
+  useEffect(() => installPortalHitTest(), []);
   const [initialData] = useState(() => toPuckData(content));
   return (
     <ThemeContext.Provider value={theme}>
@@ -162,7 +164,9 @@ export function ScreenEditor({
           data={initialData}
           iframe={{ enabled: false }}
           onAction={(action) => {
-            insertTracker.lastAction = action.type;
+            if (action.type === 'insert' || action.type === 'duplicate') {
+              insertTracker.lastAction = action.type;
+            }
           }}
           onChange={(data) => {
             const parsed = fromPuckData(data);

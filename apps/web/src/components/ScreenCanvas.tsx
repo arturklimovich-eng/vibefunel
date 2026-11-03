@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Background,
   BackgroundVariant,
@@ -11,6 +12,7 @@ import {
   Position,
   ReactFlow,
   useReactFlow,
+  useStore,
   useViewport,
   type Connection,
   type Edge as FlowEdge,
@@ -212,10 +214,12 @@ function EditOverlay({
   renderEditing: () => ReactNode;
 }) {
   const { x, y, zoom } = useViewport();
-  if (!node || Math.abs(zoom - 1) > 0.01) return null;
-  return (
+  const host = useStore((st) => st.domNode?.parentElement ?? null);
+  if (!node || !host || Math.abs(zoom - 1) > 0.01) return null;
+  return createPortal(
     <div
       className={`${styles.canvasPhone} ${styles.canvasOverlay} nodrag nopan nowheel`}
+      data-puck-host=""
       data-selected={node.data.showPill ? 'true' : undefined}
       style={{
         left: node.position.x * zoom + x,
@@ -226,7 +230,8 @@ function EditOverlay({
     >
       <span className={styles.island} aria-hidden="true" />
       {renderEditing()}
-    </div>
+    </div>,
+    host,
   );
 }
 

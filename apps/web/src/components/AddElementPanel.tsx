@@ -68,23 +68,33 @@ function useApplyPresets() {
     known.current = new Set(ids);
     if (previous === null) return;
     const action = insertTracker.lastAction;
-    if (action !== 'insert' && action !== 'duplicate') return;
     insertTracker.lastAction = '';
+    const armed = insertTracker.pending;
+    if (action !== 'duplicate' && armed === null) return;
     content.forEach((item, index) => {
       const id = String(item.props.id);
       if (previous.has(id)) return;
       const pending = insertTracker.pending;
-      const preset = action === 'insert' && pending && pending.type === item.type ? pending : null;
+      const preset = pending && pending.type === item.type ? pending : null;
       if (preset) insertTracker.pending = null;
       if (!preset && id.startsWith('el_')) return;
       const nextId = id.startsWith('el_') ? id : newElementId();
       known.current?.add(nextId);
-      dispatch({
-        type: 'replace',
-        destinationIndex: index,
-        destinationZone: ROOT_ZONE,
-        data: { ...item, props: { ...item.props, ...(preset?.props ?? {}), id: nextId } },
-      });
+      const data = { ...item, props: { ...item.props, ...(preset?.props ?? {}), id: nextId } };
+      window.setTimeout(() => {
+        if (nextId !== id) {
+          dispatch({ type: 'remove', index, zone: ROOT_ZONE });
+          dispatch({
+            type: 'insert',
+            componentType: item.type,
+            destinationIndex: index,
+            destinationZone: ROOT_ZONE,
+            id: nextId,
+          });
+        }
+        dispatch({ type: 'replace', destinationIndex: index, destinationZone: ROOT_ZONE, data });
+        dispatch({ type: 'setUi', ui: { itemSelector: { index, zone: ROOT_ZONE } } });
+      }, 120);
     });
   }, [content, dispatch]);
 }
@@ -94,7 +104,7 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
   const [category, setCategory] = useState<CategoryId | null>(null);
   const [hover, setHover] = useState<{ id: CategoryId; top: number } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dragging = useRef(false);
+  const pressed = useRef<{ x: number; y: number } | null>(null);
   const hoverRef = useRef(hover);
   hoverRef.current = hover;
 
@@ -105,8 +115,8 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
   const scheduleClose = () => {
     cancelTimers();
     timer.current = setTimeout(() => {
-      if (!dragging.current) setHover(null);
-    }, 350);
+      if (pressed.current === null) setHover(null);
+    }, 150);
   };
   const scheduleOpen = (next: { id: CategoryId; top: number }) => {
     cancelTimers();
@@ -114,15 +124,14 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
       setHover(next);
       return;
     }
-    if (hoverRef.current.id === next.id) return;
-    timer.current = setTimeout(() => setHover(next), 180);
+    if (hoverRef.current.id !== next.id) setHover(next);
   };
 
   useEffect(() => {
-    const release = () => {
-      if (!dragging.current) return;
-      dragging.current = false;
-      setHover(null);
+    const release = (e: PointerEvent) => {
+      const start = pressed.current;
+      pressed.current = null;
+      if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 5) setHover(null);
     };
     window.addEventListener('pointerup', release);
     return () => {
@@ -162,13 +171,20 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
 
   const arm = (preset: Preset) => {
     insertTracker.pending = { type: preset.type, props: preset.props ?? {} };
+    const disarm = () => {
+      window.removeEventListener('pointerup', disarm);
+      window.setTimeout(() => {
+        insertTracker.pending = null;
+      }, 2000);
+    };
+    window.addEventListener('pointerup', disarm);
   };
 
   const insert = (preset: Preset) => {
-    const firstAttached = content.findIndex((item) =>
-      isAttached(item.props as Record<string, unknown>),
+    const firstButton = content.findIndex(
+      (item) => item.type === 'Button' || isAttached(item.props as Record<string, unknown>),
     );
-    const index = firstAttached < 0 ? content.length : firstAttached;
+    const index = firstButton < 0 ? content.length : firstButton;
     const id = newElementId();
     insertTracker.pending = null;
     dispatch({
@@ -197,7 +213,8 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
         <div
           className={withPreview ? shell.presetCard : shell.elementItem}
           title="Click to add, or drag onto the phone"
-          onPointerDown={() => arm(preset)}
+          onPointerDownCapture={() => arm(preset)}
+          onClick={() => insert(preset)}
         >
           {withPreview ? <Preview preset={preset} /> : null}
           <div className={shell.presetRow}>
@@ -216,8 +233,11 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
               type="button"
               className={shell.elementAdd}
               aria-label={`Add ${preset.label}`}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => insert(preset)}
+              tabIndex={-1}
+              onClick={(e) => {
+                e.stopPropagation();
+                insert(preset);
+              }}
             >
               <PlusIcon size={13} />
             </button>
@@ -277,8 +297,8 @@ export function AddElementPanel({ screenType }: { screenType: ScreenType }) {
               style={{ top: Math.max(8, Math.min(hover.top - 40, window.innerHeight - 520)) }}
               onMouseEnter={cancelTimers}
               onMouseLeave={() => scheduleClose()}
-              onPointerDown={() => {
-                dragging.current = true;
+              onPointerDown={(e) => {
+                pressed.current = { x: e.clientX, y: e.clientY };
               }}
             >
               <div className={shell.flyout}>
