@@ -3,18 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent } from 'react';
 import Link from 'next/link';
-import {
-  Background,
-  BackgroundVariant,
-  Controls,
-  MarkerType,
-  ReactFlow,
-  useNodesState,
-  type Connection,
-  type Edge as FlowEdge,
-  type Node as FlowNode,
-} from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+import type { Connection } from '@xyflow/react';
 import { z } from 'zod';
 import { SCREEN_TYPES } from '@funnel/schema';
 import type {
@@ -48,7 +37,10 @@ import { VersionsPanel } from './VersionsPanel';
 import { DomainsPanel } from './DomainsPanel';
 import { LeadsPanel } from './LeadsPanel';
 import { PaymentsPanel } from './PaymentsPanel';
+import { ScreenCanvas } from './ScreenCanvas';
 import {
+  ChatIcon,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   CloseIcon,
@@ -56,14 +48,15 @@ import {
   DotsIcon,
   ExternalIcon,
   EyeIcon,
-  FlowIcon,
   GearIcon,
-  GripIcon,
-  LayersIcon,
+  GridIcon,
   LogoMark,
-  PenIcon,
+  MagicIcon,
+  PhoneIcon,
   PlusIcon,
   Redo,
+  SearchIcon,
+  SlidersIcon,
   TrashIcon,
   Undo,
 } from './EditorIcons';
@@ -72,20 +65,15 @@ import shell from './EditorShell.module.css';
 
 type Mode = 'flow' | 'editor';
 type NarrowPanel = 'screens' | 'main' | 'inspector';
-type AddMenuAnchor = 'top' | 'bottom';
+type AddMenuAnchor = 'bottom';
+type LeftTab = 'screens' | 'elements';
+type RightTab = 'parameters' | 'styles';
 
 interface PendingConnection {
   source: string;
   target: string;
   choice: ConnectionChoice;
 }
-
-type Severity = UiIssue['severity'];
-
-const SEVERITY_CLASS: Record<Severity, string | undefined> = {
-  error: styles.nodeError,
-  warning: styles.nodeWarning,
-};
 
 type PublishOutcome = 'save_failed' | 'conflict' | 'rejected' | 'published';
 
@@ -157,16 +145,8 @@ function newScreen(type: ScreenType, index: number): Screen {
   };
 }
 
-function toFlowNode(screen: Screen): FlowNode {
-  return { id: screen.id, position: screen.position, data: { label: screen.title } };
-}
-
 function formatTime(date: Date): string {
   return date.toLocaleTimeString();
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0');
 }
 
 export function FunnelEditor({
@@ -181,9 +161,6 @@ export function FunnelEditor({
   initialMode?: Mode;
 }) {
   const [selectedId, setSelectedId] = useState<string>(initialDefinition.startScreenId);
-  const [nodes, setNodes, onNodesChange] = useNodesState<FlowNode>(
-    initialDefinition.screens.map(toFlowNode),
-  );
   const [pending, setPending] = useState<PendingConnection | null>(null);
   const [connectTarget, setConnectTarget] = useState('');
   const [connectChoice, setConnectChoice] = useState<ConnectionChoice>({ kind: 'always' });
@@ -195,10 +172,14 @@ export function FunnelEditor({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
+  const [leftTab, setLeftTab] = useState<LeftTab>('screens');
+  const [rightTab, setRightTab] = useState<RightTab>('parameters');
+  const [query, setQuery] = useState('');
   const [slots, setSlots] = useState<ScreenEditorSlots>({
     preview: null,
     fields: null,
     blocks: null,
+    outline: null,
   });
   const [bridge, setBridge] = useState<EditorBridgeState>({
     selection: null,
@@ -228,6 +209,9 @@ export function FunnelEditor({
   }, []);
   const blocksSlotRef = useCallback((el: HTMLDivElement | null) => {
     setSlots((s) => (s.blocks === el ? s : { ...s, blocks: el }));
+  }, []);
+  const outlineSlotRef = useCallback((el: HTMLDivElement | null) => {
+    setSlots((s) => (s.outline === el ? s : { ...s, outline: el }));
   }, []);
 
   const screensById = useMemo(
@@ -266,45 +250,11 @@ export function FunnelEditor({
     return map;
   }, [issues, issueScreenId]);
 
-  const displayNodes = useMemo<FlowNode[]>(
-    () =>
-      nodes.map((n) => {
-        const screen = screensById.get(n.id);
-        const severity = severityByScreen.get(n.id);
-        const isStart = n.id === definition.startScreenId;
-        const meta = screen ? SCREEN_META[screen.type] : undefined;
-        return {
-          ...n,
-          selected: n.id === selected?.id,
-          className: severity ? SEVERITY_CLASS[severity] : undefined,
-          ariaLabel: severity ? `${screen?.title ?? n.id}, has ${severity}s` : undefined,
-          style: { '--node-accent': meta?.color ?? '#9ca3af' } as CSSProperties,
-          data: {
-            label: (
-              <span className={shell.flowNode}>
-                <span className={shell.flowNodeTitle}>
-                  {screen?.title ?? n.id}
-                  {isStart ? <span className={shell.startBadge}>Start</span> : null}
-                </span>
-                <span className={shell.flowNodeMeta}>{meta?.label ?? '?'}</span>
-              </span>
-            ),
-          },
-        };
-      }),
-    [nodes, screensById, selected?.id, definition.startScreenId, severityByScreen],
-  );
+  const typeMeta = useCallback((screen: Screen) => SCREEN_META[screen.type], []);
 
-  const flowEdges = useMemo<FlowEdge[]>(
-    () =>
-      definition.edges.map((e) => ({
-        id: e.id,
-        source: e.sourceScreenId,
-        target: e.targetScreenId,
-        label: describeCondition(e.condition, screensById.get(e.sourceScreenId)),
-        markerEnd: { type: MarkerType.ArrowClosed },
-      })),
-    [definition.edges, screensById],
+  const describeEdge = useCallback(
+    (edge: Edge) => describeCondition(edge.condition, screensById.get(edge.sourceScreenId)),
+    [screensById],
   );
 
   const updateScreen = useCallback(
@@ -326,7 +276,6 @@ export function FunnelEditor({
   const addScreen = (type: ScreenType) => {
     const screen = newScreen(type, definition.screens.length);
     mutate((d) => ({ ...d, screens: [...d.screens, screen] }));
-    setNodes((ns) => [...ns, toFlowNode(screen)]);
     selectScreen(screen.id);
     setAddMenu(null);
   };
@@ -344,7 +293,6 @@ export function FunnelEditor({
       screens: d.screens.filter((s) => s.id !== id),
       edges: d.edges.filter((e) => e.sourceScreenId !== id && e.targetScreenId !== id),
     }));
-    setNodes((ns) => ns.filter((n) => n.id !== id));
     setPending((p) => (p && (p.source === id || p.target === id) ? null : p));
     if (selected?.id === id) selectScreen(definition.startScreenId);
     setNotice(null);
@@ -411,17 +359,6 @@ export function FunnelEditor({
     if (!selected || !screensById.has(connectTarget)) return;
     addEdge(selected.id, connectTarget, choiceToCondition(selected, connectChoice));
     setConnectChoice({ kind: 'always' });
-  };
-
-  const onNodeDragStop = (_event: unknown, _node: FlowNode, dragged: FlowNode[]) => {
-    const moved = new Map(dragged.map((n) => [n.id, { x: n.position.x, y: n.position.y }]));
-    mutate((d) => ({
-      ...d,
-      screens: d.screens.map((sc) => {
-        const position = moved.get(sc.id);
-        return position ? { ...sc, position } : sc;
-      }),
-    }));
   };
 
   useEffect(() => {
@@ -601,6 +538,15 @@ export function FunnelEditor({
   } as CSSProperties;
 
   const elementMode = mode === 'editor' && bridge.selection !== null;
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleScreens = normalizedQuery
+    ? definition.screens.filter(
+        (s) =>
+          s.title.toLowerCase().includes(normalizedQuery) ||
+          s.id.toLowerCase().includes(normalizedQuery),
+      )
+    : definition.screens;
+  const elementCount = selected?.content.content.length ?? 0;
 
   const addMenuList = (anchor: AddMenuAnchor) =>
     addMenu === anchor ? (
@@ -628,58 +574,59 @@ export function FunnelEditor({
       </ul>
     ) : null;
 
-  const screenInspector = selected ? (
-    <div className={shell.inspectorBody}>
-      <label className={shell.field}>
-        <span className={shell.label}>Title</span>
-        <input
-          className={shell.input}
-          value={selected.title}
-          onChange={(e) => updateScreen(selected.id, { title: e.target.value })}
-        />
-      </label>
-      <label className={shell.field}>
-        <span className={shell.label}>Screen type</span>
-        <select
-          className={shell.input}
-          value={selected.type}
-          onChange={(e) =>
-            changeScreenType(
-              selected,
-              z.enum(SCREEN_TYPES).catch(selected.type).parse(e.target.value),
-            )
-          }
-        >
-          {SCREEN_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {SCREEN_META[t].label} ({t})
-            </option>
-          ))}
-        </select>
-      </label>
-      <div className={shell.section}>
-        <span className={shell.label}>Animation</span>
-        <div className={shell.inlineFields}>
-          <AnimationSettings
-            value={selected.animation}
-            onChange={(animation) => updateScreen(selected.id, { animation })}
+  const screenParameters = selected ? (
+    <div className={shell.paramBody}>
+      <div className={shell.paramGroup}>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Name</span>
+          <input
+            className={shell.input}
+            value={selected.title}
+            onChange={(e) => updateScreen(selected.id, { title: e.target.value })}
           />
+        </label>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>ID</span>
+          <input className={shell.input} value={selected.id} readOnly aria-readonly="true" />
+        </label>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Screen type</span>
+          <select
+            className={shell.input}
+            value={selected.type}
+            onChange={(e) =>
+              changeScreenType(
+                selected,
+                z.enum(SCREEN_TYPES).catch(selected.type).parse(e.target.value),
+              )
+            }
+          >
+            {SCREEN_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {SCREEN_META[t].label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <details className={shell.paramSection} open>
+        <summary className={shell.paramSummary}>
+          Navigation <ChevronDown size={14} />
+        </summary>
+        <div className={shell.paramRow}>
+          <span className={shell.paramLabel}>Start screen</span>
+          {selected.id === definition.startScreenId ? (
+            <span className={shell.muted}>Visitors land here first</span>
+          ) : (
+            <button type="button" className={shell.ghostBtn} onClick={() => setStart(selected.id)}>
+              Set as start
+            </button>
+          )}
         </div>
-      </div>
-      <div className={shell.section}>
-        <span className={shell.label}>Start screen</span>
-        {selected.id === definition.startScreenId ? (
-          <p className={shell.muted}>Visitors land on this screen first.</p>
-        ) : (
-          <button type="button" className={shell.ghostBtn} onClick={() => setStart(selected.id)}>
-            Set as start screen
-          </button>
-        )}
-      </div>
-      <div className={shell.section}>
-        <span className={shell.label}>Next screens</span>
+        <span className={shell.paramLabel}>Next screens</span>
         {outgoing.length === 0 ? (
-          <p className={shell.muted}>No connections yet. Add one below or drag in Flow view.</p>
+          <p className={shell.muted}>No connections yet. Add one below or drag on the canvas.</p>
         ) : (
           <ul className={shell.edgeList}>
             {outgoing.map((e) => (
@@ -703,8 +650,8 @@ export function FunnelEditor({
             ))}
           </ul>
         )}
-        <label className={shell.field}>
-          <span className={shell.subLabel}>Connect to</span>
+        <label className={shell.paramRow}>
+          <span className={shell.paramLabel}>Connect to</span>
           <select
             className={shell.input}
             value={connectTarget}
@@ -731,10 +678,29 @@ export function FunnelEditor({
         >
           <PlusIcon size={14} /> Add connection
         </button>
+      </details>
+
+      <details className={shell.paramSection} open>
+        <summary className={shell.paramSummary}>
+          Animation <ChevronDown size={14} />
+        </summary>
+        <div className={shell.inlineFields}>
+          <AnimationSettings
+            value={selected.animation}
+            onChange={(animation) => updateScreen(selected.id, { animation })}
+          />
+        </div>
+      </details>
+
+      <div className={shell.paramGroup}>
+        <button
+          type="button"
+          className={shell.dangerLink}
+          onClick={() => deleteScreen(selected.id)}
+        >
+          <TrashIcon size={15} /> Delete screen
+        </button>
       </div>
-      <button type="button" className={shell.dangerLink} onClick={() => deleteScreen(selected.id)}>
-        <TrashIcon size={15} /> Delete screen
-      </button>
     </div>
   ) : null;
 
@@ -759,15 +725,11 @@ export function FunnelEditor({
             <ChevronLeft size={18} />
           </Link>
           <span className={shell.logo}>
-            <LogoMark />
+            <LogoMark size={16} />
           </span>
-          <span className={shell.brandName}>VibeFunnels</span>
-        </div>
-        <div className={shell.crumbs}>
           <h1 className={shell.funnelName} title={funnel.name}>
             {funnel.name}
           </h1>
-          <ChevronRight size={14} className={shell.crumbChevron} />
           <span
             className={shell.saveStatus}
             data-tone={shortStatus.tone}
@@ -781,53 +743,14 @@ export function FunnelEditor({
           </span>
         </div>
         <div className={shell.topActions}>
-          <div className={shell.historyGroup}>
-            <button
-              type="button"
-              className={shell.iconBtn}
-              aria-label="Undo"
-              disabled={mode !== 'editor' || !bridge.canUndo}
-              onClick={() => commandsRef.current?.undo()}
-            >
-              <Undo />
-            </button>
-            <button
-              type="button"
-              className={shell.iconBtn}
-              aria-label="Redo"
-              disabled={mode !== 'editor' || !bridge.canRedo}
-              onClick={() => commandsRef.current?.redo()}
-            >
-              <Redo />
-            </button>
-          </div>
-          <span className={shell.divider} aria-hidden="true" />
-          <div role="group" aria-label="View" className={shell.modeSwitch}>
-            <button
-              type="button"
-              className={shell.modeBtn}
-              aria-pressed={mode === 'flow'}
-              onClick={() => setMode('flow')}
-            >
-              <FlowIcon size={14} /> Flow
-            </button>
-            <button
-              type="button"
-              className={shell.modeBtn}
-              aria-pressed={mode === 'editor'}
-              onClick={() => setMode('editor')}
-            >
-              <PenIcon size={14} /> Editor
-            </button>
-          </div>
-          <span className={shell.divider} aria-hidden="true" />
           {issues.length > 0 ? (
             <button
               type="button"
               className={shell.issuesChip}
               data-tone={errorCount > 0 ? 'bad' : 'warn'}
               onClick={() => {
-                setMode('flow');
+                commandsRef.current?.deselect();
+                setRightTab('parameters');
                 setNarrowPanel('inspector');
               }}
             >
@@ -841,6 +764,15 @@ export function FunnelEditor({
               Live <ExternalIcon size={13} />
             </Link>
           ) : null}
+          <button
+            type="button"
+            className={shell.iconBtn}
+            aria-label="Funnel settings"
+            title="Funnel settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            <GearIcon />
+          </button>
           <button type="button" className={shell.outlineBtn} onClick={() => setPreviewOpen(true)}>
             <EyeIcon /> Preview
           </button>
@@ -869,31 +801,45 @@ export function FunnelEditor({
       ) : null}
 
       <div className={shell.body}>
-        <aside className={shell.left} data-panel="screens" aria-label="Funnel screens">
-          <div className={shell.leftHead}>
-            <div>
-              <h2 className={shell.panelTitle}>Funnel screens</h2>
-              <p className={shell.panelSub}>
-                {definition.screens.length} screen{definition.screens.length === 1 ? '' : 's'} ·
-                Mobile flow
-              </p>
-            </div>
-            <div className={shell.menuHost} data-menu>
-              <button
-                type="button"
-                className={shell.addBtn}
-                aria-label="Add screen"
-                aria-expanded={addMenu === 'top'}
-                onClick={() => setAddMenu((m) => (m === 'top' ? null : 'top'))}
-              >
-                <PlusIcon />
-              </button>
-              {addMenuList('top')}
-            </div>
+        <aside className={shell.left} data-panel="screens" aria-label="Screens and elements">
+          <div className={shell.tabs} role="tablist" aria-label="Left panel">
+            <button
+              type="button"
+              role="tab"
+              className={shell.tab}
+              aria-selected={leftTab === 'screens'}
+              onClick={() => setLeftTab('screens')}
+            >
+              Screens <span className={shell.tabCount}>{definition.screens.length}</span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={shell.tab}
+              aria-selected={leftTab === 'elements'}
+              onClick={() => {
+                setLeftTab('elements');
+                setMode('editor');
+              }}
+            >
+              Elements <span className={shell.tabCount}>{elementCount}</span>
+            </button>
           </div>
-          <div className={shell.leftScroll}>
+
+          <div className={shell.leftScroll} hidden={leftTab !== 'screens'}>
+            <label className={shell.search}>
+              <SearchIcon size={14} />
+              <input
+                type="search"
+                placeholder="Find screens..."
+                aria-label="Find screens"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </label>
             <ol className={shell.screenList}>
-              {definition.screens.map((screen, index) => {
+              {visibleScreens.map((screen) => {
+                const index = definition.screens.indexOf(screen);
                 const meta = SCREEN_META[screen.type];
                 const severity = severityByScreen.get(screen.id);
                 const isSelected = screen.id === selected?.id;
@@ -903,7 +849,7 @@ export function FunnelEditor({
                     className={shell.screenRow}
                     data-selected={isSelected}
                     data-dragging={dragId === screen.id}
-                    draggable
+                    draggable={normalizedQuery === ''}
                     onDragStart={(e) => {
                       setDragId(screen.id);
                       e.dataTransfer.effectAllowed = 'move';
@@ -915,9 +861,6 @@ export function FunnelEditor({
                     onDrop={(e) => onRowDrop(e, screen.id)}
                     style={{ '--type-color': meta.color } as CSSProperties}
                   >
-                    <span className={shell.grip} aria-hidden="true">
-                      <GripIcon size={14} />
-                    </span>
                     <button
                       type="button"
                       className={shell.screenMain}
@@ -926,17 +869,15 @@ export function FunnelEditor({
                       onDoubleClick={() => setMode('editor')}
                     >
                       <span className={shell.thumb} aria-hidden="true">
-                        <span className={shell.thumbLine} />
+                        <span className={shell.thumbIsland} />
                         <span className={shell.thumbAccent} />
                         <span className={shell.thumbLine} />
+                        <span className={shell.thumbLineShort} />
                         <span className={shell.thumbCta} />
                       </span>
                       <span className={shell.screenText}>
                         <span className={shell.screenTitle}>
                           {screen.title || screen.id}
-                          {screen.id === definition.startScreenId ? (
-                            <span className={shell.startBadge}>Start</span>
-                          ) : null}
                           {severity ? (
                             <span
                               className={shell.severityDot}
@@ -947,7 +888,10 @@ export function FunnelEditor({
                           ) : null}
                         </span>
                         <span className={shell.screenMeta}>
-                          {pad(index + 1)} · {meta.label}
+                          {index + 1} · {meta.label}
+                          {screen.id === definition.startScreenId ? (
+                            <span className={shell.startBadge}>Start</span>
+                          ) : null}
                         </span>
                       </span>
                     </button>
@@ -991,54 +935,75 @@ export function FunnelEditor({
                 );
               })}
             </ol>
-            <div className={shell.menuHost} data-menu>
-              <button
-                type="button"
-                className={shell.addAnother}
-                aria-expanded={addMenu === 'bottom'}
-                onClick={() => setAddMenu((m) => (m === 'bottom' ? null : 'bottom'))}
-              >
-                <PlusIcon size={14} /> Add another screen
-              </button>
-              {addMenuList('bottom')}
-            </div>
-            <section className={shell.blocks} hidden={mode !== 'editor'} aria-label="Blocks">
-              <h3 className={shell.blocksTitle}>Blocks</h3>
-              <p className={shell.panelSub}>Drag onto the phone to add.</p>
+            {visibleScreens.length === 0 ? (
+              <p className={shell.emptyNote}>No screens match "{query}".</p>
+            ) : null}
+          </div>
+
+          <div className={shell.leftScroll} hidden={leftTab !== 'elements'}>
+            <section className={shell.elementsSection} aria-label="Layers">
+              <h3 className={shell.sectionTitle}>On this screen</h3>
+              <div ref={outlineSlotRef} className={shell.outlineSlot} />
+            </section>
+            <section className={shell.elementsSection} aria-label="Add elements">
+              <h3 className={shell.sectionTitle}>Add elements</h3>
+              <p className={shell.muted}>Drag onto the phone to add.</p>
               <div ref={blocksSlotRef} className={shell.blocksSlot} />
             </section>
           </div>
-          <button type="button" className={shell.settingsBtn} onClick={() => setSettingsOpen(true)}>
-            <GearIcon /> Funnel settings
-          </button>
+
+          <div className={shell.leftFoot}>
+            <div className={shell.menuHost} data-menu>
+              <button
+                type="button"
+                className={shell.footPrimary}
+                aria-expanded={addMenu === 'bottom'}
+                onClick={() => setAddMenu((m) => (m === 'bottom' ? null : 'bottom'))}
+              >
+                <PlusIcon size={14} /> Screen
+              </button>
+              {addMenuList('bottom')}
+            </div>
+            <button type="button" className={shell.footGhost} onClick={() => setSettingsOpen(true)}>
+              <GearIcon size={14} /> Settings
+            </button>
+          </div>
         </aside>
 
         <main className={shell.center} data-panel="main">
-          <div className={shell.centerBar}>
-            <span className={shell.crumb}>
-              <LayersIcon size={13} />
-              <span>Screen {selectedIndex + 1}</span>
-              <span aria-hidden="true">/</span>
-              <strong>{selected?.title ?? ''}</strong>
-            </span>
-            <span className={shell.centerMeta}>
+          <div className={shell.stageTools} data-side="left">
+            <div className={shell.toolGroup}>
+              <button
+                type="button"
+                className={shell.toolBtn}
+                aria-label="Undo"
+                disabled={mode !== 'editor' || !bridge.canUndo}
+                onClick={() => commandsRef.current?.undo()}
+              >
+                <Undo size={15} />
+              </button>
+              <button
+                type="button"
+                className={shell.toolBtn}
+                aria-label="Redo"
+                disabled={mode !== 'editor' || !bridge.canRedo}
+                onClick={() => commandsRef.current?.redo()}
+              >
+                <Redo size={15} />
+              </button>
+            </div>
+          </div>
+          <div className={shell.stageTools} data-side="right">
+            <span className={shell.stageMeta}>
               {mode === 'editor'
-                ? '390 × 844'
+                ? `${selectedIndex + 1} / ${definition.screens.length} · ${selected?.title ?? ''}`
                 : `${definition.screens.length} screens · ${definition.edges.length} connections`}
             </span>
           </div>
 
           <div className={shell.stage} hidden={mode !== 'editor'}>
             <div className={shell.phone}>
-              <div className={shell.phoneStatus} aria-hidden="true">
-                <span>9:41</span>
-                <span className={shell.notch} />
-                <span className={shell.phoneIcons}>
-                  <i />
-                  <i />
-                  <i />
-                </span>
-              </div>
+              <span className={shell.island} aria-hidden="true" />
               <div className={shell.phoneScreen} style={phoneStyle}>
                 <div ref={previewSlotRef} className={shell.previewSlot} />
               </div>
@@ -1050,25 +1015,19 @@ export function FunnelEditor({
 
           {mode === 'flow' ? (
             <div className={shell.flowStage}>
-              <ReactFlow
-                nodes={displayNodes}
-                edges={flowEdges}
-                onNodesChange={onNodesChange}
-                onConnect={onConnect}
-                onNodeClick={(_event, node) => selectScreen(node.id)}
-                onNodeDoubleClick={(_event, node) => {
-                  selectScreen(node.id);
+              <ScreenCanvas
+                definition={definition}
+                selectedId={selected?.id}
+                typeMeta={typeMeta}
+                severityByScreen={severityByScreen}
+                describeEdge={describeEdge}
+                onSelect={selectScreen}
+                onOpen={(id) => {
+                  selectScreen(id);
                   setMode('editor');
                 }}
-                onNodeDragStop={onNodeDragStop}
-                deleteKeyCode={null}
-                fitView
-                fitViewOptions={{ padding: 0.2 }}
-                minZoom={0.1}
-              >
-                <Background variant={BackgroundVariant.Dots} gap={16} size={1.2} color="#cfd2da" />
-                <Controls />
-              </ReactFlow>
+                onConnect={onConnect}
+              />
               {pending && pendingSource ? (
                 <div className={shell.pendingCard} role="dialog" aria-label="New connection">
                   <strong>
@@ -1096,11 +1055,61 @@ export function FunnelEditor({
                   </div>
                 </div>
               ) : null}
-              <p className={shell.flowHint}>
-                Drag between handles to connect · Double-click a screen to edit it
-              </p>
             </div>
           ) : null}
+
+          <div className={shell.rail} role="toolbar" aria-label="Assistant tools">
+            <button
+              type="button"
+              className={shell.railBtn}
+              aria-label="AI assistant (coming soon)"
+              title="AI assistant (coming soon)"
+              disabled
+            >
+              <MagicIcon size={16} />
+            </button>
+            <button
+              type="button"
+              className={shell.railBtn}
+              aria-label="Styles"
+              title="Styles"
+              aria-pressed={rightTab === 'styles'}
+              onClick={() => {
+                setRightTab((t) => (t === 'styles' ? 'parameters' : 'styles'));
+                setNarrowPanel('inspector');
+              }}
+            >
+              <SlidersIcon size={16} />
+            </button>
+            <button
+              type="button"
+              className={shell.railBtn}
+              aria-label="Comments (coming soon)"
+              title="Comments (coming soon)"
+              disabled
+            >
+              <ChatIcon size={16} />
+            </button>
+          </div>
+
+          <div className={shell.viewSwitch} role="group" aria-label="View">
+            <button
+              type="button"
+              className={shell.viewBtn}
+              aria-pressed={mode === 'flow'}
+              onClick={() => setMode('flow')}
+            >
+              <GridIcon size={14} /> Canvas
+            </button>
+            <button
+              type="button"
+              className={shell.viewBtn}
+              aria-pressed={mode === 'editor'}
+              onClick={() => setMode('editor')}
+            >
+              <PhoneIcon size={14} /> Screen
+            </button>
+          </div>
 
           {notice ? (
             <div className={shell.toast} role="status">
@@ -1118,60 +1127,86 @@ export function FunnelEditor({
         </main>
 
         <aside className={shell.right} data-panel="inspector" aria-label="Settings">
-          <div className={shell.inspectorHead}>
-            <div>
-              <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
-                {elementMode ? `${bridge.selection?.label} Settings` : 'Screen Settings'}
-              </h2>
-              <p className={shell.panelSub}>
-                {elementMode ? 'Edit this element' : (selected?.title ?? 'Select a screen')}
-              </p>
-            </div>
-            {elementMode ? (
-              <button
-                type="button"
-                className={shell.iconBtn}
-                aria-label="Back to screen settings"
-                onClick={() => commandsRef.current?.deselect()}
-              >
-                <CloseIcon size={15} />
-              </button>
-            ) : null}
+          <div className={shell.tabs} role="tablist" aria-label="Right panel">
+            <button
+              type="button"
+              role="tab"
+              className={shell.tab}
+              aria-selected={rightTab === 'parameters'}
+              onClick={() => setRightTab('parameters')}
+            >
+              Parameters
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={shell.tab}
+              aria-selected={rightTab === 'styles'}
+              onClick={() => setRightTab('styles')}
+            >
+              Styles
+            </button>
           </div>
           <div className={shell.inspectorScroll}>
-            <div ref={fieldsSlotRef} className={shell.fieldsSlot} hidden={!elementMode} />
-            {elementMode ? (
-              <div className={shell.elementActions}>
-                <button
-                  type="button"
-                  className={shell.plainAction}
-                  onClick={() => commandsRef.current?.duplicate()}
-                >
-                  <CopyIcon size={15} /> Duplicate element
-                </button>
-                <button
-                  type="button"
-                  className={shell.dangerLink}
-                  onClick={() => commandsRef.current?.remove()}
-                >
-                  <TrashIcon size={15} /> Delete element
-                </button>
-              </div>
-            ) : (
-              <>
-                {screenInspector}
-                {mode === 'flow' || issues.length > 0 ? (
-                  <div className={shell.validationWrap}>
-                    <ValidationPanel
-                      issues={issues}
-                      checked={saver.timestamp !== null}
-                      canSelect={(issue) => issueScreenId(issue) !== undefined}
-                      onSelect={selectIssue}
-                    />
-                  </div>
+            <div hidden={rightTab !== 'parameters'}>
+              <div className={shell.inspectorHead}>
+                <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
+                  {elementMode
+                    ? (bridge.selection?.label ?? 'Element')
+                    : (selected?.title ?? 'Screen')}
+                </h2>
+                {elementMode ? (
+                  <button
+                    type="button"
+                    className={shell.iconBtn}
+                    aria-label="Back to screen parameters"
+                    onClick={() => commandsRef.current?.deselect()}
+                  >
+                    <CloseIcon size={15} />
+                  </button>
                 ) : null}
-              </>
-            )}
+              </div>
+              <div ref={fieldsSlotRef} className={shell.fieldsSlot} hidden={!elementMode} />
+              {elementMode ? (
+                <div className={shell.elementActions}>
+                  <button
+                    type="button"
+                    className={shell.plainAction}
+                    onClick={() => commandsRef.current?.duplicate()}
+                  >
+                    <CopyIcon size={15} /> Duplicate element
+                  </button>
+                  <button
+                    type="button"
+                    className={shell.dangerLink}
+                    onClick={() => commandsRef.current?.remove()}
+                  >
+                    <TrashIcon size={15} /> Delete element
+                  </button>
+                </div>
+              ) : (
+                <>
+                  {screenParameters}
+                  {mode === 'flow' || issues.length > 0 ? (
+                    <div className={shell.validationWrap}>
+                      <ValidationPanel
+                        issues={issues}
+                        checked={saver.timestamp !== null}
+                        canSelect={(issue) => issueScreenId(issue) !== undefined}
+                        onSelect={selectIssue}
+                      />
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+            <div hidden={rightTab !== 'styles'} className={shell.stylesPane}>
+              <p className={shell.muted}>Theme applies to every screen of this funnel.</p>
+              <ThemeEditor
+                theme={definition.theme}
+                onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
+              />
+            </div>
           </div>
         </aside>
       </div>
@@ -1228,7 +1263,7 @@ export function FunnelEditor({
         {settingsOpen ? (
           <div className={shell.drawerBody}>
             <div className={styles.panel}>
-              <h2 className={styles.panelHeading}>Look and behaviour</h2>
+              <h2 className={styles.panelHeading}>Behaviour</h2>
               <label className={styles.checkRow}>
                 <input
                   type="checkbox"
@@ -1237,10 +1272,6 @@ export function FunnelEditor({
                 />
                 Allow cycles
               </label>
-              <ThemeEditor
-                theme={definition.theme}
-                onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
-              />
             </div>
             <VersionsPanel funnelId={funnel.id} refreshKey={versionsKey} />
             <DomainsPanel funnelId={funnel.id} />

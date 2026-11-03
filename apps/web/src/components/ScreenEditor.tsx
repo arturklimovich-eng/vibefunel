@@ -13,6 +13,7 @@ export interface ScreenEditorSlots {
   preview: HTMLElement | null;
   fields: HTMLElement | null;
   blocks: HTMLElement | null;
+  outline: HTMLElement | null;
 }
 
 export interface EditorSelection {
@@ -127,6 +128,7 @@ export function ScreenEditor({
       {slots.preview ? createPortal(<Puck.Preview />, slots.preview) : null}
       {slots.fields ? createPortal(<Puck.Fields />, slots.fields) : null}
       {slots.blocks ? createPortal(<Puck.Components />, slots.blocks) : null}
+      {slots.outline ? createPortal(<Puck.Outline />, slots.outline) : null}
     </Puck>
   );
 }

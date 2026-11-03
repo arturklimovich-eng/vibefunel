@@ -252,9 +252,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793557059.7944224,
-    "seen": 1793557259.550143,
-    "ast_hash": "c25140e9bee3a2be1dff52213cacb443",
+    "mtime": 1793656569.245375,
+    "seen": 1793656921.9412148,
+    "ast_hash": "e8574c368f7fbc79662504d3f6525241",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
@@ -276,9 +276,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenEditor.tsx": {
-    "mtime": 1793555754.7697344,
-    "seen": 1793556024.586721,
-    "ast_hash": "da45d293b0c173060875362bf27f1a1d",
+    "mtime": 1793656341.4318643,
+    "seen": 1793656921.9412265,
+    "ast_hash": "79152e8fde10a5e2f46c90784eac7032",
     "semantic_hash": ""
   },
   "apps/web/src/components/ThemeEditor.tsx": {
@@ -930,15 +930,15 @@
     "semantic_hash": ""
   },
   "docs/features/00-map.md": {
-    "mtime": 1793557246.9793446,
-    "seen": 1793557259.550314,
-    "ast_hash": "3b021a4fd9c52f1a6a89d71f0eef025e",
+    "mtime": 1793656798.1548154,
+    "seen": 1793656921.9413905,
+    "ast_hash": "8f5628a9f2f945df5daeac9f36db8175",
     "semantic_hash": ""
   },
   "docs/features/10-authoring.md": {
-    "mtime": 1793447419.483532,
-    "seen": 1793448111.474803,
-    "ast_hash": "02cb3a4d5db7e71c5384464b250490c1",
+    "mtime": 1793656798.155815,
+    "seen": 1793656921.9413917,
+    "ast_hash": "f1ef334ab99f7dbd2fe48f6e93168dfb",
     "semantic_hash": ""
   },
   "docs/features/20-runtime.md": {
@@ -1080,9 +1080,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/EditorIcons.tsx": {
-    "mtime": 1793556904.6598673,
-    "seen": 1793557259.5501418,
-    "ast_hash": "0136032ce53c0d3fe73fbf7ff7369f37",
+    "mtime": 1793656293.1239674,
+    "seen": 1793656921.9412131,
+    "ast_hash": "188ff4d9021bb1ca85a767df067c980d",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/ui-font.ts": {
@@ -1125,6 +1125,18 @@
     "mtime": 1793557394.7251651,
     "seen": 1793557639.7149549,
     "ast_hash": "2f48b5b048ea25d6aece901914c50b2e",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/ScreenCanvas.tsx": {
+    "mtime": 1793656672.2668612,
+    "seen": 1793656921.941225,
+    "ast_hash": "cf7c61cc67113d94d70c953f93ce3dd4",
+    "semantic_hash": ""
+  },
+  "docs/features/80-ai-assistant.md": {
+    "mtime": 1793656787.752268,
+    "seen": 1793656921.941404,
+    "ast_hash": "a593762582f6352d748931d23e6117a2",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

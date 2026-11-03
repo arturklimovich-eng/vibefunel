@@ -45,9 +45,11 @@ stateDiagram-v2
 
 ### Step: Edit graph
 
+The editor is a dark three-pane layout. The left panel has two tabs: **Screens** (search, reorder by drag, add, set start, delete) and **Elements** (the Puck outline of the current screen and the blocks to drag onto the phone). The center has two views switched at the bottom left: **Screen** edits one screen inside a phone frame, **Canvas** shows every screen as a live mini phone connected by its edges. Canvas nodes are laid out automatically by distance from the start screen (columns by BFS depth, unreachable screens in the last column) and cannot be dragged; stored `position` values are no longer used for layout. New connections are drawn between node handles. The right panel has **Parameters** (screen name, id, type, navigation, animation, or the selected element's fields) and **Styles** (the funnel theme). The rail on the canvas holds the Styles toggle and the future AI assistant ([design](./80-ai-assistant.md)).
+
 The editor holds the `FunnelDefinition` (`screens[]`, `edges[]` with `condition`, `startScreenId`, `theme`) in `useDraftSaver`. All edits go through `saver.mutate(fn)`, which bumps a local revision counter. Changing a screen type filters content blocks to those allowed for the new type. The `ValidationPanel` lists issues and clicking one selects the offending screen.
 
-**Code:** `apps/web/src/components/FunnelEditor.tsx`, `apps/web/src/components/ScreenEditor.tsx`, `apps/web/src/components/ConditionPicker.tsx`, `apps/web/src/components/ValidationPanel.tsx`, `apps/web/src/lib/retype-edges.ts`.
+**Code:** `apps/web/src/components/FunnelEditor.tsx`, `apps/web/src/components/ScreenCanvas.tsx`, `apps/web/src/components/ScreenEditor.tsx`, `apps/web/src/components/ConditionPicker.tsx`, `apps/web/src/components/ValidationPanel.tsx`, `apps/web/src/lib/retype-edges.ts`.
 **Data:** in-memory definition only until autosave.
 **Failure modes:** if the draft is in conflict (`saver.conflict`), edits stay local and are not saved; the UI asks the user to reload.
 

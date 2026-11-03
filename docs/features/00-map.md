@@ -15,6 +15,7 @@ flowchart LR
     OVER["Studio overview"]
     AUTHOR["Authoring and publishing"]
     DOM["Custom domains"]
+    AI["AI assistant (design)"]
   end
   subgraph Public["Public (visitors)"]
     RUN["Funnel runtime"]
@@ -27,6 +28,7 @@ flowchart LR
   OVER -->|"open funnel"| AUTHOR
   LEAD -->|"leads, opt-ins"| OVER
   PAY -->|"paid orders, revenue"| OVER
+  AI -->|"patch proposals"| AUTHOR
   AUTHOR -->|"publish version"| RUN
   DOM -->|"host rewrite"| RUN
   RUN -->|"email screen"| LEAD
@@ -45,6 +47,7 @@ flowchart LR
   click PAY "./30-checkout.md"
   click REF "./40-refunds-disputes.md"
   click AN "./60-analytics-consent.md"
+  click AI "./80-ai-assistant.md"
 ```
 
 ## How a funnel lives

@@ -13,10 +13,11 @@
 }
 
 .btn {
+  color: inherit;
   padding: 0.5rem 0.875rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--fe-line-strong, #d1d5db);
   border-radius: 8px;
-  background: #fff;
+  background: var(--fe-surface, #fff);
   cursor: pointer;
 }
 
@@ -39,14 +40,14 @@
 
 .status {
   font-size: 0.875rem;
-  color: #374151;
+  color: var(--fe-text-2, #374151);
 }
 
 .canvas {
   height: 420px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fe-line, #e5e7eb);
   border-radius: 12px;
-  background: #fff;
+  background: var(--fe-surface, #fff);
 }
 
 .issues {
@@ -58,21 +59,21 @@
 
 .issueError {
   composes: issues;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--fe-error-bg, #fef2f2);
+  color: var(--fe-error-ink, #991b1b);
 }
 
 .issueWarning {
   composes: issues;
-  background: #fffbeb;
-  color: #92400e;
+  background: var(--fe-warn-bg, #fffbeb);
+  color: var(--fe-warn-ink, #92400e);
 }
 
 .panel {
   margin: 1rem 0;
   padding: 1rem;
-  background: #fff;
-  border: 1px solid #e5e7eb;
+  background: var(--fe-surface, #fff);
+  border: 1px solid var(--fe-line, #e5e7eb);
   border-radius: 12px;
   display: grid;
   gap: 0.75rem;
@@ -86,8 +87,10 @@
 
 .field input,
 .field select {
+  background: var(--fe-input-bg, #fff);
+  color: inherit;
   padding: 0.4rem 0.5rem;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--fe-line-strong, #d1d5db);
   border-radius: 6px;
 }
 
@@ -121,7 +124,7 @@
 .dataTable th,
 .dataTable td {
   padding: 0.375rem 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--fe-line, #e5e7eb);
   text-align: left;
   overflow-wrap: anywhere;
 }
@@ -129,13 +132,13 @@
 .dataTable th {
   position: sticky;
   top: 0;
-  background: #fff;
+  background: var(--fe-surface, #fff);
 }
 
 .puckHost {
   height: 78dvh;
   min-height: 520px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fe-line, #e5e7eb);
   border-radius: 12px;
   /* clip, not hidden: Puck's outline calls scrollIntoView on canvas blocks, which would
      scroll a hidden-overflow ancestor and push the whole editor out of view */
@@ -174,8 +177,8 @@
 
 .canvas .nodeError {
   border: 2px solid #dc2626;
-  background: #fef2f2;
-  color: #991b1b;
+  background: var(--fe-error-bg, #fef2f2);
+  color: var(--fe-error-ink, #991b1b);
   font-weight: 600;
 }
 
@@ -188,7 +191,7 @@
   display: flex;
   gap: 0.25rem;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--fe-line, #e5e7eb);
 }
 
 .tab {
@@ -229,8 +232,8 @@
 
 .segment {
   padding: 0.5rem 0.875rem;
-  border: 1px solid #d1d5db;
-  background: #fff;
+  border: 1px solid var(--fe-line-strong, #d1d5db);
+  background: var(--fe-surface, #fff);
   cursor: pointer;
 }
 
@@ -249,7 +252,7 @@
   display: flex;
   justify-content: center;
   padding: 0.5rem;
-  background: #e5e7eb;
+  background: var(--fe-stage, #e5e7eb);
   border-radius: 12px;
   overflow: auto;
 }
@@ -281,7 +284,7 @@
 .fieldset {
   margin: 0;
   padding: 0.75rem;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--fe-line, #e5e7eb);
   border-radius: 8px;
 }
 
@@ -329,14 +332,14 @@
 .hint {
   margin: 0;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--fe-muted, #6b7280);
 }
 
 .domainItem {
   display: grid;
   gap: 0.35rem;
   padding: 0.5rem 0;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--fe-line, #f3f4f6);
 }
 
 .badgeOk,
@@ -376,7 +379,7 @@
 
 .dnsList code {
   padding: 0.05rem 0.3rem;
-  background: #f3f4f6;
+  background: var(--fe-code-bg, #f3f4f6);
   border-radius: 4px;
   font-size: 0.78rem;
 }
