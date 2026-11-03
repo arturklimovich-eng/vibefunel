@@ -86,13 +86,13 @@ Once the domain is verified and the funnel is published, a request whose `Host` 
 
 Coolify's Traefik proxy issues certificates only for hostnames listed on the application, and every change to that list recreates the container, so it does not fit tenant domains. Use Caddy's on-demand TLS instead:
 
-1. Coolify > Servers > your server > Proxy: switch the proxy type to **Caddy** (Coolify runs `lucaslorentz/caddy-docker-proxy`; its base Caddyfile imports `/dynamic/*.caddy`). Redeploy the platform application so it receives Caddy labels for the platform domain.
-2. Proxy > Dynamic configurations > Add a file named `00-funnel-domains.caddy` (it must sort before the other files because the global options block has to come first):
+1. Give the platform application a stable network alias: Configuration > Network > Custom network aliases `funnel-app` (API: `PATCH /api/v1/applications/{uuid}` with `custom_network_aliases`), then redeploy. Container names carry a deploy timestamp, so the Caddy config below must not use them.
+2. Write `00-funnel-domains.caddy` into the Caddy dynamic directory, `/data/coolify/proxy/caddy/dynamic/` on the server (Proxy > Dynamic configurations in the UI, or over SSH; there is no API). It must sort before the other files because the global options block has to come first. The old Traefik directory `/data/coolify/proxy/dynamic/` is not mounted into Caddy:
 
 ```
 {
 	on_demand_tls {
-		ask https://<your-domain>/api/domains/serve-check?secret=<CUSTOM_DOMAIN_ASK_SECRET>
+		ask http://funnel-app:3000/api/domains/serve-check?secret=<CUSTOM_DOMAIN_ASK_SECRET>
 	}
 }
 
@@ -100,7 +100,8 @@ https:// {
 	tls {
 		on_demand
 	}
-	reverse_proxy <app-container>:3000
+	encode zstd gzip
+	reverse_proxy funnel-app:3000
 }
 
 http:// {
@@ -108,10 +109,11 @@ http:// {
 }
 ```
 
-`<app-container>` is the platform application's container name on the Coolify Docker network (shown on the resource page). Caddy adds `domain=<host>` to the query of the `ask` URL and issues a certificate only when the answer is 200. The `ask` URL may also point straight at the container (`http://<app-container>:3000/api/domains/serve-check`): the endpoint answers on any host. The `secret` parameter is optional but recommended; without it the asks share the public per-client rate limit (300 per minute per IP) and a flood of random server names could block issuance for real visitors.
+Caddy adds `domain=<host>` to the query of the `ask` URL and issues a certificate only when the answer is 200. The endpoint answers on any host, so asking the container directly avoids a round trip through the public domain. The `secret` parameter is optional but recommended; without it the asks share the public per-client rate limit (300 per minute per IP) and a flood of random server names could block issuance for real visitors.
 3. Turn off Coolify's own catch-all (Proxy settings > "Redirect to" disabled, or `PATCH /api/v1/servers/{uuid}/proxy` with `redirect_enabled=false`); its `:80, :443` block would otherwise compete with the `https://` site.
-4. Set `CUSTOM_DOMAIN_TARGET` to the platform hostname (tenants CNAME to it), optionally `CUSTOM_DOMAIN_TARGET_IP` to the server's public IP for apex domains, keep `TRUST_PROXY_HOPS=1`, and make sure ports 80 and 443 are open.
-5. Test: add a hostname in the studio, create the DNS records, run the check, then open `https://<hostname>`. Caddy asks `/api/domains/serve-check`, gets 200, obtains the certificate from Let's Encrypt on the first request (a few seconds) and proxies to the app. Removing the domain in the studio makes serve-check answer 404, so no further certificates are issued and the app returns 404 for that host.
+4. Switch the proxy: Servers > your server > Proxy > **Caddy**, or `PATCH /api/v1/servers/{uuid}` with `proxy_type=caddy` (token needs write and deploy). Coolify stops Traefik and starts `lucaslorentz/caddy-docker-proxy`, whose base Caddyfile imports `/dynamic/*.caddy`. Applications already carry `caddy_*` labels next to the Traefik ones, so no redeploy is needed. Expect about a minute without HTTPS on the platform domain while Caddy obtains its certificate. Rollback: switch back to Traefik; its files in `/data/coolify/proxy/` stay untouched.
+5. Set `CUSTOM_DOMAIN_TARGET` to the platform hostname (tenants CNAME to it), optionally `CUSTOM_DOMAIN_TARGET_IP` to the server's public IP for apex domains, keep `TRUST_PROXY_HOPS=1`, and make sure ports 80 and 443 are open.
+6. Test: `http://<any-host>` answers 308 to HTTPS and a TLS handshake for an unknown host fails (no certificate). Then add a hostname in the studio, create the DNS records, run the check, then open `https://<hostname>`. Caddy asks `/api/domains/serve-check`, gets 200, obtains the certificate from Let's Encrypt on the first request (a few seconds) and proxies to the app. Removing the domain in the studio makes serve-check answer 404, so no further certificates are issued and the app returns 404 for that host.
 
 Dynamic configuration files are managed in the Coolify UI only (no API). Rate limits on Let's Encrypt still apply; Caddy caches issued certificates and renews them itself.
 
