@@ -1,17 +1,17 @@
 # Graph Report - funnel-platform  (2026-11-03)
 
 ## Corpus Check
-- 194 files · ~104,777 words
+- 194 files · ~105,011 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 18 file(s) not represented in the graph (top: .css 10, (none) 6, .example 1)
 
 ## Summary
-- 1703 nodes · 4345 edges · 75 communities (66 shown, 9 thin omitted)
+- 1703 nodes · 4346 edges · 75 communities (66 shown, 9 thin omitted)
 - Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 322 edges (avg confidence: 0.94)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `4e566ddb`
+- Built from commit: `d99873b7`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -95,7 +95,7 @@
 4. `withStudio()` - 36 edges
 5. `server-only` - 34 edges
 6. `Icon()` - 32 edges
-7. `react` - 30 edges
+7. `react` - 31 edges
 8. `SupabaseFunnelRepository` - 29 edges
 9. `FunnelDefinition` - 29 edges
 10. `Status log` - 29 edges
@@ -394,10 +394,10 @@ _Questions this graph is uniquely positioned to answer:_
 - **Should `withStudio` be split into smaller, more focused modules?**
   _Cohesion score 0.1383399209486166 - nodes in this community are weakly interconnected._
 - **Why does `react` connect `funnelRoutes` to `web/package.json`, `Status log`, `Draft Saving and Validation`, `config.tsx`, `FunnelEditor.tsx`, `ThemeEditor.tsx`, `next`, `FunnelRuntime.tsx`, `login/page.tsx`, `ScreenCanvas.tsx`, `repository.ts`, `FunnelEditor.tsx`, `StudioDashboard.tsx`, `DomainsPanel.tsx`, `ScreenEditor.tsx`?**
-  _High betweenness centrality (0.053) - this node is a cross-community bridge._
+  _High betweenness centrality (0.054) - this node is a cross-community bridge._
 - **Are the 3 inferred relationships involving `FileFunnelRepository` (e.g. with `Module boundaries` and `Step: Funnel versions`) actually correct?**
   _`FileFunnelRepository` has 3 INFERRED edges - model-reasoned connections that need verification._
 - **Should `web/package.json` be split into smaller, more focused modules?**
   _Cohesion score 0.053877551020408164 - nodes in this community are weakly interconnected._
 - **Why does `server-only` connect `leads/registry.ts` to `withStudio`, `web/package.json`, `Status log`, `checkout/route.ts`, `supabase-funnel-repository.ts`, `types.ts`, `file-payment-store.ts`, `solidgate-provider.ts`, `payments/registry.ts`, `mock/webhook/route.ts`, `DomainsPanel.tsx`, `studio-overview.ts`, `file-funnel-repository.ts`, `server.ts`, `next`, `serve-check/route.ts`, `webhook.ts`, `supabase-payment-store.ts`, `email.ts`, `repository.ts`?**
-  _High betweenness centrality (0.049) - this node is a cross-community bridge._
+  _High betweenness centrality (0.048) - this node is a cross-community bridge._

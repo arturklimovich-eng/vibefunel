@@ -34,7 +34,7 @@ flowchart TD
 
 ### Step: Consent banner
 
-`useFunnelAnalytics` is enabled only when the runtime has a slug, so the studio and the draft preview never track. On mount it reads the stored decision; with `unknown` it shows `ConsentBanner` (Accept or Decline). `decide` stores the choice and re-runs `settle`. Events before the SDK is running go to an in-memory buffer (max 100).
+`useFunnelAnalytics` is enabled only when the runtime has a slug, so the studio and the draft preview never track. On mount it reads the stored decision; with `unknown` it shows `ConsentBanner` (Accept or Decline), fixed at the bottom with a spacer of its measured height under the content so nothing stays hidden behind it; on checkout and upsell screens it switches to a one-line compact form so the payment form stays visible. `decide` stores the choice and re-runs `settle`. Events before the SDK is running go to an in-memory buffer (max 100).
 
 **Code:** `apps/web/src/components/ConsentBanner.tsx`, `apps/web/src/lib/analytics/use-funnel-analytics.ts` (`useFunnelAnalytics`, `settle`, `BUFFER_LIMIT`), `apps/web/src/lib/analytics/consent.ts` (`readConsent`, `writeConsent`), `apps/web/src/components/FunnelRuntime.tsx`.
 

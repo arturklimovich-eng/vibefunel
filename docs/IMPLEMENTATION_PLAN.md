@@ -207,7 +207,7 @@ Checklist:
 ## Decisions to review (taken during the autonomous loop, 2026-10-30)
 
 - Review checkpoints use `git stash create` snapshots instead of commits; nothing was committed or pushed.
-- UI and UX items stay deferred (user instruction): keyboard selection and moves on the canvas, start-screen flash on reload, unsaved-edit prompts beyond the save-on-leave flush, and the consent banner covering part of the Stripe payment form on checkout screens until the visitor answers it (found by the payment harness).
+- UI and UX items stay deferred (user instruction): keyboard selection and moves on the canvas, start-screen flash on reload, unsaved-edit prompts beyond the save-on-leave flush. The consent banner covering the payment form was fixed on 2026-11-03 (compact banner on checkout and upsell screens, space reserved under the content).
 - Custom domains: a domain is revoked after two consecutive negative TXT checks at least 24 hours apart, and a job-revoked domain is restored automatically when the record returns; up to 29 automatic re-checks after a revocation.
 - Security headers: per-request nonce CSP with `'strict-dynamic'` (see SECURITY.md); public funnels cannot be embedded in third-party iframes (`frame-ancestors 'self'`). Allowing tenant embedding is a product decision.
 - HSTS without `includeSubDomains`, because tenant hostnames receive the same header.

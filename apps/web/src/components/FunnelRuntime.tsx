@@ -692,7 +692,12 @@ function RuntimeInner({
           </motion.div>
         </AnimatePresence>
       </div>
-      {analytics.showBanner ? <ConsentBanner onDecide={analytics.decide} /> : null}
+      {analytics.showBanner ? (
+        <ConsentBanner
+          onDecide={analytics.decide}
+          compact={screen.type === 'checkout' || screen.type === 'upsell'}
+        />
+      ) : null}
     </main>
   );
 }
