@@ -12,7 +12,7 @@ import { useFunnelAnalytics } from '@/lib/analytics/use-funnel-analytics';
 import { emailBlocksOf, emailKey, isValidEmail } from '@/lib/email';
 import { sendLead } from '@/lib/leads';
 import { fetchPaymentStatus } from '@/lib/payment-status';
-import { getScreenOptions, toPuckData } from '@/lib/puck/adapters';
+import { getScreenOptions, splitAttached, toPuckData } from '@/lib/puck/adapters';
 import { puckConfig } from '@/lib/puck/config';
 import { RuntimeContext } from '@/lib/puck/runtime-context';
 import { ThemeContext } from '@/lib/puck/theme-context';
@@ -21,7 +21,7 @@ import { advance, retreat } from '@/lib/run-state';
 import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storage';
 import type { HistoryEntry, RunState } from '@/lib/run-state';
 import { longestPathFrom } from '@/lib/progress';
-import { resolveStyle, screenSurface } from '@/lib/styles';
+import { screenSurface } from '@/lib/styles';
 import { defaultPickerPlan, hiddenBlockIds, pickerPlanKeys, screenGate } from '@/lib/puck/gates';
 import { ConsentBanner } from './ConsentBanner';
 import { ScreenHeaderBar } from './ScreenHeaderBar';
@@ -674,20 +674,10 @@ function RuntimeInner({
     () => (screenContent === undefined ? null : toPuckData(screenContent)),
     [screenContent],
   );
-  const splitData = useMemo(() => {
-    if (puckData === null) return null;
-    const attached = puckData.content.filter(
-      (item) => resolveStyle(item.type, item.props, definition.theme).position === 'attached',
-    );
-    if (attached.length === 0) return { main: puckData, attached: null };
-    return {
-      main: {
-        ...puckData,
-        content: puckData.content.filter((item) => !attached.includes(item)),
-      },
-      attached: { ...puckData, content: attached },
-    };
-  }, [puckData, definition.theme]);
+  const splitData = useMemo(
+    () => (puckData === null ? null : splitAttached(puckData, definition.theme)),
+    [puckData, definition.theme],
+  );
 
   const pageClass = embedded ? styles.pageEmbedded : styles.page;
 

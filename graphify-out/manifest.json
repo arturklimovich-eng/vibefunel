@@ -209,12 +209,6 @@
     "ast_hash": "de3fd10242973f49e3e8b458370234e9",
     "semantic_hash": ""
   },
-  "apps/web/src/app/studio/loading.tsx": {
-    "mtime": 1793125845.8889952,
-    "seen": 1793397859.1269453,
-    "ast_hash": "f2c5374ae2decdb105a4cc6fd7a749be",
-    "semantic_hash": ""
-  },
   "apps/web/src/app/studio/page.tsx": {
     "mtime": 1793730755.058998,
     "seen": 1793731428.9764388,
@@ -252,15 +246,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793733350.4532814,
-    "seen": 1793733734.722687,
-    "ast_hash": "b18a2e3120702eb582def7bee357ab2b",
+    "mtime": 1793784341.6063726,
+    "seen": 1793784419.0031166,
+    "ast_hash": "92ce214f6330bdb50dd9d450f89c8941",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
-    "mtime": 1793733462.3308332,
-    "seen": 1793733734.7226887,
-    "ast_hash": "f125b4fd5cbf3bc8f7819dd097221e98",
+    "mtime": 1793782717.9538963,
+    "seen": 1793782948.2231176,
+    "ast_hash": "cabaafd7a251ebc3042bda1fe2cb5e08",
     "semantic_hash": ""
   },
   "apps/web/src/components/NewFunnelForm.tsx": {
@@ -384,9 +378,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/adapters.ts": {
-    "mtime": 1793708063.8189278,
-    "seen": 1793709627.9100523,
-    "ast_hash": "fcab6df31826866a9733fb09f193475c",
+    "mtime": 1793782709.819621,
+    "seen": 1793782948.2232218,
+    "ast_hash": "711c0622c7f0005629e76ef1a519abd1",
     "semantic_hash": ""
   },
   "apps/web/src/lib/puck/config.tsx": {
@@ -684,9 +678,9 @@
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/index.ts": {
-    "mtime": 1793707986.3295794,
-    "seen": 1793709627.9101567,
-    "ast_hash": "0c692713ad0409c40af6fb55cfb1cf3c",
+    "mtime": 1793737042.9257016,
+    "seen": 1793782948.2234433,
+    "ast_hash": "b5b0eed8c767aafbc8ede2ed629b158d",
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/migrate.ts": {
@@ -714,9 +708,9 @@
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/validate.ts": {
-    "mtime": 1793712736.88699,
-    "seen": 1793713426.508414,
-    "ast_hash": "32940f0fde4be0bd93904b21fe966713",
+    "mtime": 1793737042.9975173,
+    "seen": 1793782948.2234583,
+    "ast_hash": "9c2d1c094b0b1b607e6a059ea64d2028",
     "semantic_hash": ""
   },
   "packages/funnel-schema/tsconfig.json": {
@@ -906,15 +900,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/docs/[slug]/page.tsx": {
-    "mtime": 1793557457.856946,
-    "seen": 1793557639.7149227,
-    "ast_hash": "d2f01ad3a8f6d8f9f7546adae105bab0",
+    "mtime": 1793784341.6063726,
+    "seen": 1793784419.0030935,
+    "ast_hash": "16a1dc43106072b19f24665df906613e",
     "semantic_hash": ""
   },
   "apps/web/src/app/studio/docs/page.tsx": {
-    "mtime": 1793557457.8290162,
-    "seen": 1793557639.7149243,
-    "ast_hash": "076452f90071cab86596e05583801dfe",
+    "mtime": 1793784341.6063726,
+    "seen": 1793784419.0030956,
+    "ast_hash": "fe224a764f547fabb2f125bcc93210db",
     "semantic_hash": ""
   },
   "apps/web/src/components/MermaidDiagrams.tsx": {
@@ -1092,9 +1086,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StudioDashboard.tsx": {
-    "mtime": 1793730873.049132,
-    "seen": 1793731428.9765017,
-    "ast_hash": "72a5e3e969827ff287ad463431b2474a",
+    "mtime": 1793784331.081563,
+    "seen": 1793784419.003137,
+    "ast_hash": "777f7db920395b27bcfb5a32303cb0e5",
     "semantic_hash": ""
   },
   "apps/web/src/server/studio-overview.ts": {
@@ -1122,15 +1116,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StudioShell.tsx": {
-    "mtime": 1793730853.8155913,
-    "seen": 1793731428.976506,
-    "ast_hash": "3a0ba439aa90a6a67c128908cdcfb1a3",
+    "mtime": 1793784327.144603,
+    "seen": 1793784419.0031395,
+    "ast_hash": "c568af8937d200a157f6c7b8665b89ad",
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenCanvas.tsx": {
-    "mtime": 1793721150.6005933,
-    "seen": 1793728209.6219933,
-    "ast_hash": "f274b80bb2a7113fe00c51ff32c8dbc8",
+    "mtime": 1793782723.2174957,
+    "seen": 1793782948.2231388,
+    "ast_hash": "a867e009af1367b6af38a50c19443a10",
     "semantic_hash": ""
   },
   "docs/features/80-ai-assistant.md": {
@@ -1320,9 +1314,9 @@
     "semantic_hash": ""
   },
   "scripts/switch-platform-domain.mjs": {
-    "mtime": 1793718897.014957,
-    "seen": 1793728209.6222026,
-    "ast_hash": "0146a2f0378fb654cd877f194329721b",
+    "mtime": 1793737091.9515953,
+    "seen": 1793782948.2234683,
+    "ast_hash": "de41a44f5492cf8079855de2d9e18460",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/funnel-groups/[id]/route.ts": {
@@ -1344,15 +1338,33 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StudioFunnels.tsx": {
-    "mtime": 1793733268.6051104,
-    "seen": 1793733734.722714,
-    "ast_hash": "a950d00add9a595691d0dbdfe2fc1e42",
+    "mtime": 1793784331.0577836,
+    "seen": 1793784419.0031383,
+    "ast_hash": "4dc05e8effeb755d2ce450c2ecd99132",
     "semantic_hash": ""
   },
   "supabase/migrations/20261103120000_funnel_groups.sql": {
     "mtime": 1793730665.0197153,
     "seen": 1793731428.9768522,
     "ast_hash": "67e9d78bc629d6bcd5c5073e5fd2218b",
+    "semantic_hash": ""
+  },
+  "apps/web/src/lib/screen-refs.ts": {
+    "mtime": 1793737095.5242717,
+    "seen": 1793782948.2232997,
+    "ast_hash": "de9744f676eaf1a8663b17c4fa40088a",
+    "semantic_hash": ""
+  },
+  "packages/funnel-schema/src/walk.ts": {
+    "mtime": 1793737042.8911903,
+    "seen": 1793782948.223461,
+    "ast_hash": "c01469f91838516db074fb4c944ec038",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/NavPending.tsx": {
+    "mtime": 1793784378.0979981,
+    "seen": 1793784419.0031242,
+    "ast_hash": "e8420441880257141cf45e1adf2da774",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

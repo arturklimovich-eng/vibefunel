@@ -2,10 +2,10 @@
 
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 import { signOut } from '@/app/auth/actions';
 import type { StorageMode } from '@/lib/storage-mode';
 import type { FunnelGroup } from '@/server/funnel-repository';
+import { NavLink as Link, NavOverlay } from './NavPending';
 import { NewFunnelForm } from './NewFunnelForm';
 import {
   BookIcon,
@@ -187,7 +187,10 @@ export function StudioShell({
               <PlusIcon size={15} /> New funnel
             </button>
           </header>
-          <div className={styles.content}>{children}</div>
+          <div className={styles.contentWrap}>
+            <div className={styles.content}>{children}</div>
+            <NavOverlay />
+          </div>
         </div>
 
         <dialog

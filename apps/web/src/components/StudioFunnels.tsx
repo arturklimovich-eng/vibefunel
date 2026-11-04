@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, DragEvent, ReactNode } from 'react';
 import Link from 'next/link';
+import { NavLink, usePendingPush } from './NavPending';
 import { useRouter } from 'next/navigation';
 import { FUNNEL_GROUPS_ROUTE, funnelGroupRoute, funnelRoutes, readJson } from '@/lib/api-routes';
 import type { StorageMode } from '@/lib/storage-mode';
@@ -146,22 +147,22 @@ function FunnelActions({
   ];
   return (
     <div className={styles.rowActions}>
-      <Link
+      <NavLink
         href={`/studio/funnels/${row.id}?view=flow`}
         className={styles.iconBtn}
         aria-label={`Open the flow of ${row.name}`}
         title="Flow"
       >
         <FlowIcon size={15} />
-      </Link>
-      <Link
+      </NavLink>
+      <NavLink
         href={`/studio/funnels/${row.id}`}
         className={styles.iconBtn}
         aria-label={`Edit ${row.name}`}
         title="Edit"
       >
         <PenIcon size={15} />
-      </Link>
+      </NavLink>
       <MenuButton label={`More actions for ${row.name}`}>
         {(close) => (
           <>
@@ -239,6 +240,7 @@ export function StudioFunnels({
   initialFilter: string;
 }) {
   const router = useRouter();
+  const pendingPush = usePendingPush();
   const [groups, setGroups] = useState(initialGroups);
   const [moves, setMoves] = useState<Record<string, string | null>>({});
   const [query, setQuery] = useState(initialQuery);
@@ -462,7 +464,7 @@ export function StudioFunnels({
             onChange={(e) => {
               const params = new URLSearchParams(window.location.search);
               params.set('range', e.target.value);
-              router.push(`/studio/funnels?${params.toString()}`);
+              pendingPush(`/studio/funnels?${params.toString()}`);
             }}
           >
             {(Object.keys(RANGE_LABEL) as OverviewRange[]).map((r) => (
@@ -639,7 +641,7 @@ export function StudioFunnels({
                             }}
                           >
                             <td>
-                              <Link
+                              <NavLink
                                 href={`/studio/funnels/${row.id}`}
                                 className={styles.funnelCell}
                                 draggable={false}
@@ -655,7 +657,7 @@ export function StudioFunnels({
                                       : `${row.screens} screen${row.screens === 1 ? '' : 's'} · /${row.slug}`}
                                   </small>
                                 </span>
-                              </Link>
+                              </NavLink>
                             </td>
                             <td>
                               <span className={styles.status} data-live={row.live}>

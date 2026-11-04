@@ -8,6 +8,7 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from 'react';
 import Link from 'next/link';
+import { NavLink, NavOverlay } from './NavPending';
 import type { Connection } from '@xyflow/react';
 import { z } from 'zod';
 import {
@@ -1234,7 +1235,7 @@ export function FunnelEditor({
     <div className={shell.app} data-narrow-panel={narrowPanel}>
       <header className={shell.topbar}>
         <div className={shell.brandArea}>
-          <Link
+          <NavLink
             href="/studio"
             className={shell.iconBtn}
             aria-label="Back to studio"
@@ -1249,7 +1250,7 @@ export function FunnelEditor({
             }}
           >
             <ChevronLeft size={18} />
-          </Link>
+          </NavLink>
           <span className={shell.logo}>
             <LogoMark size={16} />
           </span>
@@ -1570,6 +1571,7 @@ export function FunnelEditor({
         </aside>
 
         <main className={shell.center} data-panel="main">
+          <NavOverlay />
           <div className={shell.stageTools} data-side="left">
             <div className={shell.toolGroup}>
               <button

@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { useRouter } from 'next/navigation';
 import type { StorageMode } from '@/lib/storage-mode';
 import type { FunnelGroup } from '@/server/funnel-repository';
 import type { Metric, OverviewRange, StudioOverview } from '@/server/studio-overview';
 import { StudioShell, firstName } from './StudioShell';
 import { SearchIcon } from './EditorIcons';
+import { usePendingPush } from './NavPending';
 import styles from './StudioDashboard.module.css';
 
 const RANGE_LABEL: Record<OverviewRange, string> = {
@@ -218,7 +218,7 @@ export function StudioDashboard({
   storage: StorageMode;
   userEmail: string | null;
 }) {
-  const router = useRouter();
+  const pendingPush = usePendingPush();
   const [greeting, setGreeting] = useState<string | null>(null);
   const name = firstName(userEmail);
 
@@ -263,7 +263,7 @@ export function StudioDashboard({
             className={styles.rangeSelect}
             aria-label="Period"
             value={overview.range}
-            onChange={(e) => router.push(`/studio?range=${e.target.value}`)}
+            onChange={(e) => pendingPush(`/studio?range=${e.target.value}`)}
           >
             {(Object.keys(RANGE_LABEL) as OverviewRange[]).map((r) => (
               <option key={r} value={r}>

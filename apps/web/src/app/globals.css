@@ -27,3 +27,50 @@ select,
 input {
   font: inherit;
 }
+
+.nav-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgb(20 20 23 / 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+html[data-nav-pending] .nav-overlay {
+  visibility: visible;
+  pointer-events: auto;
+  animation: nav-overlay-in 0.2s ease 0.15s forwards;
+}
+
+.nav-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgb(255 255 255 / 0.18);
+  border-top-color: #4b7bf5;
+  border-radius: 50%;
+  animation: nav-spin 0.8s linear infinite;
+}
+
+@keyframes nav-overlay-in {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes nav-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-spinner {
+    animation-duration: 2s;
+  }
+}

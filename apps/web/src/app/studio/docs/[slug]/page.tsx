@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { NavLink as Link } from '@/components/NavPending';
 import { notFound, redirect } from 'next/navigation';
 import { MermaidDiagrams } from '@/components/MermaidDiagrams';
 import { StudioShell } from '@/components/StudioShell';

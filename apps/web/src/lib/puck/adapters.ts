@@ -1,6 +1,7 @@
 import type { Data } from '@puckeditor/core';
 import { puckDataSchema } from '@funnel/schema';
-import type { PuckData, Screen } from '@funnel/schema';
+import type { PuckData, Screen, Theme } from '@funnel/schema';
+import { resolveStyle } from '@/lib/styles';
 import { blockId } from './block-id';
 import { optionListProps } from './config';
 
@@ -13,6 +14,17 @@ export function toPuckData(data: PuckData): Data {
       type: item.type,
       props: { ...item.props, id: blockId(item, index) },
     })),
+  };
+}
+
+export function splitAttached(data: Data, theme: Theme): { main: Data; attached: Data | null } {
+  const attached = data.content.filter(
+    (item) => resolveStyle(item.type, item.props, theme).position === 'attached',
+  );
+  if (attached.length === 0) return { main: data, attached: null };
+  return {
+    main: { ...data, content: data.content.filter((item) => !attached.includes(item)) },
+    attached: { ...data, content: attached },
   };
 }
 

@@ -25,7 +25,7 @@ import { flattenContent } from '@funnel/schema';
 import type { FunnelDefinition, Screen, Theme } from '@funnel/schema';
 import { depthFromStart, longestPathFrom, previewStep } from '@/lib/progress';
 import type { StepPosition } from '@/lib/progress';
-import { toPuckData } from '@/lib/puck/adapters';
+import { splitAttached, toPuckData } from '@/lib/puck/adapters';
 import { puckConfig } from '@/lib/puck/config';
 import { ThemeContext } from '@/lib/puck/theme-context';
 import { screenSurface } from '@/lib/styles';
@@ -80,7 +80,10 @@ const StaticScreen = memo(function StaticScreen({
   definition,
   position,
 }: StaticScreenProps) {
-  const puckData = useMemo(() => toPuckData(screen.content), [screen.content]);
+  const split = useMemo(
+    () => splitAttached(toPuckData(screen.content), definition.theme),
+    [screen.content, definition.theme],
+  );
   const surface = screenSurface(screen, definition.theme);
   return (
     <div
@@ -100,7 +103,12 @@ const StaticScreen = memo(function StaticScreen({
         />
       </div>
       <div className={styles.previewSlot} style={surface.body}>
-        <Render config={puckConfig} data={puckData} />
+        <Render config={puckConfig} data={split.main} />
+        {split.attached ? (
+          <div className={styles.attachedBar}>
+            <Render config={puckConfig} data={split.attached} />
+          </div>
+        ) : null}
       </div>
     </div>
   );

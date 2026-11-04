@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { NavLink as Link } from '@/components/NavPending';
 import { redirect } from 'next/navigation';
 import { StudioShell } from '@/components/StudioShell';
 import { listDocs } from '@/server/docs';

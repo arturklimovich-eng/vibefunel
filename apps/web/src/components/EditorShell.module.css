@@ -1923,6 +1923,15 @@
   flex-direction: column;
 }
 
+.previewSlot > .attachedBar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  flex: none;
+  margin-top: auto;
+  padding-top: 8px;
+}
+
 .previewSlot
   :global(
     [data-puck-component]:has([data-position='attached']):not(
@@ -1933,7 +1942,7 @@
 }
 
 .previewSlot :global([data-puck-component]:has([data-position='attached'])) {
-  position: sticky;
+  position: sticky !important;
   bottom: 0;
   z-index: 2;
 }
