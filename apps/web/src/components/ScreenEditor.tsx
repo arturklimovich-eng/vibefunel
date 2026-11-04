@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import type { RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { Puck, createUsePuck } from '@puckeditor/core';
@@ -53,7 +53,7 @@ interface ScreenEditorProps {
   slots: ScreenEditorSlots;
   commandsRef: RefObject<EditorCommands | null>;
   onBridgeChange: (state: EditorBridgeState) => void;
-  onChange: (content: PuckData) => void;
+  onChange: (screenId: string, content: PuckData) => void;
 }
 
 const usePuck = createUsePuck();
@@ -142,7 +142,7 @@ function Bridge({
   return null;
 }
 
-export function ScreenEditor({
+export const ScreenEditor = memo(function ScreenEditor({
   screenType,
   theme,
   screens,
@@ -170,7 +170,7 @@ export function ScreenEditor({
           }}
           onChange={(data) => {
             const parsed = fromPuckData(data);
-            if (parsed) onChange(parsed);
+            if (parsed) onChange(screenId, parsed);
           }}
         >
           <Bridge commandsRef={commandsRef} onBridgeChange={onBridgeChange} />
@@ -183,5 +183,18 @@ export function ScreenEditor({
         </Puck>
       </EditorDataContext.Provider>
     </ThemeContext.Provider>
+  );
+}, sameEditorProps);
+
+function sameEditorProps(a: ScreenEditorProps, b: ScreenEditorProps): boolean {
+  return (
+    a.screenId === b.screenId &&
+    a.screenType === b.screenType &&
+    a.theme === b.theme &&
+    a.screens === b.screens &&
+    a.slots === b.slots &&
+    a.commandsRef === b.commandsRef &&
+    a.onBridgeChange === b.onBridgeChange &&
+    a.onChange === b.onChange
   );
 }

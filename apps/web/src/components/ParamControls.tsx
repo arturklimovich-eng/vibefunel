@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { ColorInput } from './ColorInput';
 import { ChevronDown } from './EditorIcons';
 import shell from './EditorShell.module.css';
 
@@ -383,11 +384,10 @@ export function ColorRow({
           data-empty={!current && !inherited}
           style={{ background: current || inherited ? `#${base.hex}` : undefined }}
         >
-          <input
-            type="color"
+          <ColorInput
             aria-label={`${label} picker`}
             value={`#${base.hex.toLowerCase()}`}
-            onChange={(e) => onChange(joinColor(e.target.value.slice(1).toUpperCase(), base.alpha))}
+            onCommit={(hex) => onChange(joinColor(hex.slice(1).toUpperCase(), base.alpha))}
           />
         </label>
         <label className={shell.numField}>

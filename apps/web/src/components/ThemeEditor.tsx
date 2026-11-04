@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { MAX_FONT_SCALE, MIN_FONT_SCALE, colorSchema } from '@funnel/schema';
 import type { Theme } from '@funnel/schema';
+import { ColorInput } from './ColorInput';
 import styles from './FunnelEditor.module.css';
 
 type ColorKey = 'primaryColor' | 'backgroundColor' | 'textColor';
@@ -35,11 +36,10 @@ function ColorField({
       <label>
         {label}
         <span className={styles.colorRow}>
-          <input
-            type="color"
+          <ColorInput
             aria-label={`${label} picker`}
             value={SIX_DIGIT_HEX.test(draft) ? draft : '#000000'}
-            onChange={(e) => update(e.target.value)}
+            onCommit={update}
           />
           <input
             value={draft}

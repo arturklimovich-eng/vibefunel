@@ -34,7 +34,7 @@
 
   --puck-font-family: var(--font-ui, system-ui), system-ui, sans-serif;
 
-  position: fixed;
+  position: absolute;
   inset: 0;
   display: flex;
   flex-direction: column;
@@ -2564,6 +2564,8 @@
 
 .canvasOverlay {
   position: absolute;
+  top: 0;
+  left: 0;
   z-index: 4;
   cursor: auto;
 }

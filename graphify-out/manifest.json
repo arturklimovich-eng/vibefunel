@@ -246,9 +246,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelEditor.tsx": {
-    "mtime": 1793784341.6063726,
-    "seen": 1793784419.0031166,
-    "ast_hash": "92ce214f6330bdb50dd9d450f89c8941",
+    "mtime": 1793786731.6420124,
+    "seen": 1793787410.6059618,
+    "ast_hash": "0c3e082407a70bdb1c3d2ca1e4aebeb3",
     "semantic_hash": ""
   },
   "apps/web/src/components/FunnelRuntime.tsx": {
@@ -270,15 +270,15 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenEditor.tsx": {
-    "mtime": 1793721359.3720925,
-    "seen": 1793728209.6219947,
-    "ast_hash": "e33bbf321cd4ff20ded9a1a3513f9351",
+    "mtime": 1793786582.8346367,
+    "seen": 1793787410.6059778,
+    "ast_hash": "19507c5b99539fdfd12f3b0271f2df9d",
     "semantic_hash": ""
   },
   "apps/web/src/components/ThemeEditor.tsx": {
-    "mtime": 1793127845.99771,
-    "seen": 1793397859.1269608,
-    "ast_hash": "ab6482340769f38405f22eac84ccece3",
+    "mtime": 1793786942.7479591,
+    "seen": 1793787410.6059897,
+    "ast_hash": "f8de5fb3ee8dbb48be52e3f69279edab",
     "semantic_hash": ""
   },
   "apps/web/src/components/ValidationPanel.tsx": {
@@ -1122,9 +1122,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenCanvas.tsx": {
-    "mtime": 1793782723.2174957,
-    "seen": 1793782948.2231388,
-    "ast_hash": "a867e009af1367b6af38a50c19443a10",
+    "mtime": 1793787202.5518403,
+    "seen": 1793787410.6059766,
+    "ast_hash": "e489c9d266848637c8ba46410f719468",
     "semantic_hash": ""
   },
   "docs/features/80-ai-assistant.md": {
@@ -1134,9 +1134,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ParamControls.tsx": {
-    "mtime": 1793733379.3514042,
-    "seen": 1793733734.722699,
-    "ast_hash": "0893e2de8ea3796df20dd8838eb9df0a",
+    "mtime": 1793786948.0078626,
+    "seen": 1793787410.6059723,
+    "ast_hash": "8b999a49f5b7946224efcc3968fc94b7",
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenHeaderBar.tsx": {
@@ -1365,6 +1365,12 @@
     "mtime": 1793784378.0979981,
     "seen": 1793784419.0031242,
     "ast_hash": "e8420441880257141cf45e1adf2da774",
+    "semantic_hash": ""
+  },
+  "apps/web/src/components/ColorInput.tsx": {
+    "mtime": 1793787032.0212991,
+    "seen": 1793787410.6059513,
+    "ast_hash": "49b127020209523fc21012036f677821",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

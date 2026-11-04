@@ -1,6 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
 import type {
   CSSProperties,
   DragEvent,
@@ -367,11 +376,6 @@ export function FunnelEditor({
   }, [issues, issueScreenId]);
 
   const typeMeta = useCallback((screen: Screen) => SCREEN_META[screen.type], []);
-
-  const describeEdge = useCallback(
-    (edge: Edge) => describeCondition(edge.condition, screensById.get(edge.sourceScreenId)),
-    [screensById],
-  );
 
   const updateScreen = useCallback(
     (id: string, patch: Partial<Screen>) => {
@@ -861,7 +865,6 @@ export function FunnelEditor({
   };
 
   const theme = definition.theme;
-  const screenList = definition.screens.map((sc) => ({ id: sc.id, title: sc.title }));
   const surface = screenSurface(selected, theme);
   const phoneStyle = {
     '--funnel-primary': theme.primaryColor,
@@ -872,6 +875,36 @@ export function FunnelEditor({
   } as CSSProperties;
 
   const elementMode = mode === 'editor' && bridge.selection !== null;
+
+  const [editHost, setEditHost] = useState<HTMLDivElement | null>(null);
+  const canvasDefinition = useDeferredValue(definition);
+  const canvasScreens = canvasDefinition.screens;
+  const describeEdge = useCallback(
+    (edge: Edge) =>
+      describeCondition(
+        edge.condition,
+        canvasScreens.find((s) => s.id === edge.sourceScreenId),
+      ),
+    [canvasScreens],
+  );
+  const severityKey = [...severityByScreen].map(([id, sev]) => `${id}:${sev}`).join('|');
+  const latest = useRef({ onConnect, onContentChange, selectScreen });
+  useLayoutEffect(() => {
+    latest.current = { onConnect, onContentChange, selectScreen };
+  });
+  const stableConnect = useCallback((c: Connection) => latest.current.onConnect(c), []);
+  const focusScreen = useCallback((id: string) => {
+    latest.current.selectScreen(id);
+    setMode('editor');
+  }, []);
+  const contentChange = useCallback(
+    (id: string, content: PuckData) => latest.current.onContentChange(id, content),
+    [],
+  );
+  const screenList = useMemo(
+    () => canvasDefinition.screens.map((sc) => ({ id: sc.id, title: sc.title })),
+    [canvasDefinition.screens],
+  );
 
   const renderEditing = () =>
     selected ? (
@@ -1612,20 +1645,18 @@ export function FunnelEditor({
 
           <div className={shell.flowStage}>
             <ScreenCanvas
-              definition={definition}
+              definition={canvasDefinition}
               mode={mode}
               selectedId={selected?.id}
               showPill={!elementMode}
-              renderEditing={renderEditing}
+              onEditHost={setEditHost}
               typeMeta={typeMeta}
-              severityByScreen={severityByScreen}
+              severityKey={severityKey}
               describeEdge={describeEdge}
-              onFocusScreen={(id) => {
-                selectScreen(id);
-                setMode('editor');
-              }}
-              onConnect={onConnect}
+              onFocusScreen={focusScreen}
+              onConnect={stableConnect}
             />
+            {editHost ? createPortal(renderEditing(), editHost) : null}
             {pending && pendingSource ? (
               <div className={shell.pendingCard} role="dialog" aria-label="New connection">
                 <strong>
@@ -2005,13 +2036,13 @@ export function FunnelEditor({
           key={`${selected.id}-${selected.type}-${contentEpoch}`}
           screenId={selected.id}
           screenType={selected.type}
-          theme={definition.theme}
+          theme={canvasDefinition.theme}
           screens={screenList}
           content={selected.content}
           slots={slots}
           commandsRef={commandsRef}
           onBridgeChange={setBridge}
-          onChange={(content) => onContentChange(selected.id, content)}
+          onChange={contentChange}
         />
       ) : null}
 

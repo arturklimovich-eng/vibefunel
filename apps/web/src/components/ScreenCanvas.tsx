@@ -1,7 +1,7 @@
 'use client';
 
-import { memo, useEffect, useMemo, useRef } from 'react';
-import type { CSSProperties, ReactNode } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Background,
@@ -13,7 +13,7 @@ import {
   ReactFlow,
   useReactFlow,
   useStore,
-  useViewport,
+  useStoreApi,
   type Connection,
   type Edge as FlowEdge,
   type Node as FlowNode,
@@ -246,28 +246,45 @@ function layoutColumns(definition: FunnelDefinition): Map<string, { col: number;
 
 function EditOverlay({
   node,
-  renderEditing,
+  onHost,
 }: {
   node: ScreenFlowNode | undefined;
-  renderEditing: () => ReactNode;
+  onHost: (el: HTMLDivElement | null) => void;
 }) {
-  const { x, y, zoom } = useViewport();
+  const store = useStoreApi();
+  const zoomIsOne = useStore((st) => Math.abs(st.transform[2] - 1) <= 0.01);
   const host = useStore((st) => st.domNode?.parentElement ?? null);
-  if (!node || !host || Math.abs(zoom - 1) > 0.01) return null;
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const nx = node?.position.x;
+  const ny = node?.position.y;
+  const visible = node !== undefined && host !== null && zoomIsOne;
+
+  useLayoutEffect(() => {
+    onHost(visible ? el : null);
+  }, [onHost, visible, el]);
+
+  useLayoutEffect(() => () => onHost(null), [onHost]);
+
+  useLayoutEffect(() => {
+    if (!el || nx === undefined || ny === undefined) return;
+    const place = ([x, y, zoom]: [number, number, number]) => {
+      el.style.left = `${nx * zoom + x}px`;
+      el.style.top = `${(ny + HEAD_H) * zoom + y}px`;
+    };
+    place(store.getState().transform);
+    return store.subscribe((st) => place(st.transform));
+  }, [store, el, nx, ny]);
+
+  if (!visible) return null;
   return createPortal(
     <div
+      ref={setEl}
       className={`${styles.canvasPhone} ${styles.canvasOverlay} nodrag nopan nowheel`}
       data-puck-host=""
       data-selected={node.data.showPill ? 'true' : undefined}
-      style={{
-        left: node.position.x * zoom + x,
-        top: (node.position.y + HEAD_H) * zoom + y,
-        width: PHONE_W,
-        height: PHONE_H,
-      }}
+      style={{ width: PHONE_W, height: PHONE_H }}
     >
       <span className={styles.island} aria-hidden="true" />
-      {renderEditing()}
     </div>,
     host,
   );
@@ -303,14 +320,14 @@ function Focus({
   return null;
 }
 
-export function ScreenCanvas({
+export const ScreenCanvas = memo(function ScreenCanvas({
   definition,
   mode,
   selectedId,
   showPill,
-  renderEditing,
+  onEditHost,
   typeMeta,
-  severityByScreen,
+  severityKey,
   describeEdge,
   onFocusScreen,
   onConnect,
@@ -319,13 +336,23 @@ export function ScreenCanvas({
   mode: CanvasMode;
   selectedId: string | undefined;
   showPill: boolean;
-  renderEditing: () => ReactNode;
+  onEditHost: (el: HTMLDivElement | null) => void;
   typeMeta: (screen: Screen) => { label: string; color: string };
-  severityByScreen: Map<string, 'error' | 'warning'>;
+  severityKey: string;
   describeEdge: (edge: FunnelDefinition['edges'][number]) => string;
   onFocusScreen: (id: string) => void;
   onConnect: (connection: Connection) => void;
 }) {
+  const severityByScreen = useMemo(() => {
+    const map = new Map<string, 'error' | 'warning'>();
+    for (const part of severityKey.split('|')) {
+      const at = part.lastIndexOf(':');
+      const sev = part.slice(at + 1);
+      if (at > 0 && (sev === 'error' || sev === 'warning')) map.set(part.slice(0, at), sev);
+    }
+    return map;
+  }, [severityKey]);
+
   const nodes = useMemo<ScreenFlowNode[]>(() => {
     const placed = layoutColumns(definition);
     const depths = depthFromStart(definition);
@@ -403,11 +430,11 @@ export function ScreenCanvas({
         <Focus mode={mode} selectedId={selectedId} nodes={nodes} />
         <EditOverlay
           node={mode === 'editor' ? nodes.find((n) => n.id === selectedId) : undefined}
-          renderEditing={renderEditing}
+          onHost={onEditHost}
         />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
         <Controls showInteractive={false} position="bottom-right" />
       </ReactFlow>
     </ThemeContext.Provider>
   );
-}
+});
