@@ -632,6 +632,19 @@ function elementProps(element: Exclude<AiElement, { type: 'Slot' }>): Record<str
 
 const AUTO_ADVANCING = new Set(['Loader', 'Processing']);
 
+export function buildElements(
+  flats: FlatElement[],
+  screenType: ScreenType,
+  allowed: (elementType: string, screenType: ScreenType) => boolean,
+  newId: () => string,
+): PuckItem[] {
+  return flats.flatMap((flat) => {
+    const element = elementFromFlat(flat);
+    if (!element || element.type === 'Slot' || !allowed(element.type, screenType)) return [];
+    return [{ type: element.type, props: { id: `el_${newId()}`, ...elementProps(element) } }];
+  });
+}
+
 export interface ScreenBuildContext {
   plans: BriefPlan[];
   hasPaywall: boolean;
@@ -662,7 +675,7 @@ export function buildScreen(
         props: {
           id: elId(),
           mode: s.question.mode,
-          layout: pictured && layout === 'list' ? 'grid' : layout,
+          layout: pictured ? 'cards' : layout,
           question: '',
           options: options.map((o) => {
             const image = images[optionImageKey(s.key, o.key)];

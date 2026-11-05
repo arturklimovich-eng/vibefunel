@@ -118,7 +118,10 @@ function isPaid(payment: FunnelPayment): boolean {
   return payment.status === 'succeeded' && revocationOf(payment) === null;
 }
 
-async function safeLeads(funnel: Funnel, since: string): Promise<FunnelLead[] | null> {
+async function safeLeads(
+  funnel: Pick<Funnel, 'id' | 'projectId'>,
+  since: string,
+): Promise<FunnelLead[] | null> {
   try {
     return await getLeadStore().listFunnelLeads(funnel.projectId, funnel.id, null, since);
   } catch {
@@ -126,7 +129,10 @@ async function safeLeads(funnel: Funnel, since: string): Promise<FunnelLead[] | 
   }
 }
 
-async function safePayments(funnel: Funnel, since: string): Promise<FunnelPayment[] | null> {
+async function safePayments(
+  funnel: Pick<Funnel, 'id' | 'projectId'>,
+  since: string,
+): Promise<FunnelPayment[] | null> {
   try {
     return await getPaymentStore().listFunnelPayments(
       funnel.projectId,
@@ -281,5 +287,36 @@ export async function loadStudioOverview(
     liveCount: rows.filter((r) => r.live).length,
     leadsAvailable,
     paymentsAvailable,
+  };
+}
+
+export interface FunnelMetrics {
+  days: number;
+  leads: number | null;
+  purchases: number | null;
+  revenue: { currency: string; amount: number }[];
+}
+
+export async function loadFunnelMetrics(
+  projectId: string,
+  funnelId: string,
+  days: number,
+): Promise<FunnelMetrics> {
+  const since = new Date(Date.now() - days * DAY_MS).toISOString();
+  const funnel = { id: funnelId, projectId };
+  const [leads, payments] = await Promise.all([
+    safeLeads(funnel, since),
+    safePayments(funnel, since),
+  ]);
+  const revenue = new Map<string, number>();
+  for (const payment of payments ?? []) {
+    const amount = netAmount(payment);
+    if (amount > 0) revenue.set(payment.currency, (revenue.get(payment.currency) ?? 0) + amount);
+  }
+  return {
+    days,
+    leads: leads ? leads.length : null,
+    purchases: payments ? payments.filter(isPaid).length : null,
+    revenue: [...revenue].map(([currency, amount]) => ({ currency, amount })),
   };
 }

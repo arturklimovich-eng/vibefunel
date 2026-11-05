@@ -45,12 +45,14 @@ export const assistantCardSchema = z.discriminatedUnion('kind', [
       .max(4),
   }),
   z.object({ kind: z.literal('issues') }),
+  z.object({ kind: z.literal('metrics') }),
   z.object({ kind: z.literal('screens'), screenIds: z.array(id).max(12) }),
 ]);
 export type AssistantCard = z.infer<typeof assistantCardSchema>;
 
 export const ASSISTANT_OPS = [
   'screen',
+  'element',
   'set_texts',
   'remove_screen',
   'add_edge',

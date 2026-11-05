@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { screenTextFields } from '@funnel/schema';
+import { BRIEF_TONES, screenTextFields } from '@funnel/schema';
 import type { Screen, TextEdit, TextField } from '@funnel/schema';
 import { z } from 'zod';
 import { AI_ROUTES, readJson } from '@/lib/api-routes';
@@ -19,6 +19,15 @@ const ACTIONS: [Action, string][] = [
   ['fix', 'Fix errors'],
   ['variants', '3 variants'],
 ];
+
+type Tone = (typeof BRIEF_TONES)[number];
+
+const TONE_LABELS: Record<Tone, string> = {
+  friendly: 'Friendly',
+  expert: 'Expert',
+  bold: 'Bold',
+  calm: 'Calm',
+};
 
 const LANGUAGES = [
   'English',
@@ -60,6 +69,7 @@ async function requestEdits(
   context: string[],
   screenTitle: string,
   targetLang: string | null,
+  tone: Tone | null,
   signal: AbortSignal,
 ): Promise<Outcome> {
   const byKey = new Map(fields.map((f) => [f.key, f]));
@@ -71,6 +81,7 @@ async function requestEdits(
       scope,
       action,
       targetLang,
+      tone,
       screenTitle,
       fields: fields.map((f) => ({ key: f.key, element: f.elementType, value: f.value })),
       context,
@@ -142,6 +153,7 @@ export function InlineAi({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lang, setLang] = useState('');
+  const [tone, setTone] = useState<Tone | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const before = new Map(fields.map((f) => [f.key, f.value]));
@@ -174,6 +186,7 @@ export function InlineAi({
         context,
         screenTitle,
         action === 'translate' ? lang.trim() : null,
+        tone,
         controller.signal,
       );
       if (!outcome.ok) setError(outcome.message);
@@ -212,6 +225,7 @@ export function InlineAi({
           [],
           '',
           target,
+          tone,
           controller.signal,
         );
         if (outcome.ok) {
@@ -269,6 +283,24 @@ export function InlineAi({
               </button>
             ))}
           </div>
+          <label className={css.tone}>
+            <span>Tone</span>
+            <select
+              className={shell.input}
+              value={tone ?? ''}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTone(BRIEF_TONES.find((t) => t === value) ?? null);
+              }}
+            >
+              <option value="">Keep as is</option>
+              {BRIEF_TONES.map((t) => (
+                <option key={t} value={t}>
+                  {TONE_LABELS[t]}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className={css.translate}>
             <input
               className={shell.input}

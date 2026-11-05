@@ -12,7 +12,8 @@ import { errorText } from '../ai/errors';
 import { ArrowUpIcon, CloseIcon, MagicIcon, PlusIcon, StopIcon } from '../EditorIcons';
 import shell from '../EditorShell.module.css';
 import { AssistantCardView, ProposalCard } from './cards';
-import type { ProposalView } from './cards';
+import { ProposalPreview } from './ProposalPreview';
+import type { MetricsView, ProposalView } from './cards';
 import styles from './AssistantPanel.module.css';
 
 interface TypeMeta {
@@ -43,6 +44,7 @@ interface Message {
   context?: string;
   cards?: AssistantCard[];
   proposal?: Proposal;
+  metrics?: MetricsView | null;
   failed?: boolean;
 }
 
@@ -81,6 +83,15 @@ const responseSchema = z.object({
       errors: z.array(z.string()),
     })
     .nullable(),
+  metrics: z
+    .object({
+      days: z.number(),
+      leads: z.number().nullable(),
+      purchases: z.number().nullable(),
+      revenue: z.array(z.object({ currency: z.string(), amount: z.number() })),
+    })
+    .nullable()
+    .optional(),
 });
 const errorSchema = z.object({ error: z.string(), message: z.string().optional() });
 
@@ -203,6 +214,7 @@ export function AssistantPanel({
           role: 'assistant',
           text: parsed.data.reply,
           cards,
+          metrics: parsed.data.metrics ?? null,
           ...(proposal && proposal.patch.length > 0
             ? {
                 proposal: {
@@ -346,6 +358,7 @@ export function AssistantPanel({
                         card={card}
                         ctx={{
                           definition,
+                          metrics: message.metrics ?? null,
                           busy,
                           picked: picked[key],
                           issues,
@@ -365,6 +378,9 @@ export function AssistantPanel({
                         ...message.proposal,
                         stale: isStale(message.proposal, definition),
                       }}
+                      preview={
+                        <ProposalPreview definition={definition} patch={message.proposal.patch} />
+                      }
                       onApply={() => {
                         onApply(message.proposal!.patch);
                         updateProposal(message.id, 'applied');

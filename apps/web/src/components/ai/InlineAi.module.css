@@ -37,6 +37,15 @@
   cursor: default;
 }
 
+.tone {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .translate {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

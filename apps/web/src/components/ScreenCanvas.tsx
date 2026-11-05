@@ -75,7 +75,7 @@ interface StaticScreenProps {
   groupsKey: string;
 }
 
-const StaticScreen = memo(function StaticScreen({
+export const StaticScreen = memo(function StaticScreen({
   screen,
   definition,
   position,

@@ -2,6 +2,7 @@ import 'server-only';
 import {
   applyPatch,
   assistantAnswerSchema,
+  buildElements,
   buildScreen,
   funnelDefinitionSchema,
   screenBlueprintSchema,
@@ -70,6 +71,7 @@ How the funnel works:
 
 Ops (applied in order; the manager reviews them as one proposal before anything changes). Every op has all fields; fill the ones its op uses and leave the others empty ("", [], kind "info", when "always", font "keep", question with text "" and no options):
 - screen: add a new screen (screenId "") or rewrite an existing one (screenId = its id; the whole content is replaced). "ref": a short new name for a new screen; later ops may use the ref in place of an id. "kind" decides the platform screen type (intro, question, info, input, loader use the default type; email is auth). "question": for kind "question" give 2 to 6 options; when rewriting, keep each existing option's id so connections keep working and use "" for new options; for other kinds send text "" and no options. "after" (new screens only): an existing screen id or ref; the new screen is inserted after it and takes over its outgoing always/default connection; "" when it sits elsewhere (then use add_edge). "content": 1 to 3 sentences on what the screen says and which elements it uses (for example "title asking about sleep, a short reassuring subtitle, the answer options"); a copywriter writes the screen from it.
+- element: add 1 to 3 elements to an existing screen without rewriting it (screenId = its id). "content": what to add, for example "a list of three benefits" or "two short reviews"; they go above the screen's bottom button. Prefer this over rewriting a screen when the manager asks to add something.
 - set_texts: change visible texts of the SELECTED screen by field id (f1, f2...). Prefer this for wording changes.
 - remove_screen, add_edge, remove_edge, set_start_screen, set_theme ("" or "keep" keeps a value). add_edge "option" is "" unless when is "answer".
 - Ids come only from the snapshot or from your refs. Never invent ids.
@@ -79,6 +81,7 @@ Cards (rendered by the editor, optional):
 - plan: the screens you intend to create before a large build; for a new funnel of more than 4 screens, first answer with a plan card and a choice ("Create these screens" / "Change the plan"), then build after the manager confirms.
 - theme: 2 to 4 palettes (hex colors) when asked about colors; the manager applies one by clicking.
 - issues: shows the live validation results.
+- metrics: leads, purchases, revenue and conversion of this funnel for the last 30 days, filled in by the editor; use it when asked how the funnel performs. You do not see the numbers, so do not quote any.
 - screens: links to screens by id.
 
 Rules:
@@ -140,6 +143,20 @@ function slug(value: string): string {
       .replace(/^_+|_+$/g, '')
       .slice(0, 30) || 'screen'
   );
+}
+
+function screenPrompt(op: AssistantOp): string {
+  const question =
+    op.kind === 'question' && op.question.options.length > 0
+      ? `\nQuestion: ${op.question.text} [${op.question.options.map((o) => o.label).join(' / ')}]`
+      : '';
+  return `Write screen "${op.title}" (kind: ${op.kind}, platform screen type: ${screenTypeForKind(op.kind)}).\nWhat it should contain: ${op.content}${question}`;
+}
+
+function elementPrompt(def: FunnelDefinition, op: AssistantOp): string {
+  const screen = def.screens.find((s) => s.id === op.screenId);
+  const existing = screen ? screenTextFields(screen).map((f) => f.value) : [];
+  return `Write only new elements to add to the existing screen "${screen?.title ?? op.screenId}" (platform screen type: ${screen?.type ?? 'default'}).\nWhat to add: ${op.content}\nIts current text, for context only: ${JSON.stringify(existing.slice(0, 30))}\nPut 1 to 3 elements in "elements", never a Slot, and do not repeat what the screen already says. Set cta, skipLabel, optionsLayout, planNote and emailLabel to null.`;
 }
 
 function issueKey(i: { code: string; screenId?: string; edgeId?: string }): string {
@@ -248,6 +265,21 @@ function resolveOps(
             op.question,
           ),
         });
+        break;
+      }
+      case 'element': {
+        const target = def.screens.find((s) => s.id === op.screenId);
+        if (!target) {
+          problems.push(`element: unknown screen ${op.screenId}`);
+          break;
+        }
+        const blueprint = blueprints.get(op);
+        if (!blueprint) break;
+        const items = buildElements(blueprint.elements, target.type, allowedElement, () =>
+          randomId(8),
+        ).slice(0, 3);
+        if (items.length === 0) problems.push(`element: nothing fits screen ${op.screenId}`);
+        else patch.push({ op: 'insert_elements', screenId: target.id, items });
         break;
       }
       case 'set_texts': {
@@ -426,7 +458,7 @@ export async function runChat(
     }
   }
 
-  const screenOps = answer.ops.filter((op) => op.op === 'screen');
+  const screenOps = answer.ops.filter((op) => op.op === 'screen' || op.op === 'element');
   if (screenOps.length > 0) {
     const blueprints = new Map<AssistantOp, ScreenBlueprint>();
     await pool(screenOps, 4, async (op) => {
@@ -437,11 +469,7 @@ export async function runChat(
             session.generate({
               system: SCREEN_SYSTEM,
               prefix,
-              prompt: `Write screen "${op.title}" (kind: ${op.kind}, platform screen type: ${screenTypeForKind(op.kind)}).\nWhat it should contain: ${op.content}${
-                op.kind === 'question' && op.question.options.length > 0
-                  ? `\nQuestion: ${op.question.text} [${op.question.options.map((o) => o.label).join(' / ')}]`
-                  : ''
-              }`,
+              prompt: op.op === 'element' ? elementPrompt(def, op) : screenPrompt(op),
               schema: screenBlueprintSchema,
               schemaName: 'funnel_screen',
               effort: 'low',

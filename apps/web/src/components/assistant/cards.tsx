@@ -1,7 +1,9 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import type { AssistantCard, FunnelDefinition, Screen, ThemePatch } from '@funnel/schema';
 import type { UiIssue } from '@/lib/use-draft-saver';
+import { formatMoney } from '../StudioDashboard';
 import shell from '../EditorShell.module.css';
 import styles from './AssistantPanel.module.css';
 
@@ -12,8 +14,16 @@ const KIND_TYPE: Record<string, Screen['type']> = {
   finish: 'finish',
 };
 
+export interface MetricsView {
+  days: number;
+  leads: number | null;
+  purchases: number | null;
+  revenue: { currency: string; amount: number }[];
+}
+
 export interface CardContext {
   definition: FunnelDefinition;
+  metrics: MetricsView | null;
   busy: boolean;
   picked: string | undefined;
   issues: UiIssue[];
@@ -144,6 +154,37 @@ export function AssistantCardView({ card, ctx }: { card: AssistantCard; ctx: Car
         </div>
       );
     }
+    case 'metrics': {
+      const m = ctx.metrics;
+      if (!m) return null;
+      const conversion =
+        m.leads && m.purchases !== null ? `${((m.purchases / m.leads) * 100).toFixed(1)}%` : '—';
+      const revenue =
+        m.revenue.length > 0
+          ? m.revenue.map((r) => formatMoney(r.amount, r.currency)).join(' + ')
+          : '—';
+      const stats: [string, string][] = [
+        ['Leads', m.leads === null ? '—' : String(m.leads)],
+        ['Purchases', m.purchases === null ? '—' : String(m.purchases)],
+        ['Lead → purchase', conversion],
+        ['Revenue', revenue],
+      ];
+      return (
+        <div className={styles.card}>
+          <div className={styles.cardHead}>
+            <span className={styles.cardKicker}>Last {m.days} days</span>
+          </div>
+          <dl className={styles.metrics}>
+            {stats.map(([label, value]) => (
+              <div key={label}>
+                <dt>{label}</dt>
+                <dd>{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      );
+    }
     case 'screens': {
       const screens = card.screenIds.flatMap((id) => {
         const screen = ctx.definition.screens.find((s) => s.id === id);
@@ -181,10 +222,12 @@ export interface ProposalView {
 
 export function ProposalCard({
   proposal,
+  preview,
   onApply,
   onDiscard,
 }: {
   proposal: ProposalView;
+  preview?: ReactNode;
   onApply: () => void;
   onDiscard: () => void;
 }) {
@@ -212,6 +255,7 @@ export function ProposalCard({
           <li key={line}>{line}</li>
         ))}
       </ul>
+      {proposal.state === 'open' ? preview : null}
       {blocked ? (
         <ul className={styles.issues}>
           {proposal.errors.slice(0, 5).map((e) => (

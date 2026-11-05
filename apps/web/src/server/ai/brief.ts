@@ -210,8 +210,8 @@ function imageJobs(brief: Brief, outline: Outline): ImageJob[] {
     for (const option of question.question.options) {
       jobs.push({
         key: optionImageKey(question.key, option.key),
-        aspect: '1:1',
-        prompt: `Small square picture for the answer "${option.label}" to the quiz question "${question.question.text}". ${about} Show the answer as one simple scene or object. ${style}`,
+        aspect: '4:3',
+        prompt: `Small picture for the answer "${option.label}" to the quiz question "${question.question.text}". ${about} Show the answer as one simple scene or object. ${style}`,
       });
     }
   }

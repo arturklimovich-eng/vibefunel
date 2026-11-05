@@ -1,4 +1,4 @@
-import type { Edge, FunnelDefinition, Screen, Theme } from './schema';
+import type { Edge, FunnelDefinition, PuckData, Screen, Theme } from './schema';
 import { applyTextEdits } from './text-edits';
 import type { TextEdit } from './text-edits';
 
@@ -9,6 +9,7 @@ export type ThemePatch = Partial<Pick<Theme, 'primaryColor' | 'backgroundColor' 
 export type PatchOp =
   | { op: 'add_screen'; screen: Screen; insertAfter: string | null }
   | { op: 'replace_screen'; screen: Screen }
+  | { op: 'insert_elements'; screenId: string; items: PuckData['content'] }
   | { op: 'remove_screen'; screenId: string }
   | { op: 'add_edge'; edge: Edge }
   | { op: 'remove_edge'; edgeId: string }
@@ -35,6 +36,13 @@ function mainTarget(edges: Edge[], sourceId: string): string | null {
     out.find((e) => e.condition.kind === 'default')?.targetScreenId ??
     null
   );
+}
+
+function isAttached(props: Record<string, unknown>): boolean {
+  const style = props.style;
+  return typeof style === 'object' && style !== null && 'position' in style
+    ? style.position === 'attached'
+    : false;
 }
 
 function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
@@ -79,6 +87,19 @@ function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
           s.id === op.screen.id ? { ...op.screen, position: s.position } : s,
         ),
       };
+    case 'insert_elements': {
+      if (op.items.length === 0) return def;
+      return {
+        ...def,
+        screens: def.screens.map((s) => {
+          if (s.id !== op.screenId) return s;
+          const content = [...s.content.content];
+          const at = content.findIndex((item) => isAttached(item.props));
+          content.splice(at === -1 ? content.length : at, 0, ...op.items);
+          return { ...s, content: { ...s.content, content } };
+        }),
+      };
+    }
     case 'remove_screen': {
       if (!def.screens.some((s) => s.id === op.screenId)) return def;
       const remaining = def.screens.filter((s) => s.id !== op.screenId);
@@ -130,6 +151,11 @@ export function summarizePatch(def: FunnelDefinition, patch: FunnelPatch): strin
   if (added > 0) lines.push(`+${added} screen${added === 1 ? '' : 's'}`);
   for (const op of patch) {
     if (op.op === 'replace_screen') lines.push(`Rewrite "${op.screen.title}"`);
+    if (op.op === 'insert_elements') {
+      lines.push(
+        `Add ${op.items.length} element${op.items.length === 1 ? '' : 's'} to "${title(op.screenId)}"`,
+      );
+    }
     if (op.op === 'remove_screen') lines.push(`Remove "${title(op.screenId)}"`);
     if (op.op === 'set_start_screen') lines.push(`Start at "${title(op.screenId)}"`);
     if (op.op === 'set_theme') lines.push('Theme colors');
