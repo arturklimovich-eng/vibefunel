@@ -7,6 +7,14 @@ import type { AiUsage, GenerateObjectInput, GenerateObjectResult, TextModel } fr
 
 function mapError(error: unknown): AiError {
   if (error instanceof OpenAI.APIUserAbortError) return new AiError('aborted', 'Request aborted.');
+  if (error instanceof OpenAI.RateLimitError && error.code === 'insufficient_quota') {
+    return new AiError(
+      'quota_exhausted',
+      'The AI provider quota for this key is used up. Check the plan and billing of the API key.',
+      undefined,
+      error.message,
+    );
+  }
   if (error instanceof OpenAI.RateLimitError) {
     return new AiError('rate_limited', 'The model provider is rate limiting requests.');
   }
@@ -56,6 +64,7 @@ export function createOpenAiModel(model: string, apiKey: string, baseURL?: strin
           inputTokens: (completion.usage?.prompt_tokens ?? 0) - cached,
           outputTokens: completion.usage?.completion_tokens ?? 0,
           cachedInputTokens: cached,
+          cacheWriteTokens: 0,
           images: 0,
         };
         const choice = completion.choices[0];

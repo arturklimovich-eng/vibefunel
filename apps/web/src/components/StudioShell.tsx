@@ -221,7 +221,7 @@ export function StudioShell({
           aria-labelledby="new-funnel-title"
           onClose={() => setCreating(false)}
           onCancel={(event) => {
-            if (!stopAi()) event.preventDefault();
+            if (event.cancelable && !stopAi()) event.preventDefault();
           }}
         >
           <div className={styles.modalHead}>

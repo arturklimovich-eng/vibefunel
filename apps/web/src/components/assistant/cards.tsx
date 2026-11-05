@@ -176,6 +176,7 @@ export interface ProposalView {
   warnings: string[];
   errors: string[];
   state: 'open' | 'applied' | 'discarded';
+  stale?: boolean;
 }
 
 export function ProposalCard({
@@ -188,6 +189,11 @@ export function ProposalCard({
   onDiscard: () => void;
 }) {
   const blocked = proposal.errors.length > 0;
+  let applyHint: string | undefined;
+  if (blocked) applyHint = 'These changes do not fit the funnel; ask again';
+  else if (proposal.stale) {
+    applyHint = 'The screens this changes were edited after the proposal; ask again';
+  }
   return (
     <div className={styles.card} data-kind="proposal">
       <div className={styles.cardHead}>
@@ -196,6 +202,9 @@ export function ProposalCard({
           <span className={styles.cardMeta}>
             {proposal.state === 'applied' ? 'Applied' : 'Discarded'}
           </span>
+        ) : null}
+        {proposal.state === 'open' && proposal.stale ? (
+          <span className={styles.cardMeta}>Draft changed since; ask again</span>
         ) : null}
       </div>
       <ul className={styles.diff}>
@@ -227,8 +236,8 @@ export function ProposalCard({
           <button
             type="button"
             className={shell.primaryBtn}
-            disabled={blocked}
-            title={blocked ? 'These changes do not fit the funnel; ask again' : undefined}
+            disabled={blocked || proposal.stale}
+            title={applyHint}
             onClick={onApply}
           >
             Apply

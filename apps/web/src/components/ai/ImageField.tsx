@@ -33,8 +33,16 @@ export function ImageField({
   const [library, setLibrary] = useState<LibraryAsset[] | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const taskRef = useRef(0);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
 
   const input = (
     <input
@@ -54,24 +62,29 @@ export function ImageField({
     setPanel('none');
   };
 
-  const run = async (task: () => Promise<void>, label: string) => {
+  const run = async (task: () => Promise<void>, label: string, signal?: AbortSignal) => {
+    const token = ++taskRef.current;
+    const current = () => mountedRef.current && taskRef.current === token;
     setBusy(label);
     setError(null);
     try {
       await task();
     } catch (err) {
-      if (!abortRef.current?.signal.aborted) {
+      if (current() && !signal?.aborted) {
         setError(err instanceof Error ? err.message : 'Something went wrong.');
       }
     } finally {
-      setBusy(null);
+      if (current()) setBusy(null);
     }
   };
 
   const openLibrary = () => {
     setPanel(panel === 'library' ? 'none' : 'library');
     if (library === null) {
-      void run(async () => setLibrary(await assets.library()), 'Loading...');
+      void run(async () => {
+        const list = await assets.library();
+        if (mountedRef.current) setLibrary(list);
+      }, 'Loading...');
     }
   };
 
@@ -138,6 +151,7 @@ export function ImageField({
             if (!file) return;
             void run(async () => {
               const asset = await assets.upload(file);
+              if (!mountedRef.current) return;
               setLibrary((list) => (list ? [asset, ...list] : list));
               pick(asset.url);
             }, 'Uploading...');
@@ -175,11 +189,16 @@ export function ImageField({
                 abortRef.current?.abort();
                 const controller = new AbortController();
                 abortRef.current = controller;
-                void run(async () => {
-                  const asset = await assets.generate(prompt.trim(), aspect, controller.signal);
-                  setLibrary((list) => (list ? [asset, ...list] : list));
-                  pick(asset.url);
-                }, 'Generating...');
+                void run(
+                  async () => {
+                    const asset = await assets.generate(prompt.trim(), aspect, controller.signal);
+                    if (!mountedRef.current || controller.signal.aborted) return;
+                    setLibrary((list) => (list ? [asset, ...list] : list));
+                    pick(asset.url);
+                  },
+                  'Generating...',
+                  controller.signal,
+                );
               }}
             >
               Generate
@@ -222,6 +241,8 @@ export function ImageField({
               className={css.link}
               onClick={() => {
                 abortRef.current?.abort();
+                abortRef.current = null;
+                taskRef.current++;
                 setBusy(null);
               }}
             >

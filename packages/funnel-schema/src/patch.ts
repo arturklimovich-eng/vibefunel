@@ -26,6 +26,17 @@ function touches(edge: Edge, screenId: string): boolean {
   return 'screenId' in c && c.screenId === screenId;
 }
 
+function mainTarget(edges: Edge[], sourceId: string): string | null {
+  const out = edges.filter((e) => e.sourceScreenId === sourceId && e.targetScreenId !== sourceId);
+  const targets = new Set(out.map((e) => e.targetScreenId));
+  if (targets.size === 1) return out[0]!.targetScreenId;
+  return (
+    out.find((e) => e.condition.kind === 'always')?.targetScreenId ??
+    out.find((e) => e.condition.kind === 'default')?.targetScreenId ??
+    null
+  );
+}
+
 function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
   switch (op.op) {
     case 'add_screen': {
@@ -33,12 +44,17 @@ function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
       const screens = [...def.screens, op.screen];
       const after = op.insertAfter;
       if (!after || !def.screens.some((s) => s.id === after)) return { ...def, screens };
-      let target: string | null = null;
-      const edges = def.edges.map((e) => {
-        if (e.sourceScreenId !== after || !UNCONDITIONAL.has(e.condition.kind)) return e;
-        if (target === null) target = e.targetScreenId;
-        return { ...e, targetScreenId: op.screen.id };
-      });
+      const target = mainTarget(
+        def.edges.filter((e) => UNCONDITIONAL.has(e.condition.kind)),
+        after,
+      );
+      const edges = def.edges.map((e) =>
+        e.sourceScreenId === after &&
+        e.targetScreenId === target &&
+        UNCONDITIONAL.has(e.condition.kind)
+          ? { ...e, targetScreenId: op.screen.id }
+          : e,
+      );
       if (target !== null && target !== op.screen.id) {
         edges.push({
           id: `e_${op.screen.id}_next`,
@@ -65,17 +81,18 @@ function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
       };
     case 'remove_screen': {
       if (!def.screens.some((s) => s.id === op.screenId)) return def;
-      const outgoing = def.edges.filter(
-        (e) => e.sourceScreenId === op.screenId && e.targetScreenId !== op.screenId,
-      );
-      const next = outgoing.length === 1 ? outgoing[0]!.targetScreenId : null;
+      const remaining = def.screens.filter((s) => s.id !== op.screenId);
+      if (remaining.length === 0) return def;
+      const next = mainTarget(def.edges, op.screenId);
       const edges = def.edges.flatMap((e) => {
         if (e.targetScreenId === op.screenId && e.sourceScreenId !== op.screenId && next) {
           return [{ ...e, targetScreenId: next }];
         }
         return touches(e, op.screenId) ? [] : [e];
       });
-      return { ...def, screens: def.screens.filter((s) => s.id !== op.screenId), edges };
+      const startScreenId =
+        def.startScreenId === op.screenId ? (next ?? remaining[0]!.id) : def.startScreenId;
+      return { ...def, startScreenId, screens: remaining, edges };
     }
     case 'add_edge':
       if (def.edges.some((e) => e.id === op.edge.id)) return def;

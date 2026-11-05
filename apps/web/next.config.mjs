@@ -33,6 +33,9 @@ const nextConfig = {
     ];
   },
   transpilePackages: ['@funnel/schema'],
+  experimental: {
+    proxyClientMaxBodySize: '11mb',
+  },
   reactStrictMode: true,
   output: 'standalone',
   outputFileTracingRoot: path.join(import.meta.dirname, '../../'),

@@ -50,6 +50,7 @@ export function createGoogleImageModel(model: string, apiKey: string): ImageMode
           inputTokens: (meta?.promptTokenCount ?? 0) - cached,
           outputTokens: (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0),
           cachedInputTokens: cached,
+          cacheWriteTokens: 0,
           images: 1,
         };
         const candidate = response.candidates?.[0];

@@ -24,7 +24,10 @@ export function GET(request: Request) {
 
 export function POST(request: Request) {
   return withStudio(async (context) => {
-    const declared = Number(request.headers.get('content-length') ?? '0');
+    const declared = Number(request.headers.get('content-length'));
+    if (!Number.isFinite(declared) || declared <= 0) {
+      return NextResponse.json({ error: 'length_required' }, { status: 411 });
+    }
     if (declared > MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES) {
       return NextResponse.json({ error: 'too_large' }, { status: 413 });
     }

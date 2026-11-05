@@ -6,7 +6,7 @@ import { checkRateLimit, clientKey } from '../rate-limit';
 import { costMicroUsd } from './pricing';
 import { getImageModel, getTextModel } from './registry';
 import type { ModelRef } from './registry';
-import { AiError } from './types';
+import { AiError, EMPTY_USAGE } from './types';
 import type {
   AiFeature,
   AiUsage,
@@ -40,9 +40,8 @@ export interface AiSession {
   model: TextModel & { ref: ModelRef };
   projectId: string;
   generate<T extends z.ZodType>(input: GenerateObjectInput<T>): Promise<z.infer<T>>;
-  spentMicroUsd(): number;
+  budget: { spentBefore: number; budget: number };
   remainingMicroUsd(): number;
-  addSpend(spent: () => number): void;
 }
 
 export type AiSessionResult = { ok: true; session: AiSession } | { ok: false; response: Response };
@@ -119,35 +118,101 @@ async function openScope(
   return { ok: true, projectId, spentBefore, budget };
 }
 
-function usageRecorder(
+interface LedgerEntry {
+  day: number;
+  spent: number;
+  reserved: number;
+}
+
+const ledger = new Map<string, LedgerEntry>();
+
+function ledgerEntry(projectId: string): LedgerEntry {
+  const day = startOfUtcDay().getTime();
+  let entry = ledger.get(projectId);
+  if (!entry) {
+    entry = { day, spent: 0, reserved: 0 };
+    ledger.set(projectId, entry);
+  } else if (entry.day !== day) {
+    entry.day = day;
+    entry.spent = 0;
+  }
+  return entry;
+}
+
+interface Meter {
+  remaining(): number;
+  run<R extends { usage: AiUsage }>(estimate: number, call: () => Promise<R>): Promise<R>;
+}
+
+function meter(
   context: StudioContext,
-  projectId: string,
+  opened: { projectId: string; spentBefore: number; budget: number },
   feature: AiFeature,
   ref: ModelRef,
-) {
-  let spent = 0;
-  return {
-    spent: () => spent,
-    async record(usage: AiUsage): Promise<void> {
-      const cost = costMicroUsd(ref.price, usage);
-      spent += cost;
+): Meter {
+  const { projectId, spentBefore, budget } = opened;
+  const base = ledgerEntry(projectId).spent;
+  const used = () => {
+    const entry = ledgerEntry(projectId);
+    return spentBefore + Math.max(0, entry.spent - base) + entry.reserved;
+  };
+  const record = async (usage: AiUsage) => {
+    const cost = costMicroUsd(ref.price, usage);
+    ledgerEntry(projectId).spent += cost;
+    try {
       await context.repo.recordAiUsage({
         projectId,
         feature,
         provider: ref.provider,
         model: ref.model,
-        inputTokens: usage.inputTokens,
+        inputTokens: usage.inputTokens + usage.cacheWriteTokens,
         outputTokens: usage.outputTokens,
         cachedInputTokens: usage.cachedInputTokens,
         images: usage.images,
         costMicroUsd: cost,
       });
+    } catch (error) {
+      console.error('[ai] usage not recorded', error);
+    }
+  };
+  return {
+    remaining: () => budget - used(),
+    async run(estimate, call) {
+      if (used() >= budget) {
+        throw new AiError('budget_exhausted', 'The daily AI budget for this project is used up.');
+      }
+      const reservation = Math.max(0, estimate);
+      ledgerEntry(projectId).reserved += reservation;
+      let result;
+      try {
+        result = await call();
+      } catch (error) {
+        if (error instanceof AiError && hasUsage(error.usage)) await record(error.usage);
+        throw error;
+      } finally {
+        ledgerEntry(projectId).reserved -= reservation;
+      }
+      await record(result.usage);
+      return result;
     },
   };
 }
 
 function hasUsage(usage: AiUsage): boolean {
-  return usage.inputTokens + usage.outputTokens + usage.images > 0;
+  return usage.inputTokens + usage.outputTokens + usage.cacheWriteTokens + usage.images > 0;
+}
+
+function textEstimate(ref: ModelRef, input: GenerateObjectInput<z.ZodType>): number {
+  const chars = input.system.length + (input.prefix?.length ?? 0) + input.prompt.length;
+  return costMicroUsd(ref.price, {
+    ...EMPTY_USAGE,
+    inputTokens: Math.ceil(chars / 3),
+    outputTokens: input.maxTokens,
+  });
+}
+
+function imageEstimate(ref: ModelRef): number {
+  return costMicroUsd(ref.price, { ...EMPTY_USAGE, outputTokens: 2000, images: 1 });
 }
 
 export async function openAiSession(
@@ -160,29 +225,17 @@ export async function openAiSession(
   if (!model) return notConfigured();
   const opened = await openScope(context, request, feature, scope);
   if (!opened.ok) return opened;
-  const { projectId, spentBefore, budget } = opened;
-  const usage = usageRecorder(context, projectId, feature, model.ref);
-  const extras: Array<() => number> = [];
-  const extraSpent = () => extras.reduce((sum, spent) => sum + spent(), 0);
-
+  const gate = meter(context, opened, feature, model.ref);
   const session: AiSession = {
-    addSpend: (spent) => extras.push(spent),
     model,
-    projectId,
-    spentMicroUsd: usage.spent,
-    remainingMicroUsd: () => budget - spentBefore - usage.spent() - extraSpent(),
+    projectId: opened.projectId,
+    budget: { spentBefore: opened.spentBefore, budget: opened.budget },
+    remainingMicroUsd: gate.remaining,
     async generate(input) {
-      if (spentBefore + usage.spent() + extraSpent() >= budget) {
-        throw new AiError('budget_exhausted', 'The daily AI budget for this project is used up.');
-      }
-      try {
-        const result = await model.generateObject(input);
-        await usage.record(result.usage);
-        return result.object;
-      } catch (error) {
-        if (error instanceof AiError && hasUsage(error.usage)) await usage.record(error.usage);
-        throw error;
-      }
+      const result = await gate.run(textEstimate(model.ref, input), () =>
+        model.generateObject(input),
+      );
+      return result.object;
     },
   };
   return { ok: true, session };
@@ -194,6 +247,19 @@ export interface ImageSession {
   generate(input: GenerateImageInput): Promise<GenerateImageResult>;
 }
 
+function imageSession(
+  context: StudioContext,
+  opened: { projectId: string; spentBefore: number; budget: number },
+  model: ImageModel & { ref: ModelRef },
+): ImageSession {
+  const gate = meter(context, opened, 'images', model.ref);
+  return {
+    projectId: opened.projectId,
+    model,
+    generate: (input) => gate.run(imageEstimate(model.ref), () => model.generateImage(input)),
+  };
+}
+
 export async function openImageSession(
   context: StudioContext,
   request: Request,
@@ -203,24 +269,7 @@ export async function openImageSession(
   if (!model) return notConfigured();
   const opened = await openScope(context, request, 'images', scope);
   if (!opened.ok) return opened;
-  const usage = usageRecorder(context, opened.projectId, 'images', model.ref);
-  return {
-    ok: true,
-    session: {
-      projectId: opened.projectId,
-      model,
-      async generate(input) {
-        try {
-          const result = await model.generateImage(input);
-          await usage.record(result.usage);
-          return result;
-        } catch (error) {
-          if (error instanceof AiError && hasUsage(error.usage)) await usage.record(error.usage);
-          throw error;
-        }
-      },
-    },
-  };
+  return { ok: true, session: imageSession(context, opened, model) };
 }
 
 export async function companionImageSession(
@@ -229,23 +278,5 @@ export async function companionImageSession(
 ): Promise<ImageSession | null> {
   const model = await getImageModel();
   if (!model) return null;
-  const usage = usageRecorder(context, session.projectId, 'images', model.ref);
-  session.addSpend(usage.spent);
-  return {
-    projectId: session.projectId,
-    model,
-    async generate(input) {
-      if (session.remainingMicroUsd() <= 0) {
-        throw new AiError('budget_exhausted', 'The daily AI budget for this project is used up.');
-      }
-      try {
-        const result = await model.generateImage(input);
-        await usage.record(result.usage);
-        return result;
-      } catch (error) {
-        if (error instanceof AiError && hasUsage(error.usage)) await usage.record(error.usage);
-        throw error;
-      }
-    },
-  };
+  return imageSession(context, { projectId: session.projectId, ...session.budget }, model);
 }

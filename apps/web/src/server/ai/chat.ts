@@ -451,6 +451,12 @@ export async function runChat(
           ),
         );
       } catch (error) {
+        if (
+          error instanceof AiError &&
+          (error.code === 'aborted' || error.code === 'budget_exhausted')
+        ) {
+          throw error;
+        }
         console.error(
           '[ai] chat screen',
           op.title,

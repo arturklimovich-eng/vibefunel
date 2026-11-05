@@ -22,6 +22,18 @@ interface TypeMeta {
 
 interface Proposal extends ProposalView {
   patch: FunnelPatch;
+  base: FunnelDefinition;
+}
+
+function isStale(proposal: Proposal, current: FunnelDefinition): boolean {
+  if (proposal.base === current) return false;
+  const changed = (id: string) =>
+    proposal.base.screens.find((s) => s.id === id) !== current.screens.find((s) => s.id === id);
+  return proposal.patch.some((op) => {
+    if (op.op === 'replace_screen') return changed(op.screen.id);
+    if (op.op === 'remove_screen') return changed(op.screenId);
+    return false;
+  });
 }
 
 interface Message {
@@ -142,6 +154,7 @@ export function AssistantPanel({
     setBusy(true);
     const controller = new AbortController();
     abortRef.current = controller;
+    const base = definition;
     const fail = (message: string) =>
       setMessages((m) => [
         ...m,
@@ -194,6 +207,7 @@ export function AssistantPanel({
             ? {
                 proposal: {
                   patch: proposal.patch as FunnelPatch,
+                  base,
                   summary: proposal.summary,
                   warnings: proposal.warnings,
                   errors: proposal.errors,
@@ -216,6 +230,12 @@ export function AssistantPanel({
   };
 
   const stop = () => {
+    if (abortRef.current) {
+      setMessages((list) => {
+        const last = list[list.length - 1];
+        return last?.role === 'user' ? [...list.slice(0, -1), { ...last, failed: true }] : list;
+      });
+    }
     abortRef.current?.abort();
     abortRef.current = null;
     setBusy(false);
@@ -341,7 +361,10 @@ export function AssistantPanel({
                   })}
                   {message.proposal ? (
                     <ProposalCard
-                      proposal={message.proposal}
+                      proposal={{
+                        ...message.proposal,
+                        stale: isStale(message.proposal, definition),
+                      }}
                       onApply={() => {
                         onApply(message.proposal!.patch);
                         updateProposal(message.id, 'applied');

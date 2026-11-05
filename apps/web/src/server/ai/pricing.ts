@@ -6,6 +6,7 @@ const priceSchema = z.object({
   input: z.number().min(0),
   output: z.number().min(0),
   cachedInput: z.number().min(0).optional(),
+  cacheWrite: z.number().min(0).optional(),
   image: z.number().min(0).optional(),
 });
 export type ModelPrice = z.infer<typeof priceSchema>;
@@ -32,10 +33,13 @@ export function priceFor(provider: string, model: string): ModelPrice | null {
   return overrides()[key] ?? BUILTIN[key] ?? null;
 }
 
+const CACHE_WRITE_FACTOR = 1.25;
+
 export function costMicroUsd(price: ModelPrice, usage: AiUsage): number {
   const tokens =
     usage.inputTokens * price.input +
     usage.outputTokens * price.output +
-    usage.cachedInputTokens * (price.cachedInput ?? price.input);
+    usage.cachedInputTokens * (price.cachedInput ?? price.input) +
+    usage.cacheWriteTokens * (price.cacheWrite ?? price.input * CACHE_WRITE_FACTOR);
   return Math.ceil(tokens + usage.images * (price.image ?? 0) * 1_000_000);
 }

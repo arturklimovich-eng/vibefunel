@@ -194,6 +194,7 @@ function toVersion(row: z.infer<typeof versionRowSchema>): FunnelVersion | null 
 
 export class SupabaseFunnelRepository implements FunnelRepository {
   private memberships: Promise<MembershipRow[]> | null = null;
+  private groups = new Map<string, Promise<FunnelGroup>>();
 
   constructor(
     private readonly client: SupabaseClient,
@@ -482,7 +483,9 @@ export class SupabaseFunnelRepository implements FunnelRepository {
       .select(ASSET_COLUMNS)
       .single();
     if (error) {
-      await bucket.remove([objectPath]);
+      const removed = await bucket.remove([objectPath]);
+      if (removed.error)
+        console.error('[assets] orphan not removed', objectPath, removed.error.message);
       throw fail('storeAsset', error);
     }
     return this.toAsset(assetRowSchema.parse(data));
@@ -569,7 +572,17 @@ export class SupabaseFunnelRepository implements FunnelRepository {
     return z.array(groupRowSchema).parse(data).map(toGroup);
   }
 
-  private async requireGroup(id: string): Promise<FunnelGroup> {
+  private requireGroup(id: string): Promise<FunnelGroup> {
+    let group = this.groups.get(id);
+    if (!group) {
+      group = this.loadGroup(id);
+      this.groups.set(id, group);
+      group.catch(() => this.groups.delete(id));
+    }
+    return group;
+  }
+
+  private async loadGroup(id: string): Promise<FunnelGroup> {
     const notFound = new GroupNotFoundError(`Project "${id}" not found.`);
     if (!uuidSchema.safeParse(id).success) throw notFound;
     const ids = await this.memberProjectIds();
@@ -599,6 +612,7 @@ export class SupabaseFunnelRepository implements FunnelRepository {
 
   async renameGroup(groupId: string, name: string): Promise<FunnelGroup> {
     const group = await this.requireGroup(groupId);
+    this.groups.delete(groupId);
     const { data, error } = await this.client
       .from('funnel_groups')
       .update({ name })
@@ -613,6 +627,7 @@ export class SupabaseFunnelRepository implements FunnelRepository {
 
   async deleteGroup(groupId: string): Promise<void> {
     const group = await this.requireGroup(groupId);
+    this.groups.delete(groupId);
     const { data, error } = await this.client
       .from('funnel_groups')
       .delete()

@@ -68,8 +68,8 @@ export function createAnthropicModel(model: string, apiKey: string): TextModel {
         );
         const message = await stream.finalMessage();
         const usage: AiUsage = {
-          inputTokens:
-            message.usage.input_tokens + (message.usage.cache_creation_input_tokens ?? 0),
+          inputTokens: message.usage.input_tokens,
+          cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
           outputTokens: message.usage.output_tokens,
           cachedInputTokens: message.usage.cache_read_input_tokens ?? 0,
           images: 0,

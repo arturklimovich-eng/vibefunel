@@ -20,6 +20,14 @@ const SIZES: Record<ImageAspect, '1024x1024' | '1024x1536' | '1536x1024'> = {
 function mapError(error: unknown): AiError {
   if (error instanceof AiError) return error;
   if (error instanceof OpenAI.APIUserAbortError) return new AiError('aborted', 'Request aborted.');
+  if (error instanceof OpenAI.RateLimitError && error.code === 'insufficient_quota') {
+    return new AiError(
+      'quota_exhausted',
+      'The AI provider quota for this key is used up. Check the plan and billing of the API key.',
+      undefined,
+      error.message,
+    );
+  }
   if (error instanceof OpenAI.RateLimitError) {
     return new AiError('rate_limited', 'The model provider is rate limiting requests.');
   }
@@ -63,6 +71,7 @@ export function createOpenAiImageModel(
           inputTokens: result.usage?.input_tokens ?? 0,
           outputTokens: result.usage?.output_tokens ?? 0,
           cachedInputTokens: 0,
+          cacheWriteTokens: 0,
           images: 1,
         };
         const data = result.data?.[0]?.b64_json;

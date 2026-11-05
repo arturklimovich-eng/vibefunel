@@ -356,22 +356,34 @@ function uniqueKey(base: string, used: Set<string>): string {
   return key;
 }
 
+type OutlineOption = z.infer<typeof outlineOptionSchema>;
+
+export function normalizeOptions(options: OutlineOption[]): {
+  options: OutlineOption[];
+  keyMap: Map<string, string>;
+} {
+  const used = new Set<string>();
+  const keyMap = new Map<string, string>();
+  const normalized = options.map((o, j) => {
+    const key = uniqueKey(slugKey(o.key, `o${j + 1}`), used);
+    if (!keyMap.has(o.key)) keyMap.set(o.key, key);
+    return { ...o, key };
+  });
+  return { options: normalized, keyMap };
+}
+
 export function normalizeOutline(outline: Outline, brief: Brief, plans: BriefPlan[]): Outline {
   const used = new Set<string>();
   const renamed = new Map<string, string>();
+  const optionKeys = new Map<string, Map<string, string>>();
   let screens: OutlineScreen[] = outline.screens.map((s, i) => {
     const key = uniqueKey(slugKey(s.key, `s${i + 1}`), used);
     if (!renamed.has(s.key)) renamed.set(s.key, key);
     let question = s.question;
     if (question) {
-      const optUsed = new Set<string>();
-      question = {
-        ...question,
-        options: question.options.map((o, j) => ({
-          ...o,
-          key: uniqueKey(slugKey(o.key, `o${j + 1}`), optUsed),
-        })),
-      };
+      const normalized = normalizeOptions(question.options);
+      optionKeys.set(key, normalized.keyMap);
+      question = { ...question, options: normalized.options };
     }
     return { ...s, key, question };
   });
@@ -387,18 +399,27 @@ export function normalizeOutline(outline: Outline, brief: Brief, plans: BriefPla
   const paid = brief.goal !== 'lead' && plans.length > 0;
   if (!paid) screens = screens.filter((s) => s.kind !== 'paywall' && s.kind !== 'checkout');
 
-  const byKey = new Map(screens.map((s) => [s.key, s]));
+  const resolveBranch = (s: OutlineScreen, index: number) => {
+    if (!s.branchOf) return null;
+    const sourceKey = renamed.get(s.branchOf.screenKey) ?? s.branchOf.screenKey;
+    const sourceIndex = screens.findIndex((x) => x.key === sourceKey);
+    const source = screens[sourceIndex];
+    const optionKey = optionKeys.get(sourceKey)?.get(s.branchOf.optionKey);
+    const option = source?.question?.options.find((o) => o.key === optionKey);
+    if (!source || sourceIndex >= index || !option) return null;
+    return { source, option };
+  };
+  screens = screens.map((s, index) => (resolveBranch(s, index) ? s : { ...s, branchOf: null }));
+  const taken = new Set<string>();
   screens = screens.map((s, index) => {
     if (!s.branchOf) return s;
-    const sourceKey = renamed.get(s.branchOf.screenKey) ?? s.branchOf.screenKey;
-    const source = byKey.get(sourceKey);
-    const sourceIndex = screens.findIndex((x) => x.key === sourceKey);
-    const option = source?.question?.options.find(
-      (o) => o.key === slugKey(s.branchOf!.optionKey, '') || o.key === s.branchOf!.optionKey,
-    );
-    if (!source || source.branchOf || sourceIndex >= index || !option) {
+    const branch = resolveBranch(s, index);
+    const slot = branch ? `${branch.source.key}:${branch.option.key}` : '';
+    if (!branch || branch.source.branchOf || taken.has(slot)) {
       return { ...s, branchOf: null };
     }
+    taken.add(slot);
+    const { source, option } = branch;
     const kind: OutlineKind = s.kind === 'loader' ? 'loader' : 'info';
     return {
       ...s,
@@ -633,7 +654,8 @@ export function buildScreen(
   const selectedPlan = Math.min(plans.length, plans.length >= 3 ? 2 : 1);
   const structural = (): PuckItem | null => {
     if (s.kind === 'question' && s.question) {
-      const pictured = s.question.options.some((o) => images[optionImageKey(s.key, o.key)]);
+      const { options } = normalizeOptions(s.question.options);
+      const pictured = options.some((o) => images[optionImageKey(s.key, o.key)]);
       const layout = bp?.optionsLayout ?? 'list';
       return {
         type: 'OptionList',
@@ -642,7 +664,7 @@ export function buildScreen(
           mode: s.question.mode,
           layout: pictured && layout === 'list' ? 'grid' : layout,
           question: '',
-          options: s.question.options.map((o) => {
+          options: options.map((o) => {
             const image = images[optionImageKey(s.key, o.key)];
             return {
               id: optionIdFor(o.key),

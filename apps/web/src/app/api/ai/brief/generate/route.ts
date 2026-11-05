@@ -44,10 +44,23 @@ export function POST(request: Request) {
     if (!body.ok) return body.response;
     const { brief, outline } = body.data;
     const groupId = body.data.groupId ?? null;
-    const opened = await openAiSession(context, request, 'brief', { groupId });
-    if (!opened.ok) return opened.response;
+    const run = startAiRun(body.data.runId, context.userEmail ?? 'local');
+    if (!run) return NextResponse.json({ error: 'run_exists' }, { status: 409 });
+    let opened: Awaited<ReturnType<typeof openAiSession>>;
+    let imageSession: Awaited<ReturnType<typeof companionImageSession>>;
+    try {
+      opened = await openAiSession(context, request, 'brief', { groupId });
+      imageSession =
+        opened.ok && brief.images ? await companionImageSession(context, opened.session) : null;
+    } catch (error) {
+      run.finish();
+      throw error;
+    }
+    if (!opened.ok) {
+      run.finish();
+      return opened.response;
+    }
     const { session } = opened;
-    const imageSession = brief.images ? await companionImageSession(context, session) : null;
     const makeImage: MakeImage | undefined = imageSession
       ? async (prompt, aspect, signal) => {
           const asset = await generateAsset(context, imageSession, {
@@ -59,8 +72,6 @@ export function POST(request: Request) {
           return publicAsset(asset, request).url;
         }
       : undefined;
-    const run = startAiRun(body.data.runId, context.userEmail ?? 'local');
-    if (!run) return NextResponse.json({ error: 'run_exists' }, { status: 409 });
     const encoder = new TextEncoder();
 
     let open = true;

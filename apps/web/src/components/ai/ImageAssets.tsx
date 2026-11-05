@@ -69,10 +69,14 @@ export function ImageAssetsProvider({
   const cache = useRef<Promise<LibraryAsset[]> | null>(null);
 
   const value = useMemo<ImageAssetsValue>(() => {
-    const remember = async (asset: LibraryAsset) => {
-      if (cache.current) {
-        const list = await cache.current.catch(() => []);
-        cache.current = Promise.resolve([asset, ...list.filter((a) => a.id !== asset.id)]);
+    const remember = (asset: LibraryAsset) => {
+      const pending = cache.current;
+      if (pending) {
+        const next = pending.then((list) => [asset, ...list.filter((a) => a.id !== asset.id)]);
+        cache.current = next;
+        next.catch(() => {
+          if (cache.current === next) cache.current = null;
+        });
       }
       return asset;
     };

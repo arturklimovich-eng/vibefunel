@@ -1004,18 +1004,28 @@ export function FunnelEditor({
       </ul>
     ) : null;
 
+  const mutateKeepingOpenScreen = (fn: (d: FunnelDefinition) => FunnelDefinition) => {
+    commandsRef.current?.deselect();
+    let openChanged = false;
+    mutate((d) => {
+      const next = fn(d);
+      const id = selected?.id;
+      const before = d.screens.find((s) => s.id === id)?.content;
+      const after = next.screens.find((s) => s.id === id)?.content;
+      openChanged = before !== after;
+      return next;
+    });
+    if (openChanged) setContentEpoch((n) => n + 1);
+  };
+
   const applyAssistantPatch = (patch: FunnelPatch) => {
     if (patch.length === 0) return;
-    commandsRef.current?.deselect();
-    mutate((d) => applyPatch(d, patch));
-    setContentEpoch((n) => n + 1);
+    mutateKeepingOpenScreen((d) => applyPatch(d, patch));
   };
 
   const applyScreenTextEdits = (edits: TextEdit[]) => {
     if (edits.length === 0) return;
-    commandsRef.current?.deselect();
-    mutate((d) => applyTextEdits(d, edits));
-    setContentEpoch((n) => n + 1);
+    mutateKeepingOpenScreen((d) => applyTextEdits(d, edits));
   };
 
   const elementAi =

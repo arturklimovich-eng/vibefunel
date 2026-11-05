@@ -5,6 +5,14 @@ import { strictJsonSchema } from '../json-schema';
 import { AiError, joinPrompt, parseModelJson } from '../types';
 import type { AiUsage, GenerateObjectInput, GenerateObjectResult, TextModel } from '../types';
 
+const BLOCKED: ReadonlySet<FinishReason | undefined> = new Set([
+  FinishReason.SAFETY,
+  FinishReason.PROHIBITED_CONTENT,
+  FinishReason.BLOCKLIST,
+  FinishReason.SPII,
+  FinishReason.RECITATION,
+]);
+
 function mapError(error: unknown, signal?: AbortSignal): AiError {
   if (error instanceof AiError) return error;
   if (signal?.aborted) return new AiError('aborted', 'Request aborted.');
@@ -67,10 +75,11 @@ export function createGoogleModel(model: string, apiKey: string): TextModel {
           inputTokens: (meta?.promptTokenCount ?? 0) - cached,
           outputTokens: (meta?.candidatesTokenCount ?? 0) + (meta?.thoughtsTokenCount ?? 0),
           cachedInputTokens: cached,
+          cacheWriteTokens: 0,
           images: 0,
         };
         const candidate = response.candidates?.[0];
-        if (!candidate || candidate.finishReason === FinishReason.SAFETY) {
+        if (!candidate || BLOCKED.has(candidate.finishReason)) {
           throw new AiError('refusal', 'The model declined this request.', usage);
         }
         if (candidate.finishReason === FinishReason.MAX_TOKENS) {

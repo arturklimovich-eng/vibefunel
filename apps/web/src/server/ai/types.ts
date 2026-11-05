@@ -8,6 +8,7 @@ export interface AiUsage {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens: number;
+  cacheWriteTokens: number;
   images: number;
 }
 
@@ -15,6 +16,7 @@ export const EMPTY_USAGE: AiUsage = {
   inputTokens: 0,
   outputTokens: 0,
   cachedInputTokens: 0,
+  cacheWriteTokens: 0,
   images: 0,
 };
 
@@ -23,6 +25,7 @@ export function addUsage(a: AiUsage, b: AiUsage): AiUsage {
     inputTokens: a.inputTokens + b.inputTokens,
     outputTokens: a.outputTokens + b.outputTokens,
     cachedInputTokens: a.cachedInputTokens + b.cachedInputTokens,
+    cacheWriteTokens: a.cacheWriteTokens + b.cacheWriteTokens,
     images: a.images + b.images,
   };
 }
