@@ -28,4 +28,5 @@ export interface LeadStore {
     limit: number | null,
     since?: string,
   ): Promise<FunnelLead[]>;
+  countFunnelLeads(projectId: string, funnelId: string, since: string): Promise<number>;
 }

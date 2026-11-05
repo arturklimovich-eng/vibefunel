@@ -305,7 +305,9 @@ export async function loadFunnelMetrics(
   const since = new Date(Date.now() - days * DAY_MS).toISOString();
   const funnel = { id: funnelId, projectId };
   const [leads, payments] = await Promise.all([
-    safeLeads(funnel, since),
+    getLeadStore()
+      .countFunnelLeads(projectId, funnelId, since)
+      .catch(() => null),
     safePayments(funnel, since),
   ]);
   const revenue = new Map<string, number>();
@@ -315,7 +317,7 @@ export async function loadFunnelMetrics(
   }
   return {
     days,
-    leads: leads ? leads.length : null,
+    leads,
     purchases: payments ? payments.filter(isPaid).length : null,
     revenue: [...revenue].map(([currency, amount]) => ({ currency, amount })),
   };

@@ -71,6 +71,15 @@ export class FileLeadStore implements LeadStore {
     });
   }
 
+  countFunnelLeads(projectId: string, funnelId: string, since: string): Promise<number> {
+    return this.withLock(
+      async () =>
+        (await this.read()).leads.filter(
+          (l) => l.projectId === projectId && l.funnelId === funnelId && l.createdAt >= since,
+        ).length,
+    );
+  }
+
   listFunnelLeads(
     projectId: string,
     funnelId: string,

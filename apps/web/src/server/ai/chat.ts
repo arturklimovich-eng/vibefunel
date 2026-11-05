@@ -179,6 +179,7 @@ function resolveOps(
   const problems: string[] = [];
   const refs = new Map<string, string>();
   const known = new Set(def.screens.map((s) => s.id));
+  const typeOf = new Map(def.screens.map((s) => [s.id, s.type]));
   const resolve = (value: string): string | null => {
     if (value === '') return null;
     if (known.has(value)) return value;
@@ -258,6 +259,7 @@ function resolveOps(
           first: current.id === def.startScreenId,
           position: current.position ?? { x: 0, y: 0 },
         });
+        typeOf.set(current.id, built.type);
         patch.push({
           op: 'replace_screen',
           screen: keepOptionIds(
@@ -275,7 +277,8 @@ function resolveOps(
         }
         const blueprint = blueprints.get(op);
         if (!blueprint) break;
-        const items = buildElements(blueprint.elements, target.type, allowedElement, () =>
+        const type = typeOf.get(target.id) ?? target.type;
+        const items = buildElements(blueprint.elements, type, allowedElement, () =>
           randomId(8),
         ).slice(0, 3);
         if (items.length === 0) problems.push(`element: nothing fits screen ${op.screenId}`);

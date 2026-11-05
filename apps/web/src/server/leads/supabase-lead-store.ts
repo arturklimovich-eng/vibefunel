@@ -31,6 +31,20 @@ export class SupabaseLeadStore implements LeadStore {
     return { duplicate: !z.boolean().parse(data) };
   }
 
+  async countFunnelLeads(projectId: string, funnelId: string, since: string): Promise<number> {
+    if (!z.uuid().safeParse(projectId).success || !z.uuid().safeParse(funnelId).success) {
+      return 0;
+    }
+    const { count, error } = await createSupabaseServiceClient()
+      .from('leads')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', projectId)
+      .eq('funnel_id', funnelId)
+      .gte('created_at', since);
+    if (error) throw new Error(`lead count failed: ${error.message}`);
+    return count ?? 0;
+  }
+
   async listFunnelLeads(
     projectId: string,
     funnelId: string,

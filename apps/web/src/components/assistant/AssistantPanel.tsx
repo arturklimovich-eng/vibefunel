@@ -32,7 +32,7 @@ function isStale(proposal: Proposal, current: FunnelDefinition): boolean {
     proposal.base.screens.find((s) => s.id === id) !== current.screens.find((s) => s.id === id);
   return proposal.patch.some((op) => {
     if (op.op === 'replace_screen') return changed(op.screen.id);
-    if (op.op === 'remove_screen') return changed(op.screenId);
+    if (op.op === 'remove_screen' || op.op === 'insert_elements') return changed(op.screenId);
     return false;
   });
 }
@@ -379,7 +379,10 @@ export function AssistantPanel({
                         stale: isStale(message.proposal, definition),
                       }}
                       preview={
-                        <ProposalPreview definition={definition} patch={message.proposal.patch} />
+                        <ProposalPreview
+                          base={message.proposal.base}
+                          patch={message.proposal.patch}
+                        />
                       }
                       onApply={() => {
                         onApply(message.proposal!.patch);

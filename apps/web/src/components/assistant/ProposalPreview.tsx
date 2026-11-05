@@ -19,16 +19,16 @@ function touchedScreens(patch: FunnelPatch): string[] {
 }
 
 export const ProposalPreview = memo(function ProposalPreview({
-  definition,
+  base,
   patch,
 }: {
-  definition: FunnelDefinition;
+  base: FunnelDefinition;
   patch: FunnelPatch;
 }) {
   const previews = useMemo(() => {
     const ids = touchedScreens(patch);
     if (ids.length === 0) return null;
-    const next = applyPatch(definition, patch);
+    const next = applyPatch(base, patch);
     const depths = depthFromStart(next);
     const lengths = longestPathFrom(next);
     return {
@@ -38,7 +38,7 @@ export const ProposalPreview = memo(function ProposalPreview({
         return screen ? [{ screen, position: previewStep(next, id, depths, lengths) }] : [];
       }),
     };
-  }, [definition, patch]);
+  }, [base, patch]);
 
   if (!previews || previews.items.length === 0) return null;
   return (
