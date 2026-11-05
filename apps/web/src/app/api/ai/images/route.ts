@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { toWebp } from '@/server/assets/process';
+import { generateAsset } from '@/server/assets/generate';
 import { publicAsset } from '@/server/assets/public';
 import { aiErrorResponse, openImageSession } from '@/server/ai/guards';
 import { AiError, IMAGE_ASPECTS } from '@/server/ai/types';
@@ -23,21 +23,11 @@ export function POST(request: Request) {
     if (!opened.ok) return opened.response;
     const { session } = opened;
     try {
-      const image = await session.generate({
+      const asset = await generateAsset(context, session, {
         prompt: body.data.prompt,
         aspect: body.data.aspect,
-        signal: request.signal,
-      });
-      const processed = await toWebp(image.bytes);
-      const asset = await context.repo.storeAsset({
-        projectId: session.projectId,
         funnelId: body.data.funnelId,
-        data: processed.bytes,
-        width: processed.width,
-        height: processed.height,
-        source: 'ai',
-        prompt: body.data.prompt,
-        model: `${session.model.ref.provider}:${session.model.ref.model}`,
+        signal: request.signal,
       });
       return NextResponse.json({ asset: publicAsset(asset, request) });
     } catch (error) {

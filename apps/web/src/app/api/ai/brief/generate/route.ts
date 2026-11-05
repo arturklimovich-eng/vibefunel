@@ -3,11 +3,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { randomId } from '@/lib/ids';
 import { generateFunnel } from '@/server/ai/brief';
-import type { BriefEvent } from '@/server/ai/brief';
-import { openAiSession } from '@/server/ai/guards';
+import type { BriefEvent, MakeImage } from '@/server/ai/brief';
+import { companionImageSession, openAiSession } from '@/server/ai/guards';
 import { AI_DRAFT_TTL_MS, startAiRun } from '@/server/ai/runs';
 import { AiError } from '@/server/ai/types';
 import { withStudio } from '@/server/api-helpers';
+import { generateAsset } from '@/server/assets/generate';
+import { publicAsset } from '@/server/assets/public';
 import { parseJsonBody } from '@/server/parse-body';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +47,18 @@ export function POST(request: Request) {
     const opened = await openAiSession(context, request, 'brief', { groupId });
     if (!opened.ok) return opened.response;
     const { session } = opened;
+    const imageSession = brief.images ? await companionImageSession(context, session) : null;
+    const makeImage: MakeImage | undefined = imageSession
+      ? async (prompt, aspect, signal) => {
+          const asset = await generateAsset(context, imageSession, {
+            prompt,
+            aspect,
+            funnelId: null,
+            signal,
+          });
+          return publicAsset(asset, request).url;
+        }
+      : undefined;
     const run = startAiRun(body.data.runId, context.userEmail ?? 'local');
     if (!run) return NextResponse.json({ error: 'run_exists' }, { status: 409 });
     const encoder = new TextEncoder();
@@ -63,7 +77,7 @@ export function POST(request: Request) {
           if (open) controller.enqueue(encoder.encode(': keep-alive\n\n'));
         }, HEARTBEAT_MS);
         try {
-          const result = await generateFunnel(session, brief, outline, send, run.signal);
+          const result = await generateFunnel(session, brief, outline, send, run.signal, makeImage);
           let funnelId: string | null = null;
           for (let attempt = 0; attempt < 3 && funnelId === null; attempt++) {
             try {

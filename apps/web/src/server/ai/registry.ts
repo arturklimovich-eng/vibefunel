@@ -99,11 +99,12 @@ export async function getTextModel(
 
 export interface AiBriefOptions {
   plans: BriefPlan[];
+  images: boolean;
 }
 
 export function aiBriefOptions(): AiBriefOptions | null {
   if (!textModelRef('brief')) return null;
-  return { plans: listPublicPlans().plans };
+  return { plans: listPublicPlans().plans, images: aiImagesEnabled() };
 }
 
 export function aiInlineEnabled(): boolean {

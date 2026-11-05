@@ -41,6 +41,8 @@ export interface AiSession {
   projectId: string;
   generate<T extends z.ZodType>(input: GenerateObjectInput<T>): Promise<z.infer<T>>;
   spentMicroUsd(): number;
+  remainingMicroUsd(): number;
+  addSpend(spent: () => number): void;
 }
 
 export type AiSessionResult = { ok: true; session: AiSession } | { ok: false; response: Response };
@@ -160,13 +162,17 @@ export async function openAiSession(
   if (!opened.ok) return opened;
   const { projectId, spentBefore, budget } = opened;
   const usage = usageRecorder(context, projectId, feature, model.ref);
+  const extras: Array<() => number> = [];
+  const extraSpent = () => extras.reduce((sum, spent) => sum + spent(), 0);
 
   const session: AiSession = {
+    addSpend: (spent) => extras.push(spent),
     model,
     projectId,
     spentMicroUsd: usage.spent,
+    remainingMicroUsd: () => budget - spentBefore - usage.spent() - extraSpent(),
     async generate(input) {
-      if (spentBefore + usage.spent() >= budget) {
+      if (spentBefore + usage.spent() + extraSpent() >= budget) {
         throw new AiError('budget_exhausted', 'The daily AI budget for this project is used up.');
       }
       try {
@@ -213,6 +219,33 @@ export async function openImageSession(
           throw error;
         }
       },
+    },
+  };
+}
+
+export async function companionImageSession(
+  context: StudioContext,
+  session: AiSession,
+): Promise<ImageSession | null> {
+  const model = await getImageModel();
+  if (!model) return null;
+  const usage = usageRecorder(context, session.projectId, 'images', model.ref);
+  session.addSpend(usage.spent);
+  return {
+    projectId: session.projectId,
+    model,
+    async generate(input) {
+      if (session.remainingMicroUsd() <= 0) {
+        throw new AiError('budget_exhausted', 'The daily AI budget for this project is used up.');
+      }
+      try {
+        const result = await model.generateImage(input);
+        await usage.record(result.usage);
+        return result;
+      } catch (error) {
+        if (error instanceof AiError && hasUsage(error.usage)) await usage.record(error.usage);
+        throw error;
+      }
     },
   };
 }

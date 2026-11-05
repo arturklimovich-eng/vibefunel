@@ -1116,9 +1116,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/StudioShell.tsx": {
-    "mtime": 1793833062.5830684,
-    "seen": 1793833188.3451602,
-    "ast_hash": "6dd11296cbcf287e444dcdd65bcf190c",
+    "mtime": 1793862169.9667816,
+    "seen": 1793866320.8055615,
+    "ast_hash": "9f71c37f8d3d694cb4052f02440dd581",
     "semantic_hash": ""
   },
   "apps/web/src/components/ScreenCanvas.tsx": {
@@ -1374,9 +1374,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/api/ai/brief/generate/route.ts": {
-    "mtime": 1793828664.6359074,
-    "seen": 1793828812.6348803,
-    "ast_hash": "4735f4b0590a8ed86095ee4b0dc72bc7",
+    "mtime": 1793862277.2768478,
+    "seen": 1793866320.8054006,
+    "ast_hash": "37ddbd6a644b3eb7270e34db1ba796ae",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/ai/brief/outline/route.ts": {
@@ -1386,21 +1386,21 @@
     "semantic_hash": ""
   },
   "apps/web/src/components/ai/BriefWizard.tsx": {
-    "mtime": 1793833134.4371746,
-    "seen": 1793833188.3451703,
-    "ast_hash": "8b39c0f993ddbd0653d959ecaac76507",
+    "mtime": 1793862277.196856,
+    "seen": 1793866320.805572,
+    "ast_hash": "bfe4002cd359607e8fa84ecfcf77fc32",
     "semantic_hash": ""
   },
   "apps/web/src/server/ai/brief.ts": {
-    "mtime": 1793835522.1390417,
-    "seen": 1793835744.7734027,
-    "ast_hash": "017884f52dc2b2c58b343c7d62b38793",
+    "mtime": 1793862277.2457118,
+    "seen": 1793866320.805682,
+    "ast_hash": "f19c281562f183a5ccacdfa98357b8f0",
     "semantic_hash": ""
   },
   "apps/web/src/server/ai/guards.ts": {
-    "mtime": 1793835678.2144134,
-    "seen": 1793835744.773405,
-    "ast_hash": "95a63d0e38522766c81ae4eba2b3f196",
+    "mtime": 1793862107.1265607,
+    "seen": 1793866320.8056853,
+    "ast_hash": "40377b19369488afbf64dc3a47e418f9",
     "semantic_hash": ""
   },
   "apps/web/src/server/ai/json-schema.ts": {
@@ -1434,9 +1434,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/server/ai/registry.ts": {
-    "mtime": 1793834505.0594468,
-    "seen": 1793834698.7491822,
-    "ast_hash": "4aa59a57bd24e97b4bb95f6d9d2aa67a",
+    "mtime": 1793862169.9654999,
+    "seen": 1793866320.8056993,
+    "ast_hash": "837287df05888f1c2acbd9b389a97788",
     "semantic_hash": ""
   },
   "apps/web/src/server/ai/types.ts": {
@@ -1446,9 +1446,9 @@
     "semantic_hash": ""
   },
   "packages/funnel-schema/src/brief.ts": {
-    "mtime": 1793835418.2753372,
-    "seen": 1793835744.7734892,
-    "ast_hash": "f25cd7155e663c94f865f7f554b9ae40",
+    "mtime": 1793862089.7011552,
+    "seen": 1793866320.8057935,
+    "ast_hash": "945211402842936931a4d53ccbbcc139",
     "semantic_hash": ""
   },
   "supabase/migrations/20261104120000_ai_usage.sql": {
@@ -1458,9 +1458,9 @@
     "semantic_hash": ""
   },
   "docs/features/81-ai-generation.md": {
-    "mtime": 1793835716.5777218,
-    "seen": 1793835744.7735631,
-    "ast_hash": "b953960924ebc5e068260ba019cfcdda",
+    "mtime": 1793862512.0887883,
+    "seen": 1793866320.8058875,
+    "ast_hash": "40b867dce3e7422d447f36dc0bb3833a",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/ai/brief/cancel/route.ts": {
@@ -1506,9 +1506,9 @@
     "semantic_hash": ""
   },
   "apps/web/src/app/api/ai/images/route.ts": {
-    "mtime": 1793833559.624837,
-    "seen": 1793833871.1946752,
-    "ast_hash": "c2ea19015210f8ee95e127945758206e",
+    "mtime": 1793862125.2941616,
+    "seen": 1793866320.805409,
+    "ast_hash": "4438455f798b33ac2a51aa9d69d596d5",
     "semantic_hash": ""
   },
   "apps/web/src/app/api/assets/file/[projectId]/[file]/route.ts": {
@@ -1593,6 +1593,12 @@
     "mtime": 1793834393.647532,
     "seen": 1793834698.749261,
     "ast_hash": "21944c93b51c0909f8a0ee66bcfb3400",
+    "semantic_hash": ""
+  },
+  "apps/web/src/server/assets/generate.ts": {
+    "mtime": 1793862114.020006,
+    "seen": 1793866320.8057075,
+    "ast_hash": "3473758b62522839d31847fd5398daf3",
     "semantic_hash": ""
   },
   "pnpm-lock.yaml": {

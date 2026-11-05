@@ -1,6 +1,9 @@
 import 'server-only';
 import {
+  briefImageTargets,
   compileFunnel,
+  heroImageKey,
+  optionImageKey,
   funnelDefinitionSchema,
   normalizeOutline,
   outlineSchema,
@@ -24,6 +27,7 @@ import { randomId } from '@/lib/ids';
 import { listPublicPlans } from '../payments/plans';
 import type { AiSession } from './guards';
 import { AiError } from './types';
+import type { ImageAspect } from './types';
 
 const OUTLINE_SYSTEM = `You design mobile quiz funnels that turn ad traffic into leads and buyers.
 You return the outline of one funnel as JSON that matches the given schema.
@@ -172,7 +176,53 @@ export async function pool<T>(
 }
 
 export type BriefEvent =
-  { type: 'screen'; key: string; ok: boolean } | { type: 'theme'; ok: boolean };
+  | { type: 'screen'; key: string; ok: boolean }
+  | { type: 'theme'; ok: boolean }
+  | { type: 'image'; done: number; total: number; ok: boolean };
+
+export type MakeImage = (
+  prompt: string,
+  aspect: ImageAspect,
+  signal?: AbortSignal,
+) => Promise<string>;
+
+interface ImageJob {
+  key: string;
+  prompt: string;
+  aspect: ImageAspect;
+}
+
+function imageJobs(brief: Brief, outline: Outline): ImageJob[] {
+  const { hero, question } = briefImageTargets(outline);
+  const style = `Style: clean modern illustration, soft light, calm palette${
+    brief.brandColor ? ` with accents of ${brief.brandColor}` : ''
+  }, one clear subject, plenty of empty space. No text, letters, numbers, logos or watermarks.`;
+  const about = `Product: ${brief.product}.${brief.audience ? ` Audience: ${brief.audience}.` : ''}`;
+  const jobs: ImageJob[] = [];
+  if (hero) {
+    jobs.push({
+      key: heroImageKey(hero.key),
+      aspect: '4:3',
+      prompt: `Hero picture for the first screen of a mobile quiz funnel. ${about} Screen: ${hero.title}. ${hero.goal} ${style}`,
+    });
+  }
+  if (question?.question) {
+    for (const option of question.question.options) {
+      jobs.push({
+        key: optionImageKey(question.key, option.key),
+        aspect: '1:1',
+        prompt: `Small square picture for the answer "${option.label}" to the quiz question "${question.question.text}". ${about} Show the answer as one simple scene or object. ${style}`,
+      });
+    }
+  }
+  return jobs;
+}
+
+const STOP_IMAGES: ReadonlySet<string> = new Set([
+  'budget_exhausted',
+  'quota_exhausted',
+  'rate_limited',
+]);
 
 export interface BriefResult {
   definition: FunnelDefinition;
@@ -186,6 +236,7 @@ export async function generateFunnel(
   rawOutline: Outline,
   onEvent: (event: BriefEvent) => void,
   signal?: AbortSignal,
+  makeImage?: MakeImage,
 ): Promise<BriefResult> {
   const plans = briefPlans(brief);
   const outline = normalizeOutline(rawOutline, brief, plans);
@@ -262,7 +313,33 @@ export async function generateFunnel(
     await pool(restScreens, 4, writeScreen);
   })();
 
-  await Promise.all([themeTask, screenTask]);
+  const images: Record<string, string> = {};
+  const imageTask = (async () => {
+    if (!makeImage) return;
+    const jobs = imageJobs(brief, outline);
+    let done = 0;
+    let stopped = false;
+    await pool(jobs, 3, async (job) => {
+      let ok = false;
+      if (!stopped) {
+        try {
+          images[job.key] = await makeImage(job.prompt, job.aspect, signal);
+          ok = true;
+        } catch (error) {
+          if (error instanceof AiError && error.code === 'aborted') throw error;
+          if (error instanceof AiError && STOP_IMAGES.has(error.code)) stopped = true;
+          console.error(
+            '[ai] image',
+            job.key,
+            error instanceof AiError ? (error.detail ?? error.message) : error,
+          );
+        }
+      }
+      onEvent({ type: 'image', done: ++done, total: jobs.length, ok });
+    });
+  })();
+
+  await Promise.all([themeTask, screenTask, imageTask]);
 
   if (outline.screens.length > 0 && failedScreens.length === outline.screens.length) {
     throw new AiError('provider_error', 'No screen could be written. Try again later.');
@@ -276,6 +353,7 @@ export async function generateFunnel(
     plans,
     allowed: allowedElement,
     newId: () => randomId(8),
+    images,
   });
   const parsed = funnelDefinitionSchema.safeParse(definition);
   if (!parsed.success) {

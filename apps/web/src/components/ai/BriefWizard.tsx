@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import {
   BRIEF_TONES,
   MAX_BRIEF_QUESTIONS,
+  MAX_OUTLINE_SCREENS,
   MIN_BRIEF_QUESTIONS,
+  isHttpsUrl,
   outlineSchema,
 } from '@funnel/schema';
 import type { Brief, BriefPlan, Outline, OutlineKind, OutlineScreen } from '@funnel/schema';
@@ -25,6 +27,7 @@ const errorResponse = z.object({ error: z.string(), message: z.string().optional
 const streamEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('screen'), key: z.string(), ok: z.boolean() }),
   z.object({ type: z.literal('theme'), ok: z.boolean() }),
+  z.object({ type: z.literal('image'), done: z.number(), total: z.number(), ok: z.boolean() }),
   z.object({
     type: z.literal('done'),
     funnelId: z.string(),
@@ -60,6 +63,33 @@ const KIND_LABELS: Record<OutlineKind, string> = {
 };
 
 const LOCKED_KINDS: ReadonlySet<OutlineKind> = new Set(['finish', 'checkout']);
+const FIXED_KINDS: ReadonlySet<OutlineKind> = new Set(['paywall', 'checkout', 'finish']);
+const CLOSING_KINDS: ReadonlySet<OutlineKind> = new Set([
+  'loader',
+  'email',
+  'paywall',
+  'checkout',
+  'finish',
+]);
+const MAX_OPTIONS = 12;
+const MIN_OPTIONS = 2;
+
+function blocksOf(screens: OutlineScreen[]): OutlineScreen[][] {
+  const blocks: OutlineScreen[][] = [];
+  for (const s of screens) {
+    const last = blocks[blocks.length - 1];
+    if (s.branchOf && last) last.push(s);
+    else blocks.push([s]);
+  }
+  return blocks;
+}
+
+function freeKey(base: string, taken: Iterable<string>): string {
+  const used = new Set(taken);
+  let n = 1;
+  while (used.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
+}
 
 const DROPPED_TEXT =
   'The connection dropped. Generation goes on, and the funnel appears in your list when it is ready.';
@@ -77,12 +107,14 @@ export function BriefWizard({
   onCancel,
   onRunChange,
   plans,
+  imagesEnabled = false,
 }: {
   groups: FunnelGroup[];
   initialGroupId: string | null;
   onCancel?: () => void;
   onRunChange?: (stop: (() => void) | null) => void;
   plans: Plan[];
+  imagesEnabled?: boolean;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('brief');
@@ -98,12 +130,20 @@ export function BriefWizard({
     language: 'English',
     brandColor: null,
     planKeys: [],
+    logoUrl: '',
+    images: false,
   });
   const [groupId, setGroupId] = useState<string>(
     initialGroupId && groups.some((g) => g.id === initialGroupId) ? initialGroupId : '',
   );
   const [outline, setOutline] = useState<Outline | null>(null);
   const [status, setStatus] = useState<Record<string, ScreenStatus>>({});
+  const [imageStatus, setImageStatus] = useState<{
+    done: number;
+    total: number;
+    failed: number;
+  } | null>(null);
+  const withImages = imagesEnabled && brief.images;
   const abortRef = useRef<AbortController | null>(null);
   const runIdRef = useRef<string | null>(null);
 
@@ -141,6 +181,10 @@ export function BriefWizard({
       setError('Describe the product in a few words.');
       return;
     }
+    if (brief.logoUrl.trim() !== '' && !isHttpsUrl(brief.logoUrl.trim())) {
+      setError('The logo URL must start with https://.');
+      return;
+    }
     setBusy(true);
     setError(null);
     abortRef.current?.abort();
@@ -150,7 +194,7 @@ export function BriefWizard({
       const res = await fetch(AI_ROUTES.briefOutline, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ brief, groupId: groupId || null }),
+        body: JSON.stringify({ brief: { ...brief, images: withImages }, groupId: groupId || null }),
         signal: controller.signal,
       });
       const raw = await readJson(res);
@@ -193,11 +237,99 @@ export function BriefWizard({
         : o,
     );
 
+  const updateQuestion = (
+    key: string,
+    patch: (q: NonNullable<OutlineScreen['question']>) => NonNullable<OutlineScreen['question']>,
+  ) => updateScreen(key, (x) => (x.question ? { ...x, question: patch(x.question) } : x));
+
+  const moveScreen = (key: string, dir: -1 | 1) =>
+    setOutline((o) => {
+      if (!o) return o;
+      const blocks = blocksOf(o.screens);
+      const i = blocks.findIndex((b) => b[0]?.key === key);
+      const j = i + dir;
+      const target = blocks[j]?.[0];
+      if (i < 0 || !target || FIXED_KINDS.has(target.kind)) return o;
+      [blocks[i], blocks[j]] = [blocks[j]!, blocks[i]!];
+      return { ...o, screens: blocks.flat() };
+    });
+
+  const addQuestion = () =>
+    setOutline((o) => {
+      if (!o || o.screens.length >= MAX_OUTLINE_SCREENS) return o;
+      const screen: OutlineScreen = {
+        key: freeKey(
+          'q_new_',
+          o.screens.map((s) => s.key),
+        ),
+        kind: 'question',
+        title: 'New question',
+        goal: '',
+        question: {
+          text: 'Your question',
+          mode: 'single',
+          options: [
+            { key: 'o1', label: 'Answer 1', emoji: null },
+            { key: 'o2', label: 'Answer 2', emoji: null },
+          ],
+        },
+        branchOf: null,
+      };
+      const blocks = blocksOf(o.screens);
+      const at = blocks.findIndex((b) => b[0] !== undefined && CLOSING_KINDS.has(b[0].kind));
+      blocks.splice(at === -1 ? blocks.length : at, 0, [screen]);
+      return { ...o, screens: blocks.flat() };
+    });
+
+  const addAnswer = (key: string) =>
+    updateQuestion(key, (q) =>
+      q.options.length >= MAX_OPTIONS
+        ? q
+        : {
+            ...q,
+            options: [
+              ...q.options,
+              {
+                key: freeKey(
+                  'o',
+                  q.options.map((x) => x.key),
+                ),
+                label: `Answer ${q.options.length + 1}`,
+                emoji: null,
+              },
+            ],
+          },
+    );
+
+  const removeAnswer = (key: string, optionKey: string) =>
+    setOutline((o) =>
+      o
+        ? {
+            ...o,
+            screens: o.screens.map((s) => {
+              if (s.key === key && s.question && s.question.options.length > MIN_OPTIONS) {
+                return {
+                  ...s,
+                  question: {
+                    ...s.question,
+                    options: s.question.options.filter((x) => x.key !== optionKey),
+                  },
+                };
+              }
+              return s.branchOf?.screenKey === key && s.branchOf.optionKey === optionKey
+                ? { ...s, branchOf: null }
+                : s;
+            }),
+          }
+        : o,
+    );
+
   const generate = async () => {
     if (!outline) return;
     setBusy(true);
     setError(null);
     setStatus(Object.fromEntries(outline.screens.map((s) => [s.key, 'pending' as const])));
+    setImageStatus(null);
     setStep('generating');
     abortRef.current?.abort();
     const controller = new AbortController();
@@ -210,7 +342,12 @@ export function BriefWizard({
       const res = await fetch(AI_ROUTES.briefGenerate, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ brief, outline, groupId: groupId || null, runId }),
+        body: JSON.stringify({
+          brief: { ...brief, images: withImages },
+          outline,
+          groupId: groupId || null,
+          runId,
+        }),
         signal: controller.signal,
       });
       if (!res.ok || !res.body) {
@@ -245,6 +382,12 @@ export function BriefWizard({
           const event = parsed.data;
           if (event.type === 'screen') {
             setStatus((s) => ({ ...s, [event.key]: event.ok ? 'done' : 'failed' }));
+          } else if (event.type === 'image') {
+            setImageStatus((s) => ({
+              done: event.done,
+              total: event.total,
+              failed: (s?.failed ?? 0) + (event.ok ? 0 : 1),
+            }));
           } else if (event.type === 'done') {
             router.push(`/studio/funnels/${event.funnelId}`);
             return;
@@ -289,6 +432,25 @@ export function BriefWizard({
               {s.title}
             </li>
           ))}
+          {withImages ? (
+            <li
+              data-status={
+                imageStatus && imageStatus.done >= imageStatus.total
+                  ? imageStatus.failed === imageStatus.total && imageStatus.total > 0
+                    ? 'failed'
+                    : 'done'
+                  : 'pending'
+              }
+            >
+              <span className={wiz.dot} aria-hidden />
+              <span className={wiz.kind}>Images</span>
+              {imageStatus
+                ? `${imageStatus.done - imageStatus.failed} of ${imageStatus.total} ready${
+                    imageStatus.failed > 0 ? `, ${imageStatus.failed} failed` : ''
+                  }`
+                : 'Hero and answer pictures'}
+            </li>
+          ) : null}
         </ol>
         <div className={styles.formActions}>
           <button type="button" className={styles.outlineBtn} onClick={stopRun}>
@@ -313,8 +475,8 @@ export function BriefWizard({
           />
         </label>
         <p className={wiz.lead}>
-          {outline.screens.length} screens. Edit titles, questions and answers, or remove screens,
-          then generate.
+          {outline.screens.length} screens. Edit titles, questions and answers, reorder, add or
+          remove screens, then generate.
         </p>
         <ol className={wiz.outline}>
           {outline.screens.map((s) => (
@@ -331,6 +493,26 @@ export function BriefWizard({
                   aria-label="Screen title"
                   onChange={(e) => updateScreen(s.key, (x) => ({ ...x, title: e.target.value }))}
                 />
+                {s.branchOf || FIXED_KINDS.has(s.kind) ? null : (
+                  <>
+                    <button
+                      type="button"
+                      className={wiz.remove}
+                      aria-label={`Move ${s.title} up`}
+                      onClick={() => moveScreen(s.key, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className={wiz.remove}
+                      aria-label={`Move ${s.title} down`}
+                      onClick={() => moveScreen(s.key, 1)}
+                    >
+                      ↓
+                    </button>
+                  </>
+                )}
                 {LOCKED_KINDS.has(s.kind) ? null : (
                   <button
                     type="button"
@@ -355,20 +537,32 @@ export function BriefWizard({
               <p className={wiz.note}>{s.goal}</p>
               {s.question ? (
                 <div className={wiz.question}>
-                  <input
-                    type="text"
-                    className={wiz.inline}
-                    value={s.question.text}
-                    maxLength={200}
-                    aria-label="Question"
-                    onChange={(e) =>
-                      updateScreen(s.key, (x) =>
-                        x.question
-                          ? { ...x, question: { ...x.question, text: e.target.value } }
-                          : x,
-                      )
-                    }
-                  />
+                  <div className={wiz.row}>
+                    <input
+                      type="text"
+                      className={wiz.inline}
+                      value={s.question.text}
+                      maxLength={200}
+                      aria-label="Question"
+                      onChange={(e) =>
+                        updateQuestion(s.key, (q) => ({ ...q, text: e.target.value }))
+                      }
+                    />
+                    <select
+                      className={wiz.mode}
+                      value={s.question.mode}
+                      aria-label="Answer mode"
+                      onChange={(e) =>
+                        updateQuestion(s.key, (q) => ({
+                          ...q,
+                          mode: e.target.value === 'multi' ? 'multi' : 'single',
+                        }))
+                      }
+                    >
+                      <option value="single">One answer</option>
+                      <option value="multi">Several</option>
+                    </select>
+                  </div>
                   <div className={wiz.options}>
                     {s.question.options.map((o) => (
                       <span key={o.key} className={wiz.option}>
@@ -379,29 +573,46 @@ export function BriefWizard({
                           maxLength={120}
                           aria-label="Answer"
                           onChange={(e) =>
-                            updateScreen(s.key, (x) =>
-                              x.question
-                                ? {
-                                    ...x,
-                                    question: {
-                                      ...x.question,
-                                      options: x.question.options.map((y) =>
-                                        y.key === o.key ? { ...y, label: e.target.value } : y,
-                                      ),
-                                    },
-                                  }
-                                : x,
-                            )
+                            updateQuestion(s.key, (q) => ({
+                              ...q,
+                              options: q.options.map((y) =>
+                                y.key === o.key ? { ...y, label: e.target.value } : y,
+                              ),
+                            }))
                           }
                         />
+                        {s.question!.options.length > MIN_OPTIONS ? (
+                          <button
+                            type="button"
+                            className={wiz.optionRemove}
+                            aria-label={`Remove answer ${o.label}`}
+                            onClick={() => removeAnswer(s.key, o.key)}
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </span>
                     ))}
+                    {s.question.options.length < MAX_OPTIONS ? (
+                      <button
+                        type="button"
+                        className={wiz.addOption}
+                        onClick={() => addAnswer(s.key)}
+                      >
+                        + Answer
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
             </li>
           ))}
         </ol>
+        {outline.screens.length < MAX_OUTLINE_SCREENS ? (
+          <button type="button" className={wiz.addQuestion} onClick={addQuestion}>
+            + Add question
+          </button>
+        ) : null}
         {error ? (
           <p role="alert" className={styles.formError}>
             {error}
@@ -570,6 +781,29 @@ export function BriefWizard({
           </span>
         </label>
       </div>
+      <label className={styles.formField}>
+        <span>Logo URL</span>
+        <input
+          type="url"
+          value={brief.logoUrl}
+          maxLength={2000}
+          placeholder="https://example.com/logo.png (optional)"
+          onChange={(e) => set('logoUrl', e.target.value)}
+        />
+      </label>
+      {imagesEnabled ? (
+        <label className={wiz.check}>
+          <input
+            type="checkbox"
+            checked={brief.images}
+            onChange={(e) => set('images', e.target.checked)}
+          />
+          Generate images
+          <span className={wiz.note}>
+            a hero picture for the first screen and pictures for one question&apos;s answers
+          </span>
+        </label>
+      ) : null}
       {groups.length > 0 ? (
         <label className={styles.formField}>
           <span>Project</span>

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CURRENT_SCHEMA_VERSION, ID_PATTERN } from './schema';
+import { CURRENT_SCHEMA_VERSION, ID_PATTERN, isHttpsUrl } from './schema';
 import type { Edge, FunnelDefinition, PuckData, Screen, ScreenType, Theme } from './schema';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -9,6 +9,7 @@ export const BRIEF_TONES = ['friendly', 'expert', 'bold', 'calm'] as const;
 export const MIN_BRIEF_QUESTIONS = 3;
 export const MAX_BRIEF_QUESTIONS = 15;
 export const MAX_OUTLINE_SCREENS = 40;
+export const MAX_BRIEF_OPTION_IMAGES = 6;
 
 export const briefSchema = z.object({
   product: z.string().trim().min(3).max(600),
@@ -20,6 +21,13 @@ export const briefSchema = z.object({
   language: z.string().trim().min(2).max(40),
   brandColor: z.string().regex(HEX).nullable().default(null),
   planKeys: z.array(z.string().min(1).max(100)).max(4).default([]),
+  logoUrl: z
+    .string()
+    .trim()
+    .max(2000)
+    .refine((v) => v === '' || isHttpsUrl(v), 'Use an https image URL.')
+    .default(''),
+  images: z.boolean().default(false),
 });
 export type Brief = z.infer<typeof briefSchema>;
 
@@ -474,6 +482,32 @@ export interface CompileInput {
   plans: BriefPlan[];
   allowed: (elementType: string, screenType: ScreenType) => boolean;
   newId: () => string;
+  images?: Record<string, string>;
+}
+
+export interface BriefImageTargets {
+  hero: OutlineScreen | null;
+  question: OutlineScreen | null;
+}
+
+export const heroImageKey = (screenKey: string) => `hero:${screenKey}`;
+export const optionImageKey = (screenKey: string, optionKey: string) =>
+  `option:${screenKey}:${optionKey}`;
+
+export function briefImageTargets(outline: Outline): BriefImageTargets {
+  const main = outline.screens.filter((s) => !s.branchOf);
+  const first = main[0];
+  return {
+    hero: first && (first.kind === 'intro' || first.kind === 'info') ? first : null,
+    question:
+      main.find(
+        (s) =>
+          s.kind === 'question' &&
+          s.question !== null &&
+          s.question.options.length >= 2 &&
+          s.question.options.length <= MAX_BRIEF_OPTION_IMAGES,
+      ) ?? null,
+  };
 }
 
 function hex(value: string | undefined | null, fallback: string): string {
@@ -582,6 +616,7 @@ export interface ScreenBuildContext {
   hasPaywall: boolean;
   allowed: (elementType: string, screenType: ScreenType) => boolean;
   newId: () => string;
+  images?: Record<string, string>;
 }
 
 export const optionIdFor = (key: string) => `opt_${key}`;
@@ -593,22 +628,29 @@ export function buildScreen(
   placement: { id: string; position: { x: number; y: number }; first: boolean },
 ): Screen {
   const { plans, hasPaywall, allowed, newId } = ctx;
+  const images = ctx.images ?? {};
   const elId = () => `el_${newId()}`;
   const selectedPlan = Math.min(plans.length, plans.length >= 3 ? 2 : 1);
   const structural = (): PuckItem | null => {
     if (s.kind === 'question' && s.question) {
+      const pictured = s.question.options.some((o) => images[optionImageKey(s.key, o.key)]);
+      const layout = bp?.optionsLayout ?? 'list';
       return {
         type: 'OptionList',
         props: {
           id: elId(),
           mode: s.question.mode,
-          layout: bp?.optionsLayout ?? 'list',
+          layout: pictured && layout === 'list' ? 'grid' : layout,
           question: '',
-          options: s.question.options.map((o) => ({
-            id: optionIdFor(o.key),
-            label: o.label,
-            ...(o.emoji ? { emoji: o.emoji } : {}),
-          })),
+          options: s.question.options.map((o) => {
+            const image = images[optionImageKey(s.key, o.key)];
+            return {
+              id: optionIdFor(o.key),
+              label: o.label,
+              ...(o.emoji && !image ? { emoji: o.emoji } : {}),
+              ...(image ? { image } : {}),
+            };
+          }),
         },
       };
     }
@@ -680,6 +722,11 @@ export function buildScreen(
   if (content.length === 0 || !content.some((c) => c.type === 'Text')) {
     content.unshift({ type: 'Text', props: { id: elId(), variant: 'title', text: s.title } });
   }
+  const hero = images[heroImageKey(s.key)];
+  if (hero && allowed('Image', type)) {
+    const title = content.findIndex((c) => c.type === 'Text');
+    content.splice(title + 1, 0, { type: 'Image', props: { id: elId(), src: hero, alt: '' } });
+  }
   const singleQuestion = s.kind === 'question' && s.question?.mode === 'single';
   const autoAdvances = content.some((c) => AUTO_ADVANCING.has(c.type));
   const needsButton =
@@ -725,6 +772,7 @@ export function compileFunnel(input: CompileInput): FunnelDefinition {
     hasPaywall: outline.screens.some((s) => s.kind === 'paywall'),
     allowed,
     newId,
+    images: input.images,
   };
 
   const screens: Screen[] = [];
@@ -795,7 +843,13 @@ export function compileFunnel(input: CompileInput): FunnelDefinition {
     backgroundColor: hex(draft?.backgroundColor, '#ffffff'),
     textColor: hex(draft?.textColor, '#111827'),
     screen: { fontFamily: draft?.font ?? 'sans', lineColor: primary },
+    ...(brief.logoUrl ? { logoUrl: brief.logoUrl } : {}),
   };
+  if (brief.logoUrl) {
+    for (const screen of screens) {
+      if (screen.type !== 'checkout') screen.header = { ...screen.header, showLogo: true };
+    }
+  }
 
   return {
     schemaVersion: CURRENT_SCHEMA_VERSION,

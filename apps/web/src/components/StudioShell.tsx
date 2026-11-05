@@ -267,6 +267,7 @@ export function StudioShell({
           {creating && ai && aiOptions ? (
             <BriefWizard
               plans={aiOptions.plans}
+              imagesEnabled={aiOptions.images}
               groups={groups}
               initialGroupId={createIn}
               onCancel={closeCreate}
