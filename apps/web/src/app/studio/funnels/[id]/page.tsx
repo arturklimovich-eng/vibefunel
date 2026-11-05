@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { FunnelEditor } from '@/components/FunnelEditor';
+import { aiChatEnabled, aiImagesEnabled, aiInlineEnabled } from '@/server/ai/registry';
 import { getStudioContext } from '@/server/repository';
 import { uiFont } from '../../ui-font';
 
@@ -19,6 +20,7 @@ export default async function EditFunnelPage({
   const { repo } = context;
   const [funnel, draft] = await Promise.all([repo.getFunnel(id), repo.getDraft(id)]);
   if (!funnel) notFound();
+  if (funnel.aiDraftExpiresAt) await repo.markFunnelOpened(id);
   if (!draft) {
     return (
       <main style={{ padding: '3rem 1rem', textAlign: 'center' }} role="alert">
@@ -35,6 +37,9 @@ export default async function EditFunnelPage({
         initialDefinition={draft.definition}
         initialRevision={draft.revision}
         initialMode={query.view === 'flow' ? 'flow' : 'editor'}
+        aiInline={aiInlineEnabled()}
+        aiImages={aiImagesEnabled()}
+        aiChat={aiChatEnabled()}
       />
     </div>
   );

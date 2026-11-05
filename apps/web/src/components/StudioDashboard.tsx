@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import type { StorageMode } from '@/lib/storage-mode';
 import type { FunnelGroup } from '@/server/funnel-repository';
 import type { Metric, OverviewRange, StudioOverview } from '@/server/studio-overview';
+import type { AiBriefOptions } from '@/server/ai/registry';
 import { StudioShell, firstName } from './StudioShell';
 import { SearchIcon } from './EditorIcons';
 import { usePendingPush } from './NavPending';
@@ -212,11 +213,13 @@ export function StudioDashboard({
   groups,
   storage,
   userEmail,
+  aiBrief,
 }: {
   overview: StudioOverview;
   groups: FunnelGroup[];
   storage: StorageMode;
   userEmail: string | null;
+  aiBrief: AiBriefOptions | null;
 }) {
   const pendingPush = usePendingPush();
   const [greeting, setGreeting] = useState<string | null>(null);
@@ -240,6 +243,7 @@ export function StudioDashboard({
       funnelCount={total}
       liveCount={overview.liveCount}
       groups={groups}
+      aiBrief={aiBrief}
       search={
         <form action="/studio/funnels" className={styles.search} role="search">
           <SearchIcon size={15} />

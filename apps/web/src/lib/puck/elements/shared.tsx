@@ -27,13 +27,7 @@ export function boxCss(style: ElementStyle): CSSProperties {
   return { ...boxStyle({ ...style, width: undefined }), ...textStyle(style) };
 }
 
-export function isHttps(value: string): boolean {
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
+export { isHttpsUrl as isHttps } from '@funnel/schema';
 
 export const text = (label?: string) => ({ type: 'text' as const, ...(label ? { label } : {}) });
 export const textarea = (label?: string) => ({

@@ -1,5 +1,6 @@
 'use client';
 
+import { imageField } from '../image-field';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { textStyle } from '@/lib/styles';
@@ -409,7 +410,7 @@ export const contentComponents: Components = {
     label: 'Video',
     fields: {
       src: text('Video URL (https, mp4 or webm)'),
-      poster: text('Poster image URL'),
+      poster: imageField('Poster image', '16:9'),
       autoplay: radio('Autoplay (muted)', [
         [true, 'On'],
         [false, 'Off'],

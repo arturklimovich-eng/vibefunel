@@ -4,6 +4,16 @@ export const FUNNELS_ROUTE = '/api/funnels';
 
 export const FUNNEL_GROUPS_ROUTE = '/api/funnel-groups';
 
+export const AI_ROUTES = {
+  briefOutline: '/api/ai/brief/outline',
+  briefGenerate: '/api/ai/brief/generate',
+  briefCancel: '/api/ai/brief/cancel',
+  inline: '/api/ai/inline',
+  images: '/api/ai/images',
+  chat: '/api/ai/chat',
+  assets: '/api/assets',
+} as const;
+
 export function funnelGroupRoute(id: string): string {
   return FUNNEL_GROUPS_ROUTE + '/' + encodeURIComponent(id);
 }

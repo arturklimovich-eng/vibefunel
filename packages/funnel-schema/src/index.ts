@@ -5,3 +5,7 @@ export * from './next-screen';
 export * from './migrate';
 export * from './seed';
 export * from './walk';
+export * from './brief';
+export * from './text-edits';
+export * from './patch';
+export * from './assistant';

@@ -1,6 +1,6 @@
 import 'server-only';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {
   MigrationError,
@@ -26,8 +26,11 @@ import {
   VersionUnreadableError,
 } from './funnel-repository';
 import { parseStoredDefinition } from './stored-definition';
-import { MAX_AUTO_RECHECKS } from './funnel-repository';
+import { MAX_AUTO_RECHECKS, MAX_LISTED_ASSETS } from './funnel-repository';
 import type {
+  AiUsageRecord,
+  Asset,
+  NewAsset,
   CustomDomain,
   DomainCheck,
   DomainMaintenance,
@@ -91,6 +94,8 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
   private readonly versionsDir: string;
   private readonly domainsDir: string;
   private readonly groupsDir: string;
+  private readonly aiUsageFile: string;
+  private readonly assetsDir: string;
   private readonly reported = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
 
@@ -100,6 +105,8 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     this.versionsDir = path.join(dataDir, 'versions');
     this.domainsDir = path.join(dataDir, 'domains');
     this.groupsDir = path.join(dataDir, 'groups');
+    this.aiUsageFile = path.join(dataDir, 'ai', 'usage.jsonl');
+    this.assetsDir = path.join(dataDir, 'assets');
   }
 
   private withLock<T>(task: () => Promise<T>): Promise<T> {
@@ -562,13 +569,115 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     });
   }
 
-  async createFunnel(name: string, slug: string, groupId: string | null = null): Promise<Funnel> {
+  async aiProjectId(groupId: string | null = null): Promise<string> {
+    if (groupId !== null) await this.requireGroup(groupId);
+    return 'local';
+  }
+
+  async recordAiUsage(record: AiUsageRecord): Promise<void> {
+    await mkdir(path.dirname(this.aiUsageFile), { recursive: true });
+    const line = JSON.stringify({ ...record, createdAt: new Date().toISOString() });
+    await appendFile(this.aiUsageFile, `${line}\n`, 'utf8');
+  }
+
+  async aiSpendSince(projectId: string, since: Date): Promise<number> {
+    let text: string;
+    try {
+      text = await readFile(this.aiUsageFile, 'utf8');
+    } catch (error) {
+      if (isNotFound(error)) return 0;
+      throw error;
+    }
+    let total = 0;
+    for (const line of text.split('\n')) {
+      if (line.trim() === '') continue;
+      try {
+        const row = JSON.parse(line) as {
+          projectId?: string;
+          createdAt?: string;
+          costMicroUsd?: number;
+        };
+        if (row.projectId !== projectId || !row.createdAt) continue;
+        if (new Date(row.createdAt) < since) continue;
+        total += typeof row.costMicroUsd === 'number' ? row.costMicroUsd : 0;
+      } catch {
+        continue;
+      }
+    }
+    return total;
+  }
+
+  async storeAsset(asset: NewAsset): Promise<Asset> {
+    const id = randomUUID();
+    const dir = path.join(this.assetsDir, asset.projectId);
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, `${id}.webp`), asset.data);
+    const stored: Asset = {
+      id,
+      projectId: asset.projectId,
+      funnelId: asset.funnelId,
+      url: `/api/assets/file/${encodeURIComponent(asset.projectId)}/${id}.webp`,
+      width: asset.width,
+      height: asset.height,
+      bytes: asset.data.byteLength,
+      source: asset.source,
+      prompt: asset.prompt,
+      createdAt: new Date().toISOString(),
+    };
+    await appendFile(
+      path.join(this.assetsDir, 'index.jsonl'),
+      `${JSON.stringify(stored)}\n`,
+      'utf8',
+    );
+    return stored;
+  }
+
+  async listAssets(projectId: string): Promise<Asset[]> {
+    let text: string;
+    try {
+      text = await readFile(path.join(this.assetsDir, 'index.jsonl'), 'utf8');
+    } catch (error) {
+      if (isNotFound(error)) return [];
+      throw error;
+    }
+    const out: Asset[] = [];
+    for (const line of text.split('\n')) {
+      if (line.trim() === '') continue;
+      try {
+        const row = JSON.parse(line) as Asset;
+        if (row.projectId === projectId) out.push(row);
+      } catch {
+        continue;
+      }
+    }
+    return out.reverse().slice(0, MAX_LISTED_ASSETS);
+  }
+
+  async readAssetFile(projectId: string, file: string): Promise<Buffer | null> {
+    if (!/^[A-Za-z0-9_-]{1,100}$/.test(projectId) || !/^[0-9a-f-]{36}\.webp$/.test(file)) {
+      return null;
+    }
+    try {
+      return await readFile(path.join(this.assetsDir, projectId, file));
+    } catch (error) {
+      if (isNotFound(error)) return null;
+      throw error;
+    }
+  }
+
+  async createFunnel(
+    name: string,
+    slug: string,
+    groupId: string | null = null,
+    initial?: FunnelDefinition,
+    aiDraftExpiresAt?: Date,
+  ): Promise<Funnel> {
     return this.withLock(async () => {
       if (groupId !== null) await this.requireGroup(groupId);
       const existing = await this.listFunnels();
       if (existing.some((f) => f.slug === slug)) throw new SlugTakenError(slug);
       const id = randomUUID();
-      const definition = createStarterFunnel();
+      const definition = initial ?? createStarterFunnel();
       const funnel: Funnel = {
         id,
         projectId: 'local',
@@ -579,6 +688,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
         draftVersionId: `${id}-draft`,
         publishedVersionId: null,
         draftRevision: 1,
+        aiDraftExpiresAt: aiDraftExpiresAt ? aiDraftExpiresAt.toISOString() : null,
       };
       const draft: FunnelVersion = {
         id: funnel.draftVersionId,
@@ -594,19 +704,47 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     });
   }
 
+  async markFunnelOpened(funnelId: string): Promise<void> {
+    return this.withLock(async () => {
+      const funnel = await this.requireFunnel(funnelId);
+      if (!funnel.aiDraftExpiresAt) return;
+      const updated: Funnel = { ...funnel, aiDraftExpiresAt: null };
+      await this.writeJson(path.join(this.funnelsDir, `${funnelId}.json`), updated);
+    });
+  }
+
+  async deleteExpiredAiDrafts(funnelIds: string[], now: Date): Promise<string[]> {
+    const wanted = new Set(funnelIds);
+    return this.withLock(async () => {
+      const expired = (await this.listFunnels()).filter(
+        (f) =>
+          wanted.has(f.id) &&
+          f.status === 'draft' &&
+          f.aiDraftExpiresAt &&
+          new Date(f.aiDraftExpiresAt) <= now,
+      );
+      for (const funnel of expired) await this.removeFunnelFiles(funnel.id);
+      return expired.map((f) => f.id);
+    });
+  }
+
   async deleteFunnel(funnelId: string): Promise<void> {
     return this.withLock(async () => {
       await this.requireFunnel(funnelId);
-      const versions = await this.listVersionSummaries(funnelId);
-      for (const version of versions) {
-        await rm(path.join(this.versionsDir, `${version.id}.json`), { force: true });
-      }
-      for (const domain of (await this.readAllDomains()).filter((d) => d.funnelId === funnelId)) {
-        await rm(path.join(this.domainsDir, `${domain.id}.json`), { force: true });
-      }
-      await rm(path.join(this.draftsDir, `${funnelId}.json`), { force: true });
-      await rm(path.join(this.funnelsDir, `${funnelId}.json`), { force: true });
+      await this.removeFunnelFiles(funnelId);
     });
+  }
+
+  private async removeFunnelFiles(funnelId: string): Promise<void> {
+    const versions = await this.listVersionSummaries(funnelId);
+    for (const version of versions) {
+      await rm(path.join(this.versionsDir, `${version.id}.json`), { force: true });
+    }
+    for (const domain of (await this.readAllDomains()).filter((d) => d.funnelId === funnelId)) {
+      await rm(path.join(this.domainsDir, `${domain.id}.json`), { force: true });
+    }
+    await rm(path.join(this.draftsDir, `${funnelId}.json`), { force: true });
+    await rm(path.join(this.funnelsDir, `${funnelId}.json`), { force: true });
   }
 
   async moveFunnel(funnelId: string, groupId: string | null): Promise<Funnel> {

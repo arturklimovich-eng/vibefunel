@@ -147,10 +147,20 @@ export const positionSchema = z.object({ x: z.number(), y: z.number() });
 export const MAX_URL_LENGTH = 2000;
 const urlStringSchema = z.string().max(MAX_URL_LENGTH);
 
+declare const process: { env: { NODE_ENV?: string } };
+
+const DEV_HTTP_HOSTS = new Set(['localhost', '127.0.0.1']);
+
 export function isHttpsUrl(value: string | undefined): value is string {
   if (!value) return false;
   try {
-    return new URL(value).protocol === 'https:';
+    const url = new URL(value);
+    if (url.protocol === 'https:') return true;
+    return (
+      url.protocol === 'http:' &&
+      DEV_HTTP_HOSTS.has(url.hostname) &&
+      process.env.NODE_ENV !== 'production'
+    );
   } catch {
     return false;
   }
@@ -292,6 +302,7 @@ export const funnelSchema = z.object({
   draftVersionId: z.string().min(1),
   publishedVersionId: z.string().min(1).nullable(),
   draftRevision: z.number().int().positive(),
+  aiDraftExpiresAt: z.string().nullable().optional(),
 });
 export type Funnel = z.infer<typeof funnelSchema>;
 

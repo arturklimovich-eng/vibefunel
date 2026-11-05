@@ -5,10 +5,12 @@ import type { CSSProperties } from 'react';
 import Image from 'next/image';
 import { z } from 'zod';
 import type { Config } from '@puckeditor/core';
+import { isHttpsUrl } from '@funnel/schema';
 import type { ScreenType } from '@funnel/schema';
 import { randomId } from '@/lib/ids';
 import { boxStyle, textStyle } from '@/lib/styles';
 import { framed, isEditingRender } from './frame';
+import { imageField } from './image-field';
 import { SELECTED_PLAN_KEY } from './element-schemas';
 import { allowedTypesFor } from './catalog';
 import { contentComponents } from './elements/content';
@@ -25,13 +27,7 @@ import { PlanField } from './PlanField';
 import { useRuntime } from './runtime-context';
 import styles from './blocks.module.css';
 
-export function isHttpsUrl(value: string): boolean {
-  try {
-    return new URL(value).protocol === 'https:';
-  } catch {
-    return false;
-  }
-}
+export { isHttpsUrl };
 
 const headingProps = z.object({ text: z.string(), level: z.enum(['1', '2', '3']).default('1') });
 const paragraphProps = z.object({ text: z.string() });
@@ -352,7 +348,7 @@ export const puckConfig: Config = {
     },
     Image: {
       label: 'Image',
-      fields: { src: { type: 'text', label: 'Image URL (https only)' }, alt: { type: 'text' } },
+      fields: { src: imageField('Image', '4:3'), alt: { type: 'text' } },
       defaultProps: { src: '', alt: '' },
       render: framed('Image', ImageBlock),
     },
@@ -384,7 +380,7 @@ export const puckConfig: Config = {
           arrayFields: {
             label: { type: 'text' },
             emoji: { type: 'text', label: 'Emoji' },
-            image: { type: 'text', label: 'Image URL (https)' },
+            image: imageField('Image', '1:1'),
             id: { type: 'text', label: 'Option id (used by conditions)' },
           },
           defaultItemProps: () => ({ id: newOptionId(), label: 'New option' }),

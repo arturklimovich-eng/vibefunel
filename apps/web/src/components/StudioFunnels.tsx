@@ -12,6 +12,7 @@ import type { FunnelRow, OverviewRange } from '@/server/studio-overview';
 import { DeleteFunnelButton } from './DeleteFunnelButton';
 import { DotsIcon, FlowIcon, FolderIcon, PenIcon, PlusIcon, SearchIcon } from './EditorIcons';
 import { NUMBER, formatMoney } from './StudioDashboard';
+import type { AiBriefOptions } from '@/server/ai/registry';
 import { StudioShell, useStudioShell } from './StudioShell';
 import styles from './StudioDashboard.module.css';
 
@@ -27,6 +28,11 @@ const NONE = 'none';
 const ALL = 'all';
 
 type Filter = typeof ALL | typeof NONE | string;
+
+function aiDraftDaysLeft(expiresAt: string): string {
+  const days = Math.max(0, Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86_400_000));
+  return days <= 1 ? 'deleted within a day unless opened' : `deleted in ${days} days unless opened`;
+}
 
 function useFloatingMenu() {
   const [at, setAt] = useState<{ top: number; right: number } | null>(null);
@@ -229,12 +235,14 @@ export function StudioFunnels({
   liveCount,
   initialQuery,
   initialFilter,
+  aiBrief,
 }: {
   funnels: FunnelRow[];
   groups: FunnelGroup[];
   range: OverviewRange;
   storage: StorageMode;
   userEmail: string | null;
+  aiBrief: AiBriefOptions | null;
   liveCount: number;
   initialQuery: string;
   initialFilter: string;
@@ -435,6 +443,7 @@ export function StudioFunnels({
       funnelCount={total}
       liveCount={liveCount}
       groups={groups}
+      aiBrief={aiBrief}
       search={
         <label className={styles.search}>
           <SearchIcon size={15} />
@@ -663,6 +672,14 @@ export function StudioFunnels({
                               <span className={styles.status} data-live={row.live}>
                                 <i /> {row.live ? 'Live' : 'Draft'}
                               </span>
+                              {row.aiDraftExpiresAt ? (
+                                <small
+                                  className={styles.aiDraft}
+                                  title="Generated while you were away. Open it to keep it."
+                                >
+                                  AI draft · {aiDraftDaysLeft(row.aiDraftExpiresAt)}
+                                </small>
+                              ) : null}
                             </td>
                             <td>{NUMBER.format(row.leads)}</td>
                             <td>{NUMBER.format(row.paid)}</td>

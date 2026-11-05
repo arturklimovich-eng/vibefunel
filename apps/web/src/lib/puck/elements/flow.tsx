@@ -1,5 +1,6 @@
 'use client';
 
+import { imageField } from '../image-field';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
@@ -592,7 +593,7 @@ export const flowComponents: Components = {
           name: text('Name'),
           rating: number('Rating (0-5)', 0, 5),
           text: textarea('Review'),
-          avatar: text('Avatar URL (https)'),
+          avatar: imageField('Avatar', '1:1'),
         },
         defaultItemProps: { name: 'Alex', rating: 5, text: 'Loved it!', avatar: '' },
         getItemSummary: (item) => item.name || 'Review',
@@ -623,7 +624,7 @@ export const flowComponents: Components = {
       items: {
         type: 'array',
         arrayFields: {
-          image: text('Image URL (https)'),
+          image: imageField('Image', '1:1'),
           title: text('Title'),
           caption: text('Caption'),
         },

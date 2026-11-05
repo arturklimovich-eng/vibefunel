@@ -25,18 +25,25 @@ import {
   MAX_TITLE_LENGTH,
   PROGRESS_TYPES,
   SCREEN_TYPES,
+  applyPatch,
+  applyPropsTextEdits,
+  applyTextEdits,
+  elementTextFields,
   isQuizScreen,
   quizOf,
+  screenTextFields,
 } from '@funnel/schema';
 import type {
   Condition,
   Edge,
   Funnel,
   FunnelDefinition,
+  FunnelPatch,
   PuckData,
   Screen,
   ScreenHeader,
   ScreenType,
+  TextEdit,
 } from '@funnel/schema';
 import { funnelRoutes, readJson } from '@/lib/api-routes';
 import { randomId } from '@/lib/ids';
@@ -106,6 +113,9 @@ import {
   TrashIcon,
   Undo,
 } from './EditorIcons';
+import { ImageAssetsProvider } from './ai/ImageAssets';
+import { ImageField } from './ai/ImageField';
+import { InlineAi } from './ai/InlineAi';
 import styles from './FunnelEditor.module.css';
 import shell from './EditorShell.module.css';
 
@@ -266,11 +276,17 @@ export function FunnelEditor({
   initialDefinition,
   initialRevision,
   initialMode = 'editor',
+  aiInline = false,
+  aiImages = false,
+  aiChat = false,
 }: {
   funnel: Funnel;
   initialDefinition: FunnelDefinition;
   initialRevision: number;
   initialMode?: Mode;
+  aiInline?: boolean;
+  aiImages?: boolean;
+  aiChat?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string>(initialDefinition.startScreenId);
   const [pending, setPending] = useState<PendingConnection | null>(null);
@@ -988,6 +1004,55 @@ export function FunnelEditor({
       </ul>
     ) : null;
 
+  const applyAssistantPatch = (patch: FunnelPatch) => {
+    if (patch.length === 0) return;
+    commandsRef.current?.deselect();
+    mutate((d) => applyPatch(d, patch));
+    setContentEpoch((n) => n + 1);
+  };
+
+  const applyScreenTextEdits = (edits: TextEdit[]) => {
+    if (edits.length === 0) return;
+    commandsRef.current?.deselect();
+    mutate((d) => applyTextEdits(d, edits));
+    setContentEpoch((n) => n + 1);
+  };
+
+  const elementAi =
+    aiInline && bridge.selection && selected
+      ? (() => {
+          const selection = bridge.selection;
+          const fields = elementTextFields(
+            selected.id,
+            selection.id,
+            selection.type,
+            selection.props,
+          );
+          const context = screenTextFields(selected)
+            .filter((f) => f.elementId !== selection.id)
+            .map((f) => f.value)
+            .slice(0, 40);
+          return (
+            <InlineAi
+              key={`element-${selection.id}`}
+              funnelId={funnel.id}
+              scope="element"
+              fields={fields}
+              context={context}
+              screenTitle={selected.title}
+              onApply={(edits) => {
+                const next = applyPropsTextEdits(selection.props, edits);
+                const patch: Record<string, unknown> = {};
+                for (const key of Object.keys(next)) {
+                  if (next[key] !== selection.props[key]) patch[key] = next[key];
+                }
+                if (Object.keys(patch).length > 0) commandsRef.current?.updateProps(patch);
+              }}
+            />
+          );
+        })()
+      : null;
+
   const screenParameters = selected ? (
     <div className={shell.paramBody}>
       <div className={shell.paramGroup}>
@@ -1075,21 +1140,17 @@ export function FunnelEditor({
         {selectedHeader.showLogo && !definition.theme.logoUrl ? (
           <p className={shell.muted}>Set the logo URL in Styles.</p>
         ) : null}
-        <label className={shell.paramRow}>
+        <div className={shell.paramRow}>
           <span className={shell.paramLabel}>Image</span>
-          <input
-            className={shell.input}
-            type="url"
-            placeholder="https://…"
-            maxLength={2000}
+          <ImageField
+            label="Header image"
+            aspect="16:9"
             value={selectedHeader.imageUrl ?? ''}
-            onChange={(e) =>
-              updateHeader(selected.id, {
-                imageUrl: e.target.value === '' ? undefined : e.target.value,
-              })
+            onChange={(url) =>
+              updateHeader(selected.id, { imageUrl: url === '' ? undefined : url })
             }
           />
-        </label>
+        </div>
         <label className={shell.paramRow}>
           <span className={shell.paramLabel}>Alt Text</span>
           <input
@@ -1252,6 +1313,19 @@ export function FunnelEditor({
         </div>
       </details>
 
+      {aiInline ? (
+        <InlineAi
+          key={`screen-${selected.id}`}
+          funnelId={funnel.id}
+          scope="screen"
+          fields={screenTextFields(selected)}
+          context={[]}
+          screenTitle={selected.title}
+          screens={definition.screens}
+          onApply={applyScreenTextEdits}
+        />
+      ) : null}
+
       <div className={shell.paramGroup}>
         <button
           type="button"
@@ -1265,885 +1339,901 @@ export function FunnelEditor({
   ) : null;
 
   return (
-    <div className={shell.app} data-narrow-panel={narrowPanel}>
-      <header className={shell.topbar}>
-        <div className={shell.brandArea}>
-          <NavLink
-            href="/studio"
-            className={shell.iconBtn}
-            aria-label="Back to studio"
-            onClick={(event) => {
-              if (
-                dirty &&
-                (hasConflict || saveState === 'error') &&
-                !window.confirm('You have unsaved changes that could not be saved. Leave anyway?')
-              ) {
-                event.preventDefault();
-              }
-            }}
-          >
-            <ChevronLeft size={18} />
-          </NavLink>
-          <span className={shell.logo}>
-            <LogoMark size={16} />
-          </span>
-          <h1 className={shell.funnelName} title={funnel.name}>
-            {funnel.name}
-          </h1>
-          <span
-            className={shell.saveStatus}
-            data-tone={shortStatus.tone}
-            title={statusText}
-            role="status"
-            aria-live="polite"
-          >
-            <span className={shell.saveDot} aria-hidden="true" />
-            {shortStatus.text}
-            <span className={shell.srOnly}>: {statusText}</span>
-          </span>
-        </div>
-        <div className={shell.topActions}>
-          {issues.length > 0 ? (
-            <button
-              type="button"
-              className={shell.issuesChip}
-              data-tone={errorCount > 0 ? 'bad' : 'warn'}
-              onClick={() => {
-                commandsRef.current?.deselect();
-                setRightTab('parameters');
-                setNarrowPanel('inspector');
+    <ImageAssetsProvider funnelId={funnel.id} canGenerate={aiImages}>
+      <div className={shell.app} data-narrow-panel={narrowPanel}>
+        <header className={shell.topbar}>
+          <div className={shell.brandArea}>
+            <NavLink
+              href="/studio"
+              className={shell.iconBtn}
+              aria-label="Back to studio"
+              onClick={(event) => {
+                if (
+                  dirty &&
+                  (hasConflict || saveState === 'error') &&
+                  !window.confirm('You have unsaved changes that could not be saved. Leave anyway?')
+                ) {
+                  event.preventDefault();
+                }
               }}
             >
-              {errorCount > 0 ? `${errorCount} error${errorCount === 1 ? '' : 's'}` : null}
-              {errorCount > 0 && warningCount > 0 ? ' · ' : null}
-              {warningCount > 0 ? `${warningCount} warning${warningCount === 1 ? '' : 's'}` : null}
-            </button>
-          ) : null}
-          {publishedSlug ? (
-            <Link href={`/f/${publishedSlug}`} target="_blank" className={shell.liveLink}>
-              Live <ExternalIcon size={13} />
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            className={shell.iconBtn}
-            aria-label="Funnel settings"
-            title="Funnel settings"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <GearIcon />
-          </button>
-          <button type="button" className={shell.outlineBtn} onClick={() => setPreviewOpen(true)}>
-            <EyeIcon /> Preview
-          </button>
-          <button
-            type="button"
-            className={shell.primaryBtn}
-            onClick={() => void publish()}
-            disabled={busy || hasConflict}
-          >
-            {publishing ? 'Publishing...' : 'Publish'}
-          </button>
-        </div>
-      </header>
-
-      {hasConflict ? (
-        <div className={shell.banner} role="alert">
-          <span>
-            <strong>Conflict.</strong> This funnel was changed in another tab or session, so your
-            latest edits were not saved. Reload to get the newest version (unsaved edits here will
-            be lost).
-          </span>
-          <button type="button" className={shell.primaryBtn} onClick={reloadLatest}>
-            Reload latest
-          </button>
-        </div>
-      ) : null}
-
-      <div
-        ref={bodyRef}
-        className={shell.body}
-        data-resizing={resizing ?? undefined}
-        style={
-          {
-            ...(panelWidths.left !== null ? { '--left-w': `${panelWidths.left}px` } : {}),
-            ...(panelWidths.right !== null ? { '--right-w': `${panelWidths.right}px` } : {}),
-          } as CSSProperties
-        }
-      >
-        <aside
-          ref={leftRef}
-          className={shell.left}
-          data-panel="screens"
-          aria-label="Screens and elements"
-        >
-          {resizeHandle('left')}
-          <div className={shell.tabs} role="tablist" aria-label="Left panel">
-            <button
-              type="button"
-              role="tab"
-              className={shell.tab}
-              aria-selected={leftTab === 'screens'}
-              onClick={() => setLeftTab('screens')}
+              <ChevronLeft size={18} />
+            </NavLink>
+            <span className={shell.logo}>
+              <LogoMark size={16} />
+            </span>
+            <h1 className={shell.funnelName} title={funnel.name}>
+              {funnel.name}
+            </h1>
+            <span
+              className={shell.saveStatus}
+              data-tone={shortStatus.tone}
+              title={statusText}
+              role="status"
+              aria-live="polite"
             >
-              Screens <span className={shell.tabCount}>{definition.screens.length}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={shell.tab}
-              aria-selected={leftTab === 'elements'}
-              onClick={() => {
-                setLeftTab('elements');
-                setMode('editor');
-              }}
-            >
-              Elements <span className={shell.tabCount}>{elementCount}</span>
-            </button>
-          </div>
-
-          <div className={shell.leftScroll} hidden={leftTab !== 'screens'}>
-            <label className={shell.search}>
-              <SearchIcon size={14} />
-              <input
-                type="search"
-                placeholder="Find screens..."
-                aria-label="Find screens"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-            </label>
-            <ol className={shell.screenList} onKeyDown={onScreenListKeyDown}>
-              {visibleScreens.map((screen, visibleIndex) => {
-                const groupName = screen.group?.trim() ?? '';
-                const prevGroup = visibleScreens[visibleIndex - 1]?.group?.trim() ?? '';
-                const groupLabel =
-                  groupName !== '' && groupName !== prevGroup ? (
-                    <li key={`group-${screen.id}`} className={shell.groupLabel} aria-hidden="true">
-                      <UsersIcon size={12} /> {groupName}
-                    </li>
-                  ) : null;
-                const index = definition.screens.indexOf(screen);
-                const meta = SCREEN_META[screen.type];
-                const severity = severityByScreen.get(screen.id);
-                const isSelected = screen.id === selected?.id;
-                const isRenaming = renaming?.id === screen.id;
-                const menuOpen = screenMenu?.id === screen.id;
-                const thumb = (
-                  <span className={shell.thumb} aria-hidden="true">
-                    <span className={shell.thumbIsland} />
-                    <span className={shell.thumbAccent} />
-                    <span className={shell.thumbLine} />
-                    <span className={shell.thumbLineShort} />
-                    <span className={shell.thumbCta} />
-                  </span>
-                );
-                const metaLine = (
-                  <span className={shell.screenMeta}>
-                    {index + 1} · /{screen.id}
-                    {screen.id === definition.startScreenId ? (
-                      <span className={shell.startBadge}>Start</span>
-                    ) : null}
-                  </span>
-                );
-                return [
-                  groupLabel,
-                  <li
-                    key={screen.id}
-                    className={shell.screenRow}
-                    data-screen-id={screen.id}
-                    data-grouped={groupName !== ''}
-                    data-selected={isSelected}
-                    data-menu-open={menuOpen}
-                    data-dragging={dragId === screen.id}
-                    draggable={normalizedQuery === '' && !isRenaming}
-                    onDragStart={(e) => {
-                      setDragId(screen.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragEnd={() => setDragId(null)}
-                    onDragOver={(e) => {
-                      if (dragId) e.preventDefault();
-                    }}
-                    onDrop={(e) => onRowDrop(e, screen.id)}
-                    onContextMenu={(e) => {
-                      if (isRenaming) return;
-                      e.preventDefault();
-                      selectScreen(screen.id);
-                      openScreenMenu(screen.id, e.clientX, e.clientY);
-                    }}
-                    style={{ '--type-color': meta.color } as CSSProperties}
-                  >
-                    {isRenaming ? (
-                      <div className={shell.screenMain} data-renaming="true">
-                        {thumb}
-                        <span className={shell.screenText}>
-                          <input
-                            className={shell.renameInput}
-                            aria-label="Screen name"
-                            maxLength={200}
-                            autoFocus
-                            value={renaming.draft}
-                            onFocus={(e) => e.currentTarget.select()}
-                            onChange={(e) => setRenaming({ id: screen.id, draft: e.target.value })}
-                            onBlur={commitRename}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') commitRename();
-                              if (e.key === 'Escape') setRenaming(null);
-                            }}
-                          />
-                          {metaLine}
-                        </span>
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        className={shell.screenMain}
-                        aria-current={isSelected ? 'true' : undefined}
-                        onClick={() => openScreen(screen.id)}
-                        onDoubleClick={() => setMode('editor')}
-                      >
-                        {thumb}
-                        <span className={shell.screenText}>
-                          <span className={shell.screenTitle}>
-                            {screen.title || screen.id}
-                            {severity ? (
-                              <span
-                                className={shell.severityDot}
-                                data-severity={severity}
-                                aria-label={`has ${severity}s`}
-                                role="img"
-                              />
-                            ) : null}
-                          </span>
-                          {metaLine}
-                        </span>
-                      </button>
-                    )}
-                    <div className={shell.menuHost} data-menu>
-                      <button
-                        type="button"
-                        className={shell.rowMenuBtn}
-                        aria-label={`Actions for ${screen.title || screen.id}`}
-                        aria-haspopup="menu"
-                        aria-expanded={menuOpen}
-                        onClick={(e) => {
-                          if (menuOpen) {
-                            setScreenMenu(null);
-                            return;
-                          }
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          openScreenMenu(screen.id, rect.right - MENU_WIDTH, rect.bottom + 4);
-                        }}
-                      >
-                        <DotsIcon />
-                      </button>
-                    </div>
-                  </li>,
-                ];
-              })}
-            </ol>
-            {visibleScreens.length === 0 ? (
-              <p className={shell.emptyNote}>No screens match "{query}".</p>
-            ) : null}
-          </div>
-
-          <div className={shell.leftScroll} hidden={leftTab !== 'elements' || addingElement}>
-            <div ref={outlineSlotRef} className={shell.outlineSlot} />
-          </div>
-          <div className={shell.leftScroll} hidden={leftTab !== 'elements' || !addingElement}>
-            <div className={shell.addTitle}>
-              <button
-                type="button"
-                className={shell.iconBtn}
-                aria-label="Close add element"
-                onClick={() => setAddingElement(false)}
-              >
-                <CloseIcon size={14} />
-              </button>
-              <h3>Add Element</h3>
-            </div>
-            <div ref={blocksSlotRef} className={shell.blocksSlot} />
-          </div>
-
-          <div className={shell.leftFoot} hidden={leftTab !== 'elements' || addingElement}>
-            <button
-              type="button"
-              className={shell.footWide}
-              onClick={() => {
-                setAddingElement(true);
-                setMode('editor');
-              }}
-            >
-              <PlusIcon size={14} /> Add element
-            </button>
-          </div>
-
-          <div className={shell.leftFoot} hidden={leftTab !== 'screens'}>
-            <div className={shell.menuHost} data-menu>
-              <button
-                type="button"
-                className={shell.footPrimary}
-                aria-expanded={addMenu === 'bottom'}
-                onClick={() => setAddMenu((m) => (m === 'bottom' ? null : 'bottom'))}
-              >
-                <PlusIcon size={14} /> Screen
-              </button>
-              {addMenuList('bottom')}
-            </div>
-            <button
-              type="button"
-              className={shell.footGhost}
-              disabled={!selected}
-              onClick={addGroup}
-              title="Put the selected screen into a new group"
-            >
-              <UsersIcon size={14} /> Group
-            </button>
-          </div>
-        </aside>
-
-        <main className={shell.center} data-panel="main">
-          <NavOverlay />
-          <div className={shell.stageTools} data-side="left">
-            <div className={shell.toolGroup}>
-              <button
-                type="button"
-                className={shell.toolBtn}
-                aria-label="Undo"
-                disabled={mode !== 'editor' || !bridge.canUndo}
-                onClick={() => commandsRef.current?.undo()}
-              >
-                <Undo size={15} />
-              </button>
-              <button
-                type="button"
-                className={shell.toolBtn}
-                aria-label="Redo"
-                disabled={mode !== 'editor' || !bridge.canRedo}
-                onClick={() => commandsRef.current?.redo()}
-              >
-                <Redo size={15} />
-              </button>
-            </div>
-          </div>
-          <div className={shell.stageTools} data-side="right">
-            <button
-              type="button"
-              className={shell.localizeBtn}
-              disabled
-              title="Localization is coming soon"
-            >
-              <TranslateIcon size={14} /> Localize
-            </button>
-            <span className={shell.stageMeta}>
-              {mode === 'editor'
-                ? `${selectedIndex + 1} / ${definition.screens.length} · ${selected?.title ?? ''}`
-                : `${definition.screens.length} screens · ${definition.edges.length} connections`}
+              <span className={shell.saveDot} aria-hidden="true" />
+              {shortStatus.text}
+              <span className={shell.srOnly}>: {statusText}</span>
             </span>
           </div>
-
-          <div className={shell.flowStage}>
-            <ScreenCanvas
-              definition={canvasDefinition}
-              mode={mode}
-              selectedId={selected?.id}
-              showPill={!elementMode}
-              onEditHost={setEditHost}
-              typeMeta={typeMeta}
-              severityKey={severityKey}
-              describeEdge={describeEdge}
-              onFocusScreen={focusScreen}
-              onConnect={stableConnect}
-            />
-            {editHost ? createPortal(renderEditing(), editHost) : null}
-            {pending && pendingSource ? (
-              <div className={shell.pendingCard} role="dialog" aria-label="New connection">
-                <strong>
-                  Connect {pendingSource.title} to{' '}
-                  {screensById.get(pending.target)?.title ?? pending.target}
-                </strong>
-                <div className={shell.inlineFields}>
-                  <ConditionPicker
-                    source={pendingSource}
-                    value={pending.choice}
-                    onChange={(choice) => setPending({ ...pending, choice })}
-                  />
-                </div>
-                <div className={shell.pendingActions}>
-                  <button
-                    type="button"
-                    className={shell.outlineBtn}
-                    onClick={() => setPending(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="button" className={shell.primaryBtn} onClick={confirmPending}>
-                    Add connection
-                  </button>
-                </div>
-              </div>
-            ) : null}
-            {mode === 'editor' ? (
-              <p className={shell.canvasHint}>
-                {bridge.selection
-                  ? `Editing ${bridge.selection.label} · click the empty screen area to edit the screen`
-                  : 'Click any element to edit it · Canvas zooms out to the whole funnel'}
-              </p>
-            ) : null}
-          </div>
-
-          <div className={shell.rail} role="toolbar" aria-label="Assistant tools">
-            <button
-              type="button"
-              className={shell.railBtn}
-              aria-label="AI assistant"
-              title="AI assistant"
-              aria-pressed={assistantOpen}
-              onClick={() => {
-                setAssistantOpen((v) => !v);
-                setNarrowPanel('inspector');
-              }}
-            >
-              <MagicIcon size={16} />
-            </button>
-            <button
-              type="button"
-              className={shell.railBtn}
-              aria-label="Styles"
-              title="Styles"
-              aria-pressed={!assistantOpen && rightTab === 'styles'}
-              onClick={() => {
-                setAssistantOpen(false);
-                setRightTab((t) =>
-                  assistantOpen ? 'styles' : t === 'styles' ? 'parameters' : 'styles',
-                );
-                setNarrowPanel('inspector');
-              }}
-            >
-              <SlidersIcon size={16} />
-            </button>
-            <button
-              type="button"
-              className={shell.railBtn}
-              aria-label="Comments (coming soon)"
-              title="Comments (coming soon)"
-              disabled
-            >
-              <ChatIcon size={16} />
-            </button>
-          </div>
-
-          <div className={shell.viewSwitch} role="group" aria-label="View">
-            <button
-              type="button"
-              className={shell.viewBtn}
-              aria-pressed={mode === 'flow'}
-              onClick={() => setMode('flow')}
-            >
-              <GridIcon size={14} /> Canvas
-            </button>
-            <button
-              type="button"
-              className={shell.viewBtn}
-              aria-pressed={mode === 'editor'}
-              onClick={() => setMode('editor')}
-            >
-              <PhoneIcon size={14} /> Screen
-            </button>
-          </div>
-
-          {notice ? (
-            <div className={shell.toast} role="status">
-              <span>{notice}</span>
+          <div className={shell.topActions}>
+            {issues.length > 0 ? (
               <button
                 type="button"
-                className={shell.iconBtn}
-                aria-label="Dismiss"
-                onClick={() => setNotice(null)}
+                className={shell.issuesChip}
+                data-tone={errorCount > 0 ? 'bad' : 'warn'}
+                onClick={() => {
+                  commandsRef.current?.deselect();
+                  setRightTab('parameters');
+                  setNarrowPanel('inspector');
+                }}
               >
-                <CloseIcon size={14} />
+                {errorCount > 0 ? `${errorCount} error${errorCount === 1 ? '' : 's'}` : null}
+                {errorCount > 0 && warningCount > 0 ? ' · ' : null}
+                {warningCount > 0
+                  ? `${warningCount} warning${warningCount === 1 ? '' : 's'}`
+                  : null}
+              </button>
+            ) : null}
+            {publishedSlug ? (
+              <Link href={`/f/${publishedSlug}`} target="_blank" className={shell.liveLink}>
+                Live <ExternalIcon size={13} />
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className={shell.iconBtn}
+              aria-label="Funnel settings"
+              title="Funnel settings"
+              onClick={() => setSettingsOpen(true)}
+            >
+              <GearIcon />
+            </button>
+            <button type="button" className={shell.outlineBtn} onClick={() => setPreviewOpen(true)}>
+              <EyeIcon /> Preview
+            </button>
+            <button
+              type="button"
+              className={shell.primaryBtn}
+              onClick={() => void publish()}
+              disabled={busy || hasConflict}
+            >
+              {publishing ? 'Publishing...' : 'Publish'}
+            </button>
+          </div>
+        </header>
+
+        {hasConflict ? (
+          <div className={shell.banner} role="alert">
+            <span>
+              <strong>Conflict.</strong> This funnel was changed in another tab or session, so your
+              latest edits were not saved. Reload to get the newest version (unsaved edits here will
+              be lost).
+            </span>
+            <button type="button" className={shell.primaryBtn} onClick={reloadLatest}>
+              Reload latest
+            </button>
+          </div>
+        ) : null}
+
+        <div
+          ref={bodyRef}
+          className={shell.body}
+          data-resizing={resizing ?? undefined}
+          style={
+            {
+              ...(panelWidths.left !== null ? { '--left-w': `${panelWidths.left}px` } : {}),
+              ...(panelWidths.right !== null ? { '--right-w': `${panelWidths.right}px` } : {}),
+            } as CSSProperties
+          }
+        >
+          <aside
+            ref={leftRef}
+            className={shell.left}
+            data-panel="screens"
+            aria-label="Screens and elements"
+          >
+            {resizeHandle('left')}
+            <div className={shell.tabs} role="tablist" aria-label="Left panel">
+              <button
+                type="button"
+                role="tab"
+                className={shell.tab}
+                aria-selected={leftTab === 'screens'}
+                onClick={() => setLeftTab('screens')}
+              >
+                Screens <span className={shell.tabCount}>{definition.screens.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={shell.tab}
+                aria-selected={leftTab === 'elements'}
+                onClick={() => {
+                  setLeftTab('elements');
+                  setMode('editor');
+                }}
+              >
+                Elements <span className={shell.tabCount}>{elementCount}</span>
               </button>
             </div>
-          ) : null}
-        </main>
 
-        <aside ref={rightRef} className={shell.right} data-panel="inspector" aria-label="Settings">
-          {resizeHandle('right')}
-          <AssistantPanel
-            hidden={!assistantOpen}
-            definition={definition}
-            selected={selected}
-            typeMeta={typeMeta}
-            issues={issues}
-            issueScreenId={issueScreenId}
-            onSelectScreen={(id) => {
-              selectScreen(id);
-              commandsRef.current?.deselect();
-            }}
-            onClose={() => setAssistantOpen(false)}
-          />
-          <div
-            className={shell.tabs}
-            role="tablist"
-            aria-label="Right panel"
-            style={assistantOpen ? { display: 'none' } : undefined}
-          >
-            <button
-              type="button"
-              role="tab"
-              className={shell.tab}
-              aria-selected={rightTab === 'parameters'}
-              onClick={() => setRightTab('parameters')}
-            >
-              Parameters
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={shell.tab}
-              aria-selected={rightTab === 'styles'}
-              onClick={() => setRightTab('styles')}
-            >
-              Styles
-            </button>
-          </div>
-          <div
-            className={shell.inspectorScroll}
-            style={assistantOpen ? { display: 'none' } : undefined}
-          >
-            {elementMode && bridge.selection && selected ? (
-              <ElementInspector
-                key={bridge.selection.id}
-                element={bridge.selection}
-                tab={rightTab}
-                screen={selected}
-                screens={definition.screens}
-                theme={definition.theme}
-                fieldsSlotRef={fieldsSlotRef}
-                onBack={() => commandsRef.current?.deselect()}
-                onUpdate={(patch) => commandsRef.current?.updateProps(patch)}
-                onSaveToTheme={(key, style) =>
-                  mutate((d) => ({
-                    ...d,
-                    theme: {
-                      ...d.theme,
-                      elements: {
-                        ...d.theme.elements,
-                        [key]: { ...d.theme.elements?.[key], ...style },
-                      },
-                    },
-                  }))
-                }
-                onDuplicate={() => commandsRef.current?.duplicate()}
-                onDelete={() => commandsRef.current?.remove()}
-              />
-            ) : (
-              <>
-                <div hidden={rightTab !== 'parameters'}>
-                  <div className={shell.inspectorHead}>
-                    <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
-                      {selected?.title ?? 'Screen'}
-                    </h2>
-                  </div>
-                  {screenParameters}
-                  {mode === 'flow' || issues.length > 0 ? (
-                    <div className={shell.validationWrap}>
-                      <ValidationPanel
-                        issues={issues}
-                        checked={saver.timestamp !== null}
-                        canSelect={(issue) => issueScreenId(issue) !== undefined}
-                        onSelect={selectIssue}
-                      />
-                    </div>
-                  ) : null}
-                </div>
-                <div hidden={rightTab !== 'styles'}>
-                  <div className={shell.inspectorHead}>
-                    <h2 className={shell.panelTitle}>{selected?.title ?? 'Screen'}</h2>
-                  </div>
-                  {selected ? (
-                    <ScreenStyles
-                      style={selected.style}
-                      inherited={inheritedScreenStyle(definition.theme)}
-                      theme={definition.theme}
-                      saveLabel="Save as theme default for all screens"
-                      onChange={(style) => updateScreen(selected.id, { style })}
-                      onSave={() => {
-                        const style = selected.style;
-                        mutate((d) => ({
-                          ...d,
-                          theme: { ...d.theme, screen: { ...d.theme.screen, ...style } },
-                          screens: d.screens.map((sc) =>
-                            sc.id === selected.id ? { ...sc, style: undefined } : sc,
-                          ),
-                        }));
-                      }}
-                    />
-                  ) : null}
-                  <p className={shell.stylesNote}>
-                    ⚡ marks values changed on this screen. The whole theme (colors, logo, element
-                    and screen defaults) is in Funnel settings → Theme.
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </aside>
-      </div>
-
-      <nav className={shell.narrowNav} aria-label="Editor panels">
-        {NARROW_TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            className={shell.narrowTab}
-            aria-pressed={narrowPanel === t.id}
-            onClick={() => setNarrowPanel(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
-
-      {screenMenu && screensById.has(screenMenu.id) ? (
-        <div
-          className={shell.contextMenu}
-          data-menu
-          role="menu"
-          aria-label={screenMenu.insert ? 'Screen type' : 'Screen actions'}
-          style={{ left: screenMenu.x, top: screenMenu.y, width: MENU_WIDTH }}
-        >
-          {screenMenu.insert ? (
-            <>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextBack}
-                onClick={() => setScreenMenu({ ...screenMenu, insert: undefined })}
-              >
-                <ChevronLeft size={14} /> Insert {screenMenu.insert}
-              </button>
-              <div className={shell.contextSep} role="separator" />
-              {ADD_CHOICES.map((c) => (
-                <button
-                  key={c.key}
-                  type="button"
-                  role="menuitem"
-                  className={shell.contextItem}
-                  onClick={() => {
-                    const place = screenMenu.insert ?? 'after';
-                    setScreenMenu(null);
-                    insertNewScreen(screenMenu.id, place, c.type, c.quiz);
-                  }}
-                >
-                  <span
-                    className={shell.menuSwatch}
-                    style={{ background: SCREEN_META[c.type].color }}
-                  />
-                  {c.label}
-                  <span className={shell.menuHint}>{c.hint}</span>
-                </button>
-              ))}
-            </>
-          ) : (
-            <>
-              <div className={shell.contextLabel}>Insert</div>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                onClick={() => setScreenMenu({ ...screenMenu, insert: 'before' })}
-              >
-                <InsertBeforeIcon size={15} /> Before
-                <ChevronRight size={13} className={shell.contextChevron} />
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                onClick={() => setScreenMenu({ ...screenMenu, insert: 'after' })}
-              >
-                <InsertAfterIcon size={15} /> After
-                <ChevronRight size={13} className={shell.contextChevron} />
-              </button>
-              <div className={shell.contextSep} role="separator" />
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                onClick={() => startRename(screenMenu.id)}
-              >
-                <RenameIcon size={15} /> Rename
-                <kbd className={shell.contextKbd}>F2</kbd>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                onClick={() => copyScreen(screenMenu.id)}
-              >
-                <CopyIcon size={15} /> Copy
-                <kbd className={shell.contextKbd}>{modKey}C</kbd>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                onClick={() => duplicateScreen(screenMenu.id)}
-              >
-                <DuplicateIcon size={15} /> Duplicate
-                <kbd className={shell.contextKbd}>{modKey}D</kbd>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                disabled={!clipboard}
-                onClick={() => pasteScreen(screenMenu.id)}
-              >
-                <PasteIcon size={15} /> Paste
-                <kbd className={shell.contextKbd}>{modKey}V</kbd>
-              </button>
-              <div className={shell.contextSep} role="separator" />
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                disabled={screenMenu.id === definition.startScreenId}
-                onClick={() => setStart(screenMenu.id)}
-              >
-                <PlayIcon size={15} /> Set as start
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                className={shell.contextItem}
-                data-danger="true"
-                disabled={screenMenu.id === definition.startScreenId}
-                onClick={() => deleteScreen(screenMenu.id)}
-              >
-                <TrashIcon size={15} /> Delete
-                <kbd className={shell.contextKbd}>Del</kbd>
-              </button>
-            </>
-          )}
-        </div>
-      ) : null}
-
-      {selected ? (
-        <ScreenEditor
-          key={`${selected.id}-${selected.type}-${contentEpoch}`}
-          screenId={selected.id}
-          screenType={selected.type}
-          theme={canvasDefinition.theme}
-          screens={screenList}
-          content={selected.content}
-          slots={slots}
-          commandsRef={commandsRef}
-          onBridgeChange={setBridge}
-          onChange={contentChange}
-        />
-      ) : null}
-
-      <dialog
-        ref={settingsRef}
-        className={shell.drawer}
-        aria-labelledby="funnel-settings-title"
-        onClose={() => setSettingsOpen(false)}
-      >
-        <div className={shell.drawerHead}>
-          <div>
-            <h2 id="funnel-settings-title" className={shell.panelTitle}>
-              Funnel settings
-            </h2>
-            <p className={shell.panelSub}>{funnel.name}</p>
-          </div>
-          <button
-            type="button"
-            className={shell.iconBtn}
-            aria-label="Close settings"
-            onClick={() => setSettingsOpen(false)}
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        {settingsOpen ? (
-          <div className={shell.drawerBody}>
-            <div className={styles.panel}>
-              <h2 className={styles.panelHeading}>Theme</h2>
-              <ThemeEditor
-                theme={definition.theme}
-                onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
-              />
-              <label className={styles.field}>
-                Logo URL
+            <div className={shell.leftScroll} hidden={leftTab !== 'screens'}>
+              <label className={shell.search}>
+                <SearchIcon size={14} />
                 <input
-                  type="url"
-                  placeholder="https://…"
-                  maxLength={2000}
-                  value={definition.theme.logoUrl ?? ''}
-                  onChange={(e) =>
+                  type="search"
+                  placeholder="Find screens..."
+                  aria-label="Find screens"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </label>
+              <ol className={shell.screenList} onKeyDown={onScreenListKeyDown}>
+                {visibleScreens.map((screen, visibleIndex) => {
+                  const groupName = screen.group?.trim() ?? '';
+                  const prevGroup = visibleScreens[visibleIndex - 1]?.group?.trim() ?? '';
+                  const groupLabel =
+                    groupName !== '' && groupName !== prevGroup ? (
+                      <li
+                        key={`group-${screen.id}`}
+                        className={shell.groupLabel}
+                        aria-hidden="true"
+                      >
+                        <UsersIcon size={12} /> {groupName}
+                      </li>
+                    ) : null;
+                  const index = definition.screens.indexOf(screen);
+                  const meta = SCREEN_META[screen.type];
+                  const severity = severityByScreen.get(screen.id);
+                  const isSelected = screen.id === selected?.id;
+                  const isRenaming = renaming?.id === screen.id;
+                  const menuOpen = screenMenu?.id === screen.id;
+                  const thumb = (
+                    <span className={shell.thumb} aria-hidden="true">
+                      <span className={shell.thumbIsland} />
+                      <span className={shell.thumbAccent} />
+                      <span className={shell.thumbLine} />
+                      <span className={shell.thumbLineShort} />
+                      <span className={shell.thumbCta} />
+                    </span>
+                  );
+                  const metaLine = (
+                    <span className={shell.screenMeta}>
+                      {index + 1} · /{screen.id}
+                      {screen.id === definition.startScreenId ? (
+                        <span className={shell.startBadge}>Start</span>
+                      ) : null}
+                    </span>
+                  );
+                  return [
+                    groupLabel,
+                    <li
+                      key={screen.id}
+                      className={shell.screenRow}
+                      data-screen-id={screen.id}
+                      data-grouped={groupName !== ''}
+                      data-selected={isSelected}
+                      data-menu-open={menuOpen}
+                      data-dragging={dragId === screen.id}
+                      draggable={normalizedQuery === '' && !isRenaming}
+                      onDragStart={(e) => {
+                        setDragId(screen.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragEnd={() => setDragId(null)}
+                      onDragOver={(e) => {
+                        if (dragId) e.preventDefault();
+                      }}
+                      onDrop={(e) => onRowDrop(e, screen.id)}
+                      onContextMenu={(e) => {
+                        if (isRenaming) return;
+                        e.preventDefault();
+                        selectScreen(screen.id);
+                        openScreenMenu(screen.id, e.clientX, e.clientY);
+                      }}
+                      style={{ '--type-color': meta.color } as CSSProperties}
+                    >
+                      {isRenaming ? (
+                        <div className={shell.screenMain} data-renaming="true">
+                          {thumb}
+                          <span className={shell.screenText}>
+                            <input
+                              className={shell.renameInput}
+                              aria-label="Screen name"
+                              maxLength={200}
+                              autoFocus
+                              value={renaming.draft}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onChange={(e) =>
+                                setRenaming({ id: screen.id, draft: e.target.value })
+                              }
+                              onBlur={commitRename}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') commitRename();
+                                if (e.key === 'Escape') setRenaming(null);
+                              }}
+                            />
+                            {metaLine}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className={shell.screenMain}
+                          aria-current={isSelected ? 'true' : undefined}
+                          onClick={() => openScreen(screen.id)}
+                          onDoubleClick={() => setMode('editor')}
+                        >
+                          {thumb}
+                          <span className={shell.screenText}>
+                            <span className={shell.screenTitle}>
+                              {screen.title || screen.id}
+                              {severity ? (
+                                <span
+                                  className={shell.severityDot}
+                                  data-severity={severity}
+                                  aria-label={`has ${severity}s`}
+                                  role="img"
+                                />
+                              ) : null}
+                            </span>
+                            {metaLine}
+                          </span>
+                        </button>
+                      )}
+                      <div className={shell.menuHost} data-menu>
+                        <button
+                          type="button"
+                          className={shell.rowMenuBtn}
+                          aria-label={`Actions for ${screen.title || screen.id}`}
+                          aria-haspopup="menu"
+                          aria-expanded={menuOpen}
+                          onClick={(e) => {
+                            if (menuOpen) {
+                              setScreenMenu(null);
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            openScreenMenu(screen.id, rect.right - MENU_WIDTH, rect.bottom + 4);
+                          }}
+                        >
+                          <DotsIcon />
+                        </button>
+                      </div>
+                    </li>,
+                  ];
+                })}
+              </ol>
+              {visibleScreens.length === 0 ? (
+                <p className={shell.emptyNote}>No screens match "{query}".</p>
+              ) : null}
+            </div>
+
+            <div className={shell.leftScroll} hidden={leftTab !== 'elements' || addingElement}>
+              <div ref={outlineSlotRef} className={shell.outlineSlot} />
+            </div>
+            <div className={shell.leftScroll} hidden={leftTab !== 'elements' || !addingElement}>
+              <div className={shell.addTitle}>
+                <button
+                  type="button"
+                  className={shell.iconBtn}
+                  aria-label="Close add element"
+                  onClick={() => setAddingElement(false)}
+                >
+                  <CloseIcon size={14} />
+                </button>
+                <h3>Add Element</h3>
+              </div>
+              <div ref={blocksSlotRef} className={shell.blocksSlot} />
+            </div>
+
+            <div className={shell.leftFoot} hidden={leftTab !== 'elements' || addingElement}>
+              <button
+                type="button"
+                className={shell.footWide}
+                onClick={() => {
+                  setAddingElement(true);
+                  setMode('editor');
+                }}
+              >
+                <PlusIcon size={14} /> Add element
+              </button>
+            </div>
+
+            <div className={shell.leftFoot} hidden={leftTab !== 'screens'}>
+              <div className={shell.menuHost} data-menu>
+                <button
+                  type="button"
+                  className={shell.footPrimary}
+                  aria-expanded={addMenu === 'bottom'}
+                  onClick={() => setAddMenu((m) => (m === 'bottom' ? null : 'bottom'))}
+                >
+                  <PlusIcon size={14} /> Screen
+                </button>
+                {addMenuList('bottom')}
+              </div>
+              <button
+                type="button"
+                className={shell.footGhost}
+                disabled={!selected}
+                onClick={addGroup}
+                title="Put the selected screen into a new group"
+              >
+                <UsersIcon size={14} /> Group
+              </button>
+            </div>
+          </aside>
+
+          <main className={shell.center} data-panel="main">
+            <NavOverlay />
+            <div className={shell.stageTools} data-side="left">
+              <div className={shell.toolGroup}>
+                <button
+                  type="button"
+                  className={shell.toolBtn}
+                  aria-label="Undo"
+                  disabled={mode !== 'editor' || !bridge.canUndo}
+                  onClick={() => commandsRef.current?.undo()}
+                >
+                  <Undo size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={shell.toolBtn}
+                  aria-label="Redo"
+                  disabled={mode !== 'editor' || !bridge.canRedo}
+                  onClick={() => commandsRef.current?.redo()}
+                >
+                  <Redo size={15} />
+                </button>
+              </div>
+            </div>
+            <div className={shell.stageTools} data-side="right">
+              <button
+                type="button"
+                className={shell.localizeBtn}
+                disabled
+                title="Localization is coming soon"
+              >
+                <TranslateIcon size={14} /> Localize
+              </button>
+              <span className={shell.stageMeta}>
+                {mode === 'editor'
+                  ? `${selectedIndex + 1} / ${definition.screens.length} · ${selected?.title ?? ''}`
+                  : `${definition.screens.length} screens · ${definition.edges.length} connections`}
+              </span>
+            </div>
+
+            <div className={shell.flowStage}>
+              <ScreenCanvas
+                definition={canvasDefinition}
+                mode={mode}
+                selectedId={selected?.id}
+                showPill={!elementMode}
+                onEditHost={setEditHost}
+                typeMeta={typeMeta}
+                severityKey={severityKey}
+                describeEdge={describeEdge}
+                onFocusScreen={focusScreen}
+                onConnect={stableConnect}
+              />
+              {editHost ? createPortal(renderEditing(), editHost) : null}
+              {pending && pendingSource ? (
+                <div className={shell.pendingCard} role="dialog" aria-label="New connection">
+                  <strong>
+                    Connect {pendingSource.title} to{' '}
+                    {screensById.get(pending.target)?.title ?? pending.target}
+                  </strong>
+                  <div className={shell.inlineFields}>
+                    <ConditionPicker
+                      source={pendingSource}
+                      value={pending.choice}
+                      onChange={(choice) => setPending({ ...pending, choice })}
+                    />
+                  </div>
+                  <div className={shell.pendingActions}>
+                    <button
+                      type="button"
+                      className={shell.outlineBtn}
+                      onClick={() => setPending(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button type="button" className={shell.primaryBtn} onClick={confirmPending}>
+                      Add connection
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {mode === 'editor' ? (
+                <p className={shell.canvasHint}>
+                  {bridge.selection
+                    ? `Editing ${bridge.selection.label} · click the empty screen area to edit the screen`
+                    : 'Click any element to edit it · Canvas zooms out to the whole funnel'}
+                </p>
+              ) : null}
+            </div>
+
+            <div className={shell.rail} role="toolbar" aria-label="Assistant tools">
+              <button
+                type="button"
+                className={shell.railBtn}
+                aria-label="AI assistant"
+                title="AI assistant"
+                aria-pressed={assistantOpen}
+                onClick={() => {
+                  setAssistantOpen((v) => !v);
+                  setNarrowPanel('inspector');
+                }}
+              >
+                <MagicIcon size={16} />
+              </button>
+              <button
+                type="button"
+                className={shell.railBtn}
+                aria-label="Styles"
+                title="Styles"
+                aria-pressed={!assistantOpen && rightTab === 'styles'}
+                onClick={() => {
+                  setAssistantOpen(false);
+                  setRightTab((t) =>
+                    assistantOpen ? 'styles' : t === 'styles' ? 'parameters' : 'styles',
+                  );
+                  setNarrowPanel('inspector');
+                }}
+              >
+                <SlidersIcon size={16} />
+              </button>
+              <button
+                type="button"
+                className={shell.railBtn}
+                aria-label="Comments (coming soon)"
+                title="Comments (coming soon)"
+                disabled
+              >
+                <ChatIcon size={16} />
+              </button>
+            </div>
+
+            <div className={shell.viewSwitch} role="group" aria-label="View">
+              <button
+                type="button"
+                className={shell.viewBtn}
+                aria-pressed={mode === 'flow'}
+                onClick={() => setMode('flow')}
+              >
+                <GridIcon size={14} /> Canvas
+              </button>
+              <button
+                type="button"
+                className={shell.viewBtn}
+                aria-pressed={mode === 'editor'}
+                onClick={() => setMode('editor')}
+              >
+                <PhoneIcon size={14} /> Screen
+              </button>
+            </div>
+
+            {notice ? (
+              <div className={shell.toast} role="status">
+                <span>{notice}</span>
+                <button
+                  type="button"
+                  className={shell.iconBtn}
+                  aria-label="Dismiss"
+                  onClick={() => setNotice(null)}
+                >
+                  <CloseIcon size={14} />
+                </button>
+              </div>
+            ) : null}
+          </main>
+
+          <aside
+            ref={rightRef}
+            className={shell.right}
+            data-panel="inspector"
+            aria-label="Settings"
+          >
+            {resizeHandle('right')}
+            <AssistantPanel
+              hidden={!assistantOpen}
+              funnelId={funnel.id}
+              enabled={aiChat}
+              selectedElementId={bridge.selection?.id ?? null}
+              onApply={applyAssistantPatch}
+              definition={definition}
+              selected={selected}
+              typeMeta={typeMeta}
+              issues={issues}
+              issueScreenId={issueScreenId}
+              onSelectScreen={(id) => {
+                selectScreen(id);
+                commandsRef.current?.deselect();
+              }}
+              onClose={() => setAssistantOpen(false)}
+            />
+            <div
+              className={shell.tabs}
+              role="tablist"
+              aria-label="Right panel"
+              style={assistantOpen ? { display: 'none' } : undefined}
+            >
+              <button
+                type="button"
+                role="tab"
+                className={shell.tab}
+                aria-selected={rightTab === 'parameters'}
+                onClick={() => setRightTab('parameters')}
+              >
+                Parameters
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className={shell.tab}
+                aria-selected={rightTab === 'styles'}
+                onClick={() => setRightTab('styles')}
+              >
+                Styles
+              </button>
+            </div>
+            <div
+              className={shell.inspectorScroll}
+              style={assistantOpen ? { display: 'none' } : undefined}
+            >
+              {elementMode && bridge.selection && selected ? (
+                <ElementInspector
+                  key={bridge.selection.id}
+                  element={bridge.selection}
+                  tab={rightTab}
+                  screen={selected}
+                  screens={definition.screens}
+                  theme={definition.theme}
+                  fieldsSlotRef={fieldsSlotRef}
+                  onBack={() => commandsRef.current?.deselect()}
+                  onUpdate={(patch) => commandsRef.current?.updateProps(patch)}
+                  onSaveToTheme={(key, style) =>
                     mutate((d) => ({
                       ...d,
                       theme: {
                         ...d.theme,
-                        logoUrl: e.target.value === '' ? undefined : e.target.value,
+                        elements: {
+                          ...d.theme.elements,
+                          [key]: { ...d.theme.elements?.[key], ...style },
+                        },
                       },
                     }))
                   }
+                  onDuplicate={() => commandsRef.current?.duplicate()}
+                  onDelete={() => commandsRef.current?.remove()}
+                  aiSlot={elementAi}
                 />
-              </label>
+              ) : (
+                <>
+                  <div hidden={rightTab !== 'parameters'}>
+                    <div className={shell.inspectorHead}>
+                      <h2 ref={screenHeadingRef} tabIndex={-1} className={shell.panelTitle}>
+                        {selected?.title ?? 'Screen'}
+                      </h2>
+                    </div>
+                    {screenParameters}
+                    {mode === 'flow' || issues.length > 0 ? (
+                      <div className={shell.validationWrap}>
+                        <ValidationPanel
+                          issues={issues}
+                          checked={saver.timestamp !== null}
+                          canSelect={(issue) => issueScreenId(issue) !== undefined}
+                          onSelect={selectIssue}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                  <div hidden={rightTab !== 'styles'}>
+                    <div className={shell.inspectorHead}>
+                      <h2 className={shell.panelTitle}>{selected?.title ?? 'Screen'}</h2>
+                    </div>
+                    {selected ? (
+                      <ScreenStyles
+                        style={selected.style}
+                        inherited={inheritedScreenStyle(definition.theme)}
+                        theme={definition.theme}
+                        saveLabel="Save as theme default for all screens"
+                        onChange={(style) => updateScreen(selected.id, { style })}
+                        onSave={() => {
+                          const style = selected.style;
+                          mutate((d) => ({
+                            ...d,
+                            theme: { ...d.theme, screen: { ...d.theme.screen, ...style } },
+                            screens: d.screens.map((sc) =>
+                              sc.id === selected.id ? { ...sc, style: undefined } : sc,
+                            ),
+                          }));
+                        }}
+                      />
+                    ) : null}
+                    <p className={shell.stylesNote}>
+                      ⚡ marks values changed on this screen. The whole theme (colors, logo, element
+                      and screen defaults) is in Funnel settings → Theme.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-            <div className={styles.panel}>
-              <h2 className={styles.panelHeading}>Theme defaults</h2>
-              <ThemeDefaults
-                theme={definition.theme}
-                onChange={(theme) => mutate((d) => ({ ...d, theme }))}
-              />
-            </div>
-            <div className={styles.panel}>
-              <h2 className={styles.panelHeading}>Behaviour</h2>
-              <label className={styles.checkRow}>
-                <input
-                  type="checkbox"
-                  checked={definition.allowCycles === true}
-                  onChange={(e) => mutate((d) => ({ ...d, allowCycles: e.target.checked }))}
-                />
-                Allow cycles
-              </label>
-            </div>
-            <VersionsPanel funnelId={funnel.id} refreshKey={versionsKey} />
-            <DomainsPanel funnelId={funnel.id} />
-            <PaymentsPanel funnelId={funnel.id} />
-            <LeadsPanel funnelId={funnel.id} />
+          </aside>
+        </div>
+
+        <nav className={shell.narrowNav} aria-label="Editor panels">
+          {NARROW_TABS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={shell.narrowTab}
+              aria-pressed={narrowPanel === t.id}
+              onClick={() => setNarrowPanel(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </nav>
+
+        {screenMenu && screensById.has(screenMenu.id) ? (
+          <div
+            className={shell.contextMenu}
+            data-menu
+            role="menu"
+            aria-label={screenMenu.insert ? 'Screen type' : 'Screen actions'}
+            style={{ left: screenMenu.x, top: screenMenu.y, width: MENU_WIDTH }}
+          >
+            {screenMenu.insert ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextBack}
+                  onClick={() => setScreenMenu({ ...screenMenu, insert: undefined })}
+                >
+                  <ChevronLeft size={14} /> Insert {screenMenu.insert}
+                </button>
+                <div className={shell.contextSep} role="separator" />
+                {ADD_CHOICES.map((c) => (
+                  <button
+                    key={c.key}
+                    type="button"
+                    role="menuitem"
+                    className={shell.contextItem}
+                    onClick={() => {
+                      const place = screenMenu.insert ?? 'after';
+                      setScreenMenu(null);
+                      insertNewScreen(screenMenu.id, place, c.type, c.quiz);
+                    }}
+                  >
+                    <span
+                      className={shell.menuSwatch}
+                      style={{ background: SCREEN_META[c.type].color }}
+                    />
+                    {c.label}
+                    <span className={shell.menuHint}>{c.hint}</span>
+                  </button>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className={shell.contextLabel}>Insert</div>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => setScreenMenu({ ...screenMenu, insert: 'before' })}
+                >
+                  <InsertBeforeIcon size={15} /> Before
+                  <ChevronRight size={13} className={shell.contextChevron} />
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => setScreenMenu({ ...screenMenu, insert: 'after' })}
+                >
+                  <InsertAfterIcon size={15} /> After
+                  <ChevronRight size={13} className={shell.contextChevron} />
+                </button>
+                <div className={shell.contextSep} role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => startRename(screenMenu.id)}
+                >
+                  <RenameIcon size={15} /> Rename
+                  <kbd className={shell.contextKbd}>F2</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => copyScreen(screenMenu.id)}
+                >
+                  <CopyIcon size={15} /> Copy
+                  <kbd className={shell.contextKbd}>{modKey}C</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  onClick={() => duplicateScreen(screenMenu.id)}
+                >
+                  <DuplicateIcon size={15} /> Duplicate
+                  <kbd className={shell.contextKbd}>{modKey}D</kbd>
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  disabled={!clipboard}
+                  onClick={() => pasteScreen(screenMenu.id)}
+                >
+                  <PasteIcon size={15} /> Paste
+                  <kbd className={shell.contextKbd}>{modKey}V</kbd>
+                </button>
+                <div className={shell.contextSep} role="separator" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  disabled={screenMenu.id === definition.startScreenId}
+                  onClick={() => setStart(screenMenu.id)}
+                >
+                  <PlayIcon size={15} /> Set as start
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={shell.contextItem}
+                  data-danger="true"
+                  disabled={screenMenu.id === definition.startScreenId}
+                  onClick={() => deleteScreen(screenMenu.id)}
+                >
+                  <TrashIcon size={15} /> Delete
+                  <kbd className={shell.contextKbd}>Del</kbd>
+                </button>
+              </>
+            )}
           </div>
         ) : null}
-      </dialog>
 
-      <dialog
-        ref={previewRef}
-        className={shell.previewDialog}
-        aria-label="Test run"
-        onClose={() => setPreviewOpen(false)}
-      >
-        <div className={shell.drawerHead}>
-          <div className={shell.previewLinks}>
-            <Link href={`/preview/${funnel.id}`} target="_blank" className={shell.liveLink}>
-              Open saved draft in a new tab <ExternalIcon size={13} />
-            </Link>
+        {selected ? (
+          <ScreenEditor
+            key={`${selected.id}-${selected.type}-${contentEpoch}`}
+            screenId={selected.id}
+            screenType={selected.type}
+            theme={canvasDefinition.theme}
+            screens={screenList}
+            content={selected.content}
+            slots={slots}
+            commandsRef={commandsRef}
+            onBridgeChange={setBridge}
+            onChange={contentChange}
+          />
+        ) : null}
+
+        <dialog
+          ref={settingsRef}
+          className={shell.drawer}
+          aria-labelledby="funnel-settings-title"
+          onClose={() => setSettingsOpen(false)}
+        >
+          <div className={shell.drawerHead}>
+            <div>
+              <h2 id="funnel-settings-title" className={shell.panelTitle}>
+                Funnel settings
+              </h2>
+              <p className={shell.panelSub}>{funnel.name}</p>
+            </div>
+            <button
+              type="button"
+              className={shell.iconBtn}
+              aria-label="Close settings"
+              onClick={() => setSettingsOpen(false)}
+            >
+              <CloseIcon />
+            </button>
           </div>
-          <button
-            type="button"
-            className={shell.iconBtn}
-            aria-label="Close preview"
-            onClick={() => setPreviewOpen(false)}
-          >
-            <CloseIcon />
-          </button>
-        </div>
-        {previewOpen ? <PreviewPane funnelId={funnel.id} definition={definition} /> : null}
-      </dialog>
-    </div>
+          {settingsOpen ? (
+            <div className={shell.drawerBody}>
+              <div className={styles.panel}>
+                <h2 className={styles.panelHeading}>Theme</h2>
+                <ThemeEditor
+                  theme={definition.theme}
+                  onChange={(next) => mutate((d) => ({ ...d, theme: next }))}
+                />
+                <div className={styles.field}>
+                  Logo
+                  <ImageField
+                    label="Logo"
+                    aspect="1:1"
+                    value={definition.theme.logoUrl ?? ''}
+                    onChange={(url) =>
+                      mutate((d) => ({
+                        ...d,
+                        theme: { ...d.theme, logoUrl: url === '' ? undefined : url },
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+              <div className={styles.panel}>
+                <h2 className={styles.panelHeading}>Theme defaults</h2>
+                <ThemeDefaults
+                  theme={definition.theme}
+                  onChange={(theme) => mutate((d) => ({ ...d, theme }))}
+                />
+              </div>
+              <div className={styles.panel}>
+                <h2 className={styles.panelHeading}>Behaviour</h2>
+                <label className={styles.checkRow}>
+                  <input
+                    type="checkbox"
+                    checked={definition.allowCycles === true}
+                    onChange={(e) => mutate((d) => ({ ...d, allowCycles: e.target.checked }))}
+                  />
+                  Allow cycles
+                </label>
+              </div>
+              <VersionsPanel funnelId={funnel.id} refreshKey={versionsKey} />
+              <DomainsPanel funnelId={funnel.id} />
+              <PaymentsPanel funnelId={funnel.id} />
+              <LeadsPanel funnelId={funnel.id} />
+            </div>
+          ) : null}
+        </dialog>
+
+        <dialog
+          ref={previewRef}
+          className={shell.previewDialog}
+          aria-label="Test run"
+          onClose={() => setPreviewOpen(false)}
+        >
+          <div className={shell.drawerHead}>
+            <div className={shell.previewLinks}>
+              <Link href={`/preview/${funnel.id}`} target="_blank" className={shell.liveLink}>
+                Open saved draft in a new tab <ExternalIcon size={13} />
+              </Link>
+            </div>
+            <button
+              type="button"
+              className={shell.iconBtn}
+              aria-label="Close preview"
+              onClick={() => setPreviewOpen(false)}
+            >
+              <CloseIcon />
+            </button>
+          </div>
+          {previewOpen ? <PreviewPane funnelId={funnel.id} definition={definition} /> : null}
+        </dialog>
+      </div>
+    </ImageAssetsProvider>
   );
 }

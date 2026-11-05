@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { Screen, Theme } from '@funnel/schema';
 import { getScreenOptions } from '@/lib/puck/adapters';
 import { CATALOG_BY_TYPE } from '@/lib/puck/catalog';
@@ -52,6 +53,7 @@ export function ElementInspector({
   onSaveToTheme,
   onDuplicate,
   onDelete,
+  aiSlot,
 }: {
   element: InspectedElement;
   tab: Tab;
@@ -64,6 +66,7 @@ export function ElementInspector({
   onSaveToTheme: (key: TokenKey, style: ElementStyle) => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  aiSlot?: ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
   const meta = readElementMeta(element.props);
@@ -186,6 +189,8 @@ export function ElementInspector({
         </div>
 
         <div ref={fieldsSlotRef} className={shell.fieldsSlot} />
+
+        {aiSlot}
 
         <div className={shell.paramGroup}>
           <SelectRow

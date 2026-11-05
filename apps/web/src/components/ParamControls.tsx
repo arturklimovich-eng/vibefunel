@@ -1,5 +1,7 @@
 'use client';
 
+import { ImageField } from './ai/ImageField';
+import type { ImageAspect } from './ai/ImageAssets';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { ColorInput } from './ColorInput';
@@ -425,6 +427,35 @@ export function ColorRow({
           onChange={(alpha) => onChange(joinColor(base.hex, alpha ?? 100))}
         />
       </div>
+    </div>
+  );
+}
+
+export function ImageRow({
+  label,
+  value,
+  inherited,
+  aspect,
+  onChange,
+  onReset,
+}: {
+  label: string;
+  value: string | undefined;
+  inherited?: string;
+  aspect: ImageAspect;
+  onChange: (value: string | undefined) => void;
+  onReset?: () => void;
+}) {
+  return (
+    <div className={shell.paramRow}>
+      <Label label={label} onReset={onReset} />
+      <ImageField
+        label={label}
+        aspect={aspect}
+        placeholder={inherited || 'https://…'}
+        value={value ?? ''}
+        onChange={(url) => onChange(url === '' ? undefined : url)}
+      />
     </div>
   );
 }

@@ -10,6 +10,7 @@ import {
   Segmented,
   SelectRow,
   SpacingRow,
+  ImageRow,
   UrlRow,
 } from './ParamControls';
 import { FONT_OPTIONS, WEIGHT_OPTIONS, cleanObject } from './StyleFields';
@@ -94,8 +95,9 @@ export function ScreenStyles({
           onReset={reset('backgroundMedia')}
         />
         {media === 'image' ? (
-          <UrlRow
+          <ImageRow
             label="Image"
+            aspect="9:16"
             value={s.backgroundImageUrl}
             inherited={inherited.backgroundImageUrl}
             onChange={(backgroundImageUrl) => set({ backgroundImageUrl })}

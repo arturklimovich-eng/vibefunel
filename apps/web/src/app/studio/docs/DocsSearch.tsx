@@ -8,7 +8,13 @@ export function DocsSearch({ query }: { query?: string }) {
       <label htmlFor="docs-search" className={shell.srOnly}>
         Search docs
       </label>
-      <input id="docs-search" type="search" name="q" placeholder="Search docs..." defaultValue={query} />
+      <input
+        id="docs-search"
+        type="search"
+        name="q"
+        placeholder="Search docs..."
+        defaultValue={query}
+      />
     </form>
   );
 }

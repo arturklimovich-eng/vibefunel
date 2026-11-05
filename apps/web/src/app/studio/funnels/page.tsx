@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { StudioFunnels } from '@/components/StudioFunnels';
+import { aiBriefOptions } from '@/server/ai/registry';
+import { withoutExpiredAiDrafts } from '@/server/ai/runs';
 import { getStudioContext } from '@/server/repository';
 import { loadStudioOverview, parseRange } from '@/server/studio-overview';
 import { uiFont } from '../ui-font';
@@ -18,16 +20,18 @@ export default async function StudioFunnelsPage({
   const context = await getStudioContext();
   if (!context) redirect('/login?next=%2Fstudio%2Ffunnels');
   const query = await searchParams;
-  const [funnels, groups] = await Promise.all([
+  const [listed, groups] = await Promise.all([
     context.repo.listFunnels(),
     context.repo.listGroups(),
   ]);
+  const funnels = await withoutExpiredAiDrafts(context.repo, listed);
   const overview = await loadStudioOverview(context.repo, funnels, parseRange(query.range));
   return (
     <div className={uiFont.variable}>
       <StudioFunnels
         funnels={overview.funnels}
         groups={groups}
+        aiBrief={aiBriefOptions()}
         range={overview.range}
         storage={context.storage}
         userEmail={context.userEmail}

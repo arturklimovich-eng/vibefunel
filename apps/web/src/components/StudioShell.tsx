@@ -7,6 +7,8 @@ import type { StorageMode } from '@/lib/storage-mode';
 import type { FunnelGroup } from '@/server/funnel-repository';
 import { NavLink as Link, NavOverlay } from './NavPending';
 import { NewFunnelForm } from './NewFunnelForm';
+import { BriefWizard, confirmStopGeneration } from './ai/BriefWizard';
+import type { AiBriefOptions } from '@/server/ai/registry';
 import {
   BookIcon,
   CloseIcon,
@@ -50,6 +52,7 @@ export function StudioShell({
   funnelCount,
   liveCount,
   groups,
+  aiBrief: aiOptions,
   search,
   children,
 }: {
@@ -59,11 +62,15 @@ export function StudioShell({
   funnelCount: number;
   liveCount: number;
   groups: FunnelGroup[];
+  aiBrief: AiBriefOptions | null;
   search?: ReactNode;
   children: ReactNode;
 }) {
   const [creating, setCreating] = useState(false);
   const [createIn, setCreateIn] = useState<string | null>(null);
+  const [createMode, setCreateMode] = useState<'blank' | 'ai'>('blank');
+  const aiBrief = aiOptions !== null;
+  const aiStopRef = useRef<(() => void) | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const name = firstName(userEmail);
   const liveShare = funnelCount > 0 ? (liveCount / funnelCount) * 100 : 0;
@@ -77,8 +84,23 @@ export function StudioShell({
 
   const openCreate = (groupId?: string | null) => {
     setCreateIn(groupId ?? null);
+    setCreateMode('blank');
     setCreating(true);
   };
+
+  const ai = aiBrief && createMode === 'ai';
+
+  const stopAi = (): boolean => {
+    const stop = aiStopRef.current;
+    if (!ai || !stop) return true;
+    if (!confirmStopGeneration()) return false;
+    stop();
+    return true;
+  };
+  const leaveAi = (then: () => void) => {
+    if (stopAi()) then();
+  };
+  const closeCreate = () => leaveAi(() => setCreating(false));
 
   return (
     <ShellContext.Provider value={{ openCreate }}>
@@ -195,27 +217,65 @@ export function StudioShell({
 
         <dialog
           ref={dialogRef}
-          className={styles.modal}
+          className={ai ? `${styles.modal} ${styles.modalWide}` : styles.modal}
           aria-labelledby="new-funnel-title"
           onClose={() => setCreating(false)}
+          onCancel={(event) => {
+            if (!stopAi()) event.preventDefault();
+          }}
         >
           <div className={styles.modalHead}>
             <div>
               <h2 id="new-funnel-title" className={styles.modalTitle}>
                 New funnel
               </h2>
-              <p className={styles.cardSub}>Give it a name and a public link.</p>
+              <p className={styles.cardSub}>
+                {ai
+                  ? 'Describe the product. AI drafts the screens, you review them.'
+                  : 'Give it a name and a public link.'}
+              </p>
             </div>
             <button
               type="button"
               className={styles.iconBtn}
               aria-label="Close"
-              onClick={() => setCreating(false)}
+              onClick={closeCreate}
             >
               <CloseIcon size={16} />
             </button>
           </div>
-          {creating ? (
+          {creating && aiBrief ? (
+            <div className={styles.modeSwitch} role="tablist" aria-label="How to start">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={!ai}
+                onClick={() => leaveAi(() => setCreateMode('blank'))}
+              >
+                Blank
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={ai}
+                onClick={() => setCreateMode('ai')}
+              >
+                <SparkIcon size={14} /> Generate with AI
+              </button>
+            </div>
+          ) : null}
+          {creating && ai && aiOptions ? (
+            <BriefWizard
+              plans={aiOptions.plans}
+              groups={groups}
+              initialGroupId={createIn}
+              onCancel={closeCreate}
+              onRunChange={(stop) => {
+                aiStopRef.current = stop;
+              }}
+            />
+          ) : null}
+          {creating && !ai ? (
             <NewFunnelForm
               groups={groups}
               initialGroupId={createIn}

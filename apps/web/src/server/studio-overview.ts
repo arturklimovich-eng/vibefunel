@@ -39,6 +39,7 @@ export interface FunnelRow {
   name: string;
   slug: string;
   live: boolean;
+  aiDraftExpiresAt: string | null;
   screens: number | null;
   leads: number;
   paid: number;
@@ -241,6 +242,7 @@ export async function loadStudioOverview(
       name: funnel.name,
       slug: funnel.slug,
       live: funnel.publishedVersionId !== null,
+      aiDraftExpiresAt: funnel.aiDraftExpiresAt ?? null,
       screens,
       leads: rowLeads,
       paid: rowPaid,

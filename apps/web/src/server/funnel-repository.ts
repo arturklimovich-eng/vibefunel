@@ -129,6 +129,46 @@ export interface PublishedFunnel {
   definition: FunnelDefinition;
 }
 
+export interface AiUsageRecord {
+  projectId: string;
+  feature: string;
+  provider: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cachedInputTokens: number;
+  images: number;
+  costMicroUsd: number;
+}
+
+export type AssetSource = 'ai' | 'upload';
+
+export interface Asset {
+  id: string;
+  projectId: string;
+  funnelId: string | null;
+  url: string;
+  width: number;
+  height: number;
+  bytes: number;
+  source: AssetSource;
+  prompt: string | null;
+  createdAt: string;
+}
+
+export interface NewAsset {
+  projectId: string;
+  funnelId: string | null;
+  data: Uint8Array;
+  width: number;
+  height: number;
+  source: AssetSource;
+  prompt: string | null;
+  model: string | null;
+}
+
+export const MAX_LISTED_ASSETS = 60;
+
 export interface FunnelRepository {
   listFunnels(): Promise<Funnel[]>;
   getFunnel(id: string): Promise<Funnel | null>;
@@ -141,7 +181,20 @@ export interface FunnelRepository {
   publish(funnelId: string, expectedRevision: number): Promise<FunnelVersion>;
   rollback(funnelId: string, versionId: string): Promise<Funnel>;
   listVersionSummaries(funnelId: string): Promise<VersionSummary[]>;
-  createFunnel(name: string, slug: string, groupId?: string | null): Promise<Funnel>;
+  createFunnel(
+    name: string,
+    slug: string,
+    groupId?: string | null,
+    definition?: FunnelDefinition,
+    aiDraftExpiresAt?: Date,
+  ): Promise<Funnel>;
+  markFunnelOpened(funnelId: string): Promise<void>;
+  deleteExpiredAiDrafts(funnelIds: string[], now: Date): Promise<string[]>;
+  aiProjectId(groupId?: string | null): Promise<string>;
+  recordAiUsage(record: AiUsageRecord): Promise<void>;
+  aiSpendSince(projectId: string, since: Date): Promise<number>;
+  storeAsset(asset: NewAsset): Promise<Asset>;
+  listAssets(projectId: string): Promise<Asset[]>;
   moveFunnel(funnelId: string, groupId: string | null): Promise<Funnel>;
   listGroups(): Promise<FunnelGroup[]>;
   createGroup(name: string): Promise<FunnelGroup>;

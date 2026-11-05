@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import { createStarterFunnel, slugSchema, validateFunnel } from '@funnel/schema';
 import type { Funnel, FunnelDefinition, FunnelVersion } from '@funnel/schema';
 import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
@@ -15,16 +16,20 @@ import {
   FunnelNotFoundError,
   FunnelValidationError,
   GroupNotFoundError,
+  MAX_LISTED_ASSETS,
   RevisionConflictError,
   SlugTakenError,
   VersionUnreadableError,
 } from './funnel-repository';
 import type {
+  AiUsageRecord,
+  Asset,
   CustomDomain,
   DomainCheck,
   FunnelDraft,
   FunnelGroup,
   FunnelRepository,
+  NewAsset,
   PublishedFunnel,
   PublishedReader,
   VersionSummary,
@@ -32,8 +37,24 @@ import type {
 import { parseStoredDefinition } from './stored-definition';
 
 const FUNNEL_COLUMNS =
-  'id, project_id, group_id, slug, name, status, published_version_id, draft_revision';
+  'id, project_id, group_id, slug, name, status, published_version_id, draft_revision, ai_draft_expires_at';
 const GROUP_COLUMNS = 'id, project_id, name, created_at';
+const ASSETS_BUCKET = 'funnel-assets';
+const ASSET_COLUMNS =
+  'id, project_id, funnel_id, path, width, height, bytes, source, prompt, created_at';
+
+const assetRowSchema = z.object({
+  id: z.string(),
+  project_id: z.string(),
+  funnel_id: z.string().nullable(),
+  path: z.string(),
+  width: z.number().int(),
+  height: z.number().int(),
+  bytes: z.number().int(),
+  source: z.enum(['ai', 'upload']),
+  prompt: z.string().nullable(),
+  created_at: z.string(),
+});
 const VERSION_SUMMARY_COLUMNS = 'id, funnel_id, version, created_at';
 const VERSION_COLUMNS = `${VERSION_SUMMARY_COLUMNS}, schema_version, definition`;
 const UNIQUE_VIOLATION = '23505';
@@ -59,6 +80,7 @@ const funnelRowSchema = z.object({
   status: z.enum(['draft', 'published']),
   published_version_id: z.string().nullable(),
   draft_revision: z.number().int(),
+  ai_draft_expires_at: z.string().nullable().optional(),
 });
 
 const groupRowSchema = z.object({
@@ -150,6 +172,7 @@ function toFunnel(row: z.infer<typeof funnelRowSchema>): Funnel {
     draftVersionId: `draft-${row.id}`,
     publishedVersionId: row.published_version_id,
     draftRevision: row.draft_revision,
+    aiDraftExpiresAt: row.ai_draft_expires_at ?? null,
   };
 }
 
@@ -375,12 +398,119 @@ export class SupabaseFunnelRepository implements FunnelRepository {
       }));
   }
 
-  async createFunnel(name: string, slug: string, groupId: string | null = null): Promise<Funnel> {
-    const ids = await this.memberProjectIds();
-    const group = groupId === null ? null : await this.requireGroup(groupId);
-    const projectId = group ? group.projectId : ids[0];
-    if (!projectId) throw new Error('createFunnel: the current user has no project.');
-    const definition = createStarterFunnel();
+  private async targetProject(
+    groupId: string | null,
+  ): Promise<{ projectId: string; group: FunnelGroup | null }> {
+    if (groupId !== null) {
+      const group = await this.requireGroup(groupId);
+      return { projectId: group.projectId, group };
+    }
+    const projectId = (await this.memberProjectIds())[0];
+    if (!projectId) throw new ForbiddenError('The current user has no project.');
+    return { projectId, group: null };
+  }
+
+  async aiProjectId(groupId: string | null = null): Promise<string> {
+    return (await this.targetProject(groupId)).projectId;
+  }
+
+  async recordAiUsage(record: AiUsageRecord): Promise<void> {
+    const { error } = await this.client.from('ai_usage').insert({
+      project_id: record.projectId,
+      user_id: this.userId,
+      feature: record.feature,
+      provider: record.provider,
+      model: record.model,
+      input_tokens: record.inputTokens,
+      output_tokens: record.outputTokens,
+      cached_input_tokens: record.cachedInputTokens,
+      images: record.images,
+      cost_micro_usd: record.costMicroUsd,
+    });
+    if (error) throw fail('recordAiUsage', error);
+  }
+
+  async aiSpendSince(projectId: string, since: Date): Promise<number> {
+    const { data, error } = await this.client.rpc('ai_spend_since', {
+      p_project_id: projectId,
+      p_since: since.toISOString(),
+    });
+    if (error) throw fail('aiSpendSince', error);
+    return z.coerce.number().parse(data ?? 0);
+  }
+
+  private toAsset(row: z.infer<typeof assetRowSchema>): Asset {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      funnelId: row.funnel_id,
+      url: this.client.storage.from(ASSETS_BUCKET).getPublicUrl(row.path).data.publicUrl,
+      width: row.width,
+      height: row.height,
+      bytes: row.bytes,
+      source: row.source,
+      prompt: row.prompt,
+      createdAt: row.created_at,
+    };
+  }
+
+  async storeAsset(asset: NewAsset): Promise<Asset> {
+    const id = randomUUID();
+    const objectPath = `${asset.projectId}/${id}.webp`;
+    const bucket = this.client.storage.from(ASSETS_BUCKET);
+    const { error: uploadError } = await bucket.upload(objectPath, asset.data, {
+      contentType: 'image/webp',
+      cacheControl: '31536000',
+      upsert: false,
+    });
+    if (uploadError) throw new Error(`storeAsset: ${uploadError.message}`);
+    const { data, error } = await this.client
+      .from('assets')
+      .insert({
+        id,
+        project_id: asset.projectId,
+        funnel_id: asset.funnelId,
+        path: objectPath,
+        width: asset.width,
+        height: asset.height,
+        bytes: asset.data.byteLength,
+        source: asset.source,
+        prompt: asset.prompt,
+        model: asset.model,
+        user_id: this.userId,
+      })
+      .select(ASSET_COLUMNS)
+      .single();
+    if (error) {
+      await bucket.remove([objectPath]);
+      throw fail('storeAsset', error);
+    }
+    return this.toAsset(assetRowSchema.parse(data));
+  }
+
+  async listAssets(projectId: string): Promise<Asset[]> {
+    const { data, error } = await this.client
+      .from('assets')
+      .select(ASSET_COLUMNS)
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false })
+      .limit(MAX_LISTED_ASSETS);
+    if (error) throw fail('listAssets', error);
+    return z
+      .array(assetRowSchema)
+      .parse(data ?? [])
+      .map((row) => this.toAsset(row));
+  }
+
+  async createFunnel(
+    name: string,
+    slug: string,
+    groupId: string | null = null,
+    initial?: FunnelDefinition,
+    aiDraftExpiresAt?: Date,
+  ): Promise<Funnel> {
+    const { projectId, group } = await this.targetProject(groupId);
+    const definition = initial ?? createStarterFunnel();
     const { data, error } = await this.client
       .from('funnels')
       .insert({
@@ -391,6 +521,7 @@ export class SupabaseFunnelRepository implements FunnelRepository {
         status: 'draft',
         draft_definition: definition,
         draft_schema_version: definition.schemaVersion,
+        ai_draft_expires_at: aiDraftExpiresAt ? aiDraftExpiresAt.toISOString() : null,
       })
       .select(FUNNEL_COLUMNS)
       .single();
@@ -594,6 +725,31 @@ export class SupabaseFunnelRepository implements FunnelRepository {
     if (z.array(z.object({ id: z.string() })).parse(data).length === 0) {
       throw new DomainNotFoundError(`Domain "${domainId}" not found.`);
     }
+  }
+
+  async markFunnelOpened(funnelId: string): Promise<void> {
+    const { error } = await this.client
+      .from('funnels')
+      .update({ ai_draft_expires_at: null })
+      .eq('id', funnelId)
+      .not('ai_draft_expires_at', 'is', null);
+    if (error) throw fail('markFunnelOpened', error);
+  }
+
+  async deleteExpiredAiDrafts(funnelIds: string[], now: Date): Promise<string[]> {
+    if (funnelIds.length === 0) return [];
+    const { data, error } = await this.client
+      .from('funnels')
+      .delete()
+      .in('id', funnelIds)
+      .eq('status', 'draft')
+      .lte('ai_draft_expires_at', now.toISOString())
+      .select('id');
+    if (error) throw fail('deleteExpiredAiDrafts', error);
+    return z
+      .array(z.object({ id: z.string() }))
+      .parse(data ?? [])
+      .map((row) => row.id);
   }
 
   async deleteFunnel(funnelId: string): Promise<void> {
