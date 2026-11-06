@@ -986,6 +986,9 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  isolation: isolate;
+  container: center / inline-size;
   background: var(--canvas);
   background-image: radial-gradient(circle at 50% 40%, #202026 0, var(--canvas) 70%);
 }
@@ -1313,10 +1316,67 @@
 }
 
 .canvasHandle {
-  width: 10px !important;
-  height: 10px !important;
-  border-width: 2px !important;
+  --h: clamp(14px, calc(9px / var(--canvas-zoom, 1)), 26px);
+  --k: 1;
   z-index: 4;
+  width: calc(var(--h) * var(--k)) !important;
+  height: calc(var(--h) * var(--k)) !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: calc(var(--h) / 5) solid #c9c9d2 !important;
+  background: #141417 !important;
+  transition: width 0.15s ease, height 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.canvasHandle::before {
+  content: '';
+  position: absolute;
+  inset: calc(var(--h) * -0.6);
+  border-radius: 50%;
+}
+
+.canvasHandle:hover,
+.canvasHandle:global(.connectingfrom) {
+  --k: 1.3;
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  box-shadow: 0 0 0 calc(var(--h) / 4) color-mix(in srgb, var(--accent) 30%, transparent);
+  cursor: crosshair;
+}
+
+.canvasFlow[data-connecting] .canvasHandle:global(.react-flow__handle-left) {
+  --k: 1.15;
+  border-color: var(--accent) !important;
+  animation: handlePulse 1.2s ease-in-out infinite;
+}
+
+.canvasFlow[data-connecting] .canvasHandle:global(.react-flow__handle-left.connectingto) {
+  --k: 1.5;
+  background: var(--accent) !important;
+  border-color: #fff !important;
+  animation: none;
+  box-shadow: 0 0 0 calc(var(--h) / 3) color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.canvasFlow[data-connecting] .canvasHandle:global(.react-flow__handle-right:not(.connectingfrom)) {
+  opacity: 0.35;
+}
+
+.canvasFlow :global(.react-flow__node:has(.connectingto)) .canvasPhone {
+  outline: calc(3px / var(--canvas-zoom, 1)) solid var(--accent);
+  outline-offset: calc(4px / var(--canvas-zoom, 1));
+}
+
+.canvasFlow :global(.react-flow__connection-path) {
+  stroke: var(--accent);
+  stroke-width: calc(2.5px / var(--canvas-zoom, 1));
+  stroke-dasharray: calc(8px / var(--canvas-zoom, 1)) calc(5px / var(--canvas-zoom, 1));
+}
+
+@keyframes handlePulse {
+  50% {
+    box-shadow: 0 0 0 calc(var(--h) / 3) color-mix(in srgb, var(--accent) 25%, transparent);
+  }
 }
 
 .canvasNodeType {
@@ -1359,6 +1419,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
+  width: max-content;
   max-width: min(560px, calc(100% - 32px));
   padding: 8px 8px 8px 14px;
   border: 1px solid var(--line-2);
@@ -2567,7 +2628,14 @@
   top: 0;
   left: 0;
   z-index: 4;
+  display: flex;
+  flex-direction: column;
+  border-radius: 42px;
   cursor: auto;
+}
+
+.canvasOverlay .island {
+  top: 11px;
 }
 
 .canvasOverlay .phoneScreen {
@@ -2616,6 +2684,12 @@
   white-space: nowrap;
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+@container center (max-width: 760px) {
+  .canvasHint {
+    display: none;
+  }
 }
 
 .paramSection > :not(summary) {

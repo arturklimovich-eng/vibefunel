@@ -244,20 +244,24 @@ function layoutColumns(definition: FunnelDefinition): Map<string, { col: number;
   return placed;
 }
 
+const BEZEL = 11;
+
 function EditOverlay({
   node,
+  settled,
   onHost,
 }: {
   node: ScreenFlowNode | undefined;
+  settled: boolean;
   onHost: (el: HTMLDivElement | null) => void;
 }) {
   const store = useStoreApi();
-  const zoomIsOne = useStore((st) => Math.abs(st.transform[2] - 1) <= 0.01);
+  const zoomIsOne = useStore((st) => Math.abs(st.transform[2] - 1) <= 0.001);
   const host = useStore((st) => st.domNode?.parentElement ?? null);
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const nx = node?.position.x;
   const ny = node?.position.y;
-  const visible = node !== undefined && host !== null && zoomIsOne;
+  const visible = node !== undefined && settled && host !== null && zoomIsOne;
 
   useLayoutEffect(() => {
     onHost(visible ? el : null);
@@ -268,8 +272,8 @@ function EditOverlay({
   useLayoutEffect(() => {
     if (!el || nx === undefined || ny === undefined) return;
     const place = ([x, y, zoom]: [number, number, number]) => {
-      el.style.left = `${nx * zoom + x}px`;
-      el.style.top = `${(ny + HEAD_H) * zoom + y}px`;
+      el.style.left = `${(nx + BEZEL) * zoom + x}px`;
+      el.style.top = `${(ny + HEAD_H + BEZEL) * zoom + y}px`;
     };
     place(store.getState().transform);
     return store.subscribe((st) => place(st.transform));
@@ -279,10 +283,9 @@ function EditOverlay({
   return createPortal(
     <div
       ref={setEl}
-      className={`${styles.canvasPhone} ${styles.canvasOverlay} nodrag nopan nowheel`}
+      className={`${styles.canvasOverlay} nodrag nopan nowheel`}
       data-puck-host=""
-      data-selected={node.data.showPill ? 'true' : undefined}
-      style={{ width: PHONE_W, height: PHONE_H }}
+      style={{ width: PHONE_W - BEZEL * 2, height: PHONE_H - BEZEL * 2 }}
     >
       <span className={styles.island} aria-hidden="true" />
     </div>,
@@ -290,17 +293,35 @@ function EditOverlay({
   );
 }
 
+function ConnectionChrome() {
+  const zoom = useStore((st) => Math.round(st.transform[2] * 20) / 20);
+  const connecting = useStore((st) => st.connection.inProgress);
+  const dom = useStore((st) => st.domNode);
+  useEffect(() => {
+    dom?.style.setProperty('--canvas-zoom', String(Math.max(zoom, 0.05)));
+  }, [dom, zoom]);
+  useEffect(() => {
+    if (!dom) return;
+    if (connecting) dom.dataset.connecting = 'true';
+    else delete dom.dataset.connecting;
+  }, [dom, connecting]);
+  return null;
+}
+
 function Focus({
   mode,
   selectedId,
   nodes,
+  onSettled,
 }: {
   mode: CanvasMode;
   selectedId: string | undefined;
   nodes: ScreenFlowNode[];
+  onSettled: (id: string | null) => void;
 }) {
   const flow = useReactFlow();
   const first = useRef(true);
+  const run = useRef(0);
   const target = mode === 'editor' ? (selectedId ?? null) : null;
   const node = target ? nodes.find((n) => n.id === target) : undefined;
   const x = node?.position.x;
@@ -308,15 +329,18 @@ function Focus({
   useEffect(() => {
     const duration = first.current ? 0 : 450;
     first.current = false;
-    if (mode === 'editor' && x !== undefined && y !== undefined) {
-      void flow.setCenter(x + PHONE_W / 2, y + HEAD_H + PHONE_H / 2 + PILL_H / 2, {
-        zoom: 1,
-        duration,
-      });
+    const id = ++run.current;
+    onSettled(null);
+    if (mode === 'editor' && target && x !== undefined && y !== undefined) {
+      void flow
+        .setCenter(x + PHONE_W / 2, y + HEAD_H + PHONE_H / 2 + PILL_H / 2, { zoom: 1, duration })
+        .then(() => {
+          if (run.current === id) onSettled(target);
+        });
       return;
     }
     void flow.fitView({ padding: 0.12, duration, maxZoom: 1 });
-  }, [flow, mode, target, x, y]);
+  }, [flow, mode, target, x, y, onSettled]);
   return null;
 }
 
@@ -343,6 +367,7 @@ export const ScreenCanvas = memo(function ScreenCanvas({
   onFocusScreen: (id: string) => void;
   onConnect: (connection: Connection) => void;
 }) {
+  const [settledId, setSettledId] = useState<string | null>(null);
   const severityByScreen = useMemo(() => {
     const map = new Map<string, 'error' | 'warning'>();
     for (const part of severityKey.split('|')) {
@@ -418,6 +443,7 @@ export const ScreenCanvas = memo(function ScreenCanvas({
         edgesFocusable={false}
         elementsSelectable
         onConnect={onConnect}
+        connectionRadius={60}
         onNodeClick={(_event, node) => {
           if (mode === 'editor' && node.id === selectedId) return;
           onFocusScreen(node.id);
@@ -427,9 +453,11 @@ export const ScreenCanvas = memo(function ScreenCanvas({
         minZoom={0.08}
         maxZoom={1.5}
       >
-        <Focus mode={mode} selectedId={selectedId} nodes={nodes} />
+        <ConnectionChrome />
+        <Focus mode={mode} selectedId={selectedId} nodes={nodes} onSettled={setSettledId} />
         <EditOverlay
           node={mode === 'editor' ? nodes.find((n) => n.id === selectedId) : undefined}
+          settled={settledId !== null && settledId === selectedId}
           onHost={onEditHost}
         />
         <Background variant={BackgroundVariant.Dots} gap={20} size={1.2} />
