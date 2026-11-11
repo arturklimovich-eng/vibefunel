@@ -327,11 +327,15 @@ export class SupabaseFunnelRepository implements FunnelRepository {
     };
   }
 
-  async publish(funnelId: string, expectedRevision: number): Promise<FunnelVersion> {
+  async publish(
+    funnelId: string,
+    expectedRevision: number,
+    planKeys?: string[],
+  ): Promise<FunnelVersion> {
     const draft = await this.getDraft(funnelId);
     if (!draft) throw new FunnelNotFoundError(`Draft for "${funnelId}" not found.`);
     if (draft.revision !== expectedRevision) throw new RevisionConflictError(draft.revision);
-    const result = validateFunnel(draft.definition);
+    const result = validateFunnel(draft.definition, { planKeys });
     if (!result.ok) throw new FunnelValidationError(result.issues);
     const { data, error } = await this.client.rpc('publish_funnel', {
       p_funnel_id: funnelId,

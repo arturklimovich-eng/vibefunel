@@ -38,3 +38,11 @@ export function createSupabaseAnonClient() {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
+
+export function createSupabaseBearerClient(accessToken: string) {
+  const { url, anonKey } = requireSupabaseEnv();
+  return createClient(url, anonKey, {
+    accessToken: async () => accessToken,
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}

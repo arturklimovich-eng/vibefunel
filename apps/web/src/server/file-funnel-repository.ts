@@ -267,7 +267,11 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
     });
   }
 
-  async publish(funnelId: string, expectedRevision: number): Promise<FunnelVersion> {
+  async publish(
+    funnelId: string,
+    expectedRevision: number,
+    planKeys?: string[],
+  ): Promise<FunnelVersion> {
     return this.withLock(async () => {
       const funnel = await this.requireFunnel(funnelId);
       if (funnel.draftRevision !== expectedRevision) {
@@ -275,7 +279,7 @@ export class FileFunnelRepository implements FunnelRepository, PublishedReader, 
       }
       const draft = await this.getDraft(funnelId);
       if (!draft) throw new FunnelNotFoundError(`Draft for "${funnelId}" not found.`);
-      const result = validateFunnel(draft.definition);
+      const result = validateFunnel(draft.definition, { planKeys });
       if (!result.ok) throw new FunnelValidationError(result.issues);
       const existing = await this.listVersionSummaries(funnelId);
       const nextNumber = existing.reduce((max, v) => Math.max(max, v.version), 0) + 1;

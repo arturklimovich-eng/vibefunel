@@ -18,7 +18,7 @@ flowchart LR
     DOM["Custom domains"]
     AIG["AI generation"]
     AI["AI assistant"]
-    MCP["Agent access (MCP, planned)"]
+    MCP["Agent access (MCP)"]
   end
   subgraph Public["Public (visitors)"]
     RUN["Funnel runtime"]

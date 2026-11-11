@@ -144,3 +144,11 @@ export function checkRateLimit(
 export function ipLimit(request: Request, direct: number, trusted: number): number {
   return clientKey(request) === DIRECT_KEY ? direct : trusted;
 }
+
+export function peekRateLimit(name: string, key: string, limit: number): LimitResult {
+  return defaultLimiter.peek(name, key, limit);
+}
+
+export function recordRateLimitHit(name: string, key: string, windowMs: number): void {
+  defaultLimiter.hit(name, key, windowMs);
+}

@@ -178,7 +178,7 @@ export interface FunnelRepository {
     definition: FunnelDefinition,
     expectedRevision: number,
   ): Promise<FunnelDraft>;
-  publish(funnelId: string, expectedRevision: number): Promise<FunnelVersion>;
+  publish(funnelId: string, expectedRevision: number, planKeys?: string[]): Promise<FunnelVersion>;
   rollback(funnelId: string, versionId: string): Promise<Funnel>;
   listVersionSummaries(funnelId: string): Promise<VersionSummary[]>;
   createFunnel(

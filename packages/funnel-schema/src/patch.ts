@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { ID_PATTERN, colorSchema, edgeSchema, puckDataSchema, screenSchema } from './schema';
 import type { Edge, FunnelDefinition } from './schema';
+import type { ValidationIssue } from './validate';
 import { applyTextEdits, textEditSchema } from './text-edits';
 
 export const MAX_PATCH_OPS = 200;
@@ -216,6 +217,90 @@ function applyOne(def: FunnelDefinition, op: PatchOp): FunnelDefinition {
 
 export function applyPatch(def: FunnelDefinition, patch: FunnelPatch): FunnelDefinition {
   return patch.reduce(applyOne, def);
+}
+
+function opIssue(def: FunnelDefinition, op: PatchOp, path: string): ValidationIssue | null {
+  const hasScreen = (id: string) => def.screens.some((s) => s.id === id);
+  const missingScreen = (id: string): ValidationIssue => ({
+    code: 'patch_target_missing',
+    severity: 'error',
+    message: `Screen "${id}" does not exist.`,
+    screenId: id,
+    path,
+  });
+  switch (op.op) {
+    case 'add_screen':
+      if (hasScreen(op.screen.id)) {
+        return {
+          code: 'patch_id_taken',
+          severity: 'error',
+          message: `Screen id "${op.screen.id}" is already used.`,
+          screenId: op.screen.id,
+          path: `${path}.screen.id`,
+        };
+      }
+      if (op.insertAfter && !hasScreen(op.insertAfter)) return missingScreen(op.insertAfter);
+      return null;
+    case 'replace_screen':
+      return hasScreen(op.screen.id) ? null : missingScreen(op.screen.id);
+    case 'insert_elements':
+    case 'set_start_screen':
+      return hasScreen(op.screenId) ? null : missingScreen(op.screenId);
+    case 'remove_screen':
+      if (!hasScreen(op.screenId)) return missingScreen(op.screenId);
+      if (def.screens.length === 1) {
+        return {
+          code: 'patch_last_screen',
+          severity: 'error',
+          message: 'A funnel needs at least one screen.',
+          screenId: op.screenId,
+          path,
+        };
+      }
+      return null;
+    case 'add_edge':
+      if (def.edges.some((e) => e.id === op.edge.id)) {
+        return {
+          code: 'patch_id_taken',
+          severity: 'error',
+          message: `Edge id "${op.edge.id}" is already used.`,
+          edgeId: op.edge.id,
+          path: `${path}.edge.id`,
+        };
+      }
+      return null;
+    case 'remove_edge':
+      return def.edges.some((e) => e.id === op.edgeId)
+        ? null
+        : {
+            code: 'patch_target_missing',
+            severity: 'error',
+            message: `Edge "${op.edgeId}" does not exist.`,
+            edgeId: op.edgeId,
+            path,
+          };
+    case 'set_texts': {
+      const index = op.edits.findIndex((e) => !hasScreen(e.screenId));
+      return index === -1
+        ? null
+        : { ...missingScreen(op.edits[index]!.screenId), path: `${path}.edits.${index}` };
+    }
+    case 'set_theme':
+      return null;
+  }
+}
+
+export type PatchResult =
+  { ok: true; definition: FunnelDefinition } | { ok: false; issues: ValidationIssue[] };
+
+export function tryApplyPatch(def: FunnelDefinition, patch: FunnelPatch): PatchResult {
+  let current = def;
+  for (const [index, op] of patch.entries()) {
+    const issue = opIssue(current, op, `ops.${index}`);
+    if (issue) return { ok: false, issues: [issue] };
+    current = applyOne(current, op);
+  }
+  return { ok: true, definition: current };
 }
 
 export function summarizePatch(def: FunnelDefinition, patch: FunnelPatch): string[] {

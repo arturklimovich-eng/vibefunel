@@ -18,7 +18,7 @@ Rules:
 
 ## Operations contract (MCP-readiness)
 
-The platform will expose an MCP server for agents. Until then, keep every change ready for a thin MCP adapter. The design is in `docs/features/90-mcp.md`.
+The platform exposes an MCP server for agents at `/api/mcp` (`apps/web/src/server/mcp`). Keep every change usable through it. The design and the tool table are in `docs/features/90-mcp.md`.
 
 - Every change to a funnel definition is a `PatchOp` from `@funnel/schema`, applied with `applyPatch`. The editor UI, the AI assistant, the HTTP API and MCP all use the same ops. Components never mutate the definition directly.
 - Domain rules (validation, reference cleanup, plan checks, element props) live in `packages/funnel-schema`. They do not go in React components or route handlers. The package reads no env vars; configuration such as the plan catalogue is passed in as arguments.

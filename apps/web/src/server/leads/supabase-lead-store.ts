@@ -1,4 +1,5 @@
 import 'server-only';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { createSupabaseServiceClient } from '@/lib/supabase/service';
 import type { FunnelLead, LeadInput, LeadStore } from './store';
@@ -16,6 +17,8 @@ const leadRowSchema = z.object({
 });
 
 export class SupabaseLeadStore implements LeadStore {
+  constructor(private readonly reader: SupabaseClient | null = null) {}
+
   async recordLead(lead: LeadInput): Promise<{ duplicate: boolean }> {
     const { data, error } = await createSupabaseServiceClient().rpc('record_lead', {
       p_funnel_id: lead.funnelId,
@@ -54,7 +57,7 @@ export class SupabaseLeadStore implements LeadStore {
     if (!z.uuid().safeParse(projectId).success || !z.uuid().safeParse(funnelId).success) {
       return [];
     }
-    const client = createSupabaseServiceClient();
+    const client = this.reader ?? createSupabaseServiceClient();
     const leads: FunnelLead[] = [];
     let cursor: { createdAt: string; id: string } | null = null;
     for (;;) {

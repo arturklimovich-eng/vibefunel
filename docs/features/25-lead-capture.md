@@ -89,7 +89,7 @@ The address is trimmed and lower-cased (`normalizeEmail`) and stored through the
 
 ### Step: List leads
 
-The Leads panel sits under the Payments panel on the funnel editor page. It calls `GET /api/funnels/ID/leads`, which runs inside `withStudio`, loads the funnel through the studio repository (membership check in Supabase mode) and returns the latest 100 leads as `{ email, consent, screenId, createdAt }`.
+The Leads panel sits under the Payments panel on the funnel editor page. It calls `GET /api/funnels/ID/leads`, which runs inside `withStudio` and calls `listLeads` (`server/services/funnels.ts`, shared with the MCP `get_leads` tool): it loads the funnel through the studio repository and reads leads with the member's own client under the `leads_select` policy (no service role), then returns the latest 100 as `{ email, consent, screenId, createdAt }`.
 
 **Code:** `apps/web/src/app/api/funnels/[id]/leads/route.ts` (`GET`), `apps/web/src/components/LeadsPanel.tsx`, `apps/web/src/lib/api-routes.ts` (`leads`, `leadsCsv`).
 **Data:** `leads` filtered by project and funnel, newest first.

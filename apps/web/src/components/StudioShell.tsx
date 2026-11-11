@@ -14,6 +14,7 @@ import {
   CloseIcon,
   FlowIcon,
   HomeIcon,
+  KeyIcon,
   LogoMark,
   LogoutIcon,
   PlusIcon,
@@ -21,7 +22,7 @@ import {
 } from './EditorIcons';
 import styles from './StudioDashboard.module.css';
 
-export type StudioSection = 'overview' | 'funnels' | 'docs';
+export type StudioSection = 'overview' | 'funnels' | 'agents' | 'docs';
 
 const ShellContext = createContext<{ openCreate: (groupId?: string | null) => void }>({
   openCreate: () => {},
@@ -138,6 +139,13 @@ export function StudioShell({
               <span className={styles.navCount}>{funnelCount}</span>
             </Link>
             <Link
+              href="/studio/agents"
+              className={styles.navItem}
+              aria-current={active === 'agents' ? 'page' : undefined}
+            >
+              <KeyIcon size={17} /> Agents
+            </Link>
+            <Link
               href="/studio/docs"
               className={styles.navItem}
               aria-current={active === 'docs' ? 'page' : undefined}
@@ -199,6 +207,9 @@ export function StudioShell({
               </Link>
               <Link href="/studio/funnels" aria-current={active === 'funnels' ? 'page' : undefined}>
                 Funnels
+              </Link>
+              <Link href="/studio/agents" aria-current={active === 'agents' ? 'page' : undefined}>
+                Agents
               </Link>
               <Link href="/studio/docs" aria-current={active === 'docs' ? 'page' : undefined}>
                 Docs

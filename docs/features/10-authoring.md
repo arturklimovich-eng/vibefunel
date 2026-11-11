@@ -81,11 +81,11 @@ The editor holds the `FunnelDefinition` (`screens[]`, `edges[]` with `condition`
 
 ### Step: Publish version
 
-The editor wraps publish in `saver.runExclusive`: it pauses autosave, calls `saveNow()`, then `POST /publish {revision}`. The route loads the draft, returns 409 `revision_conflict` on mismatch, rejects unknown plan keys (`unknown_plan`, 400, using `loadPlans` and `unknownPlanKeys` from `@funnel/schema`), then `repo.publish`. That re-validates in strict `publish` mode (`FunnelValidationError` -> 400) and calls the `publish_funnel` RPC, which inserts `funnel_versions(version = max + 1)` and sets `status = 'published'` and `published_version_id`. The client retries once if a 409 carries the revision it already holds.
+The editor wraps publish in `saver.runExclusive`: it pauses autosave, calls `saveNow()`, then `POST /publish {revision}`. The route calls `publishFunnel` (`server/services/funnels.ts`, shared with the MCP `publish_funnel` tool), which passes the plan catalogue keys from `loadPlans` to `repo.publish`. That returns 409 `revision_conflict` on mismatch and validates in strict `publish` mode with `planKeys`, so an unknown plan key is an `unknown_plan` issue listing the known keys (`FunnelValidationError` -> 400 `validation_failed`) and calls the `publish_funnel` RPC, which inserts `funnel_versions(version = max + 1)` and sets `status = 'published'` and `published_version_id`. The client retries once if a 409 carries the revision it already holds.
 
-**Code:** `apps/web/src/app/api/funnels/[id]/publish/route.ts` `POST`; `packages/funnel-schema/src/element-props.ts` `unknownPlanKeys`; `apps/web/src/server/supabase-funnel-repository.ts` `publish`; `apps/web/src/components/FunnelEditor.tsx` `publish`, `requestPublish`; SQL `publish_funnel`.
+**Code:** `apps/web/src/app/api/funnels/[id]/publish/route.ts` `POST`; `apps/web/src/server/services/funnels.ts` `publishFunnel`; `packages/funnel-schema/src/element-props.ts` `unknownPlanKeys`; `apps/web/src/server/supabase-funnel-repository.ts` `publish`; `apps/web/src/components/FunnelEditor.tsx` `publish`, `requestPublish`; SQL `publish_funnel`.
 **Data:** `funnel_versions` (insert), `funnels.status`, `funnels.published_version_id`.
-**Failure modes:** 409 conflict -> `publishConflict` banner; 400 validation or `unknown_plan` -> issues in the panel with known plan keys; save failure -> outcome `save_failed`, nothing published.
+**Failure modes:** 409 conflict -> `publishConflict` banner; 400 `validation_failed` (including `unknown_plan` issues) -> issues in the panel; save failure -> outcome `save_failed`, nothing published.
 
 ### Step: Rollback
 

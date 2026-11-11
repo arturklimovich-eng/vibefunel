@@ -172,6 +172,13 @@ export const BookIcon = (p: P) => (
   </Icon>
 );
 
+export const KeyIcon = (p: P) => (
+  <Icon {...p}>
+    <circle cx="8" cy="15" r="4" />
+    <path d="m10.85 12.15 8.65-8.65M17 6l3 3M14.5 8.5l2 2" />
+  </Icon>
+);
+
 export const SparkIcon = (p: P) => (
   <Icon {...p}>
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />

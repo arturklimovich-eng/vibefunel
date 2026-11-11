@@ -22,7 +22,9 @@ function isProtected(pathname: string): boolean {
     pathname === '/api/funnels' ||
     pathname.startsWith('/api/funnels/') ||
     pathname === '/api/funnel-groups' ||
-    pathname.startsWith('/api/funnel-groups/')
+    pathname.startsWith('/api/funnel-groups/') ||
+    pathname === '/api/api-tokens' ||
+    pathname.startsWith('/api/api-tokens/')
   );
 }
 

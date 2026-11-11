@@ -33,7 +33,10 @@ export type IssueCode =
   | 'condition_source_not_payment'
   | 'schema_invalid'
   | 'unknown_plan'
-  | 'element_props_invalid';
+  | 'element_props_invalid'
+  | 'patch_target_missing'
+  | 'patch_id_taken'
+  | 'patch_last_screen';
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -41,6 +44,7 @@ export interface ValidationIssue {
   message: string;
   screenId?: string;
   edgeId?: string;
+  path?: string;
 }
 
 export type ValidateMode = 'save' | 'publish';
@@ -575,11 +579,13 @@ export function validateFunnel(
   }
 
   if (options.planKeys !== undefined) {
-    for (const key of unknownPlanKeys(definition, options.planKeys)) {
+    const known = [...options.planKeys];
+    const knownText = known.length > 0 ? known.join(', ') : 'none';
+    for (const key of unknownPlanKeys(definition, known)) {
       issues.push({
         code: 'unknown_plan',
         severity: gateSeverity,
-        message: `Plan "${key}" is not in the plan catalogue of this deployment.`,
+        message: `Plan "${key}" is not in the plan catalogue of this deployment. Known plans: ${knownText}.`,
       });
     }
   }
