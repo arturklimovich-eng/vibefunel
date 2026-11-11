@@ -18,6 +18,7 @@ flowchart LR
     DOM["Custom domains"]
     AIG["AI generation"]
     AI["AI assistant"]
+    MCP["Agent access (MCP, planned)"]
   end
   subgraph Public["Public (visitors)"]
     RUN["Funnel runtime"]
@@ -32,6 +33,7 @@ flowchart LR
   PAY -->|"paid orders, revenue"| OVER
   AIG -->|"new funnel draft"| AUTHOR
   AI -->|"patch proposals"| AUTHOR
+  MCP -->|"patches, publish"| AUTHOR
   AUTHOR -->|"add, style"| EL
   EL -->|"render, gates"| RUN
   AUTHOR -->|"publish version"| RUN
@@ -55,6 +57,7 @@ flowchart LR
   click AN "./60-analytics-consent.md"
   click AI "./80-ai-assistant.md"
   click AIG "./81-ai-generation.md"
+  click MCP "./90-mcp.md"
 ```
 
 ## How a funnel lives

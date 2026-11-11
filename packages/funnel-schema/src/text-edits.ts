@@ -1,4 +1,5 @@
-import { MAX_TITLE_LENGTH } from './schema';
+import { z } from 'zod';
+import { ID_PATTERN, MAX_TITLE_LENGTH } from './schema';
 import type { FunnelDefinition, PuckData, Screen } from './schema';
 
 type Item = PuckData['content'][number];
@@ -43,12 +44,21 @@ export interface TextField {
   value: string;
 }
 
-export interface TextEdit {
-  screenId: string;
-  elementId: string;
-  path: PathPart[];
-  value: string;
-}
+export const textEditSchema = z.object({
+  screenId: z.string().regex(ID_PATTERN).describe('Id of the screen that holds the text.'),
+  elementId: z
+    .string()
+    .max(100)
+    .describe(`Id of the element on that screen, or "${HEADER_ELEMENT_ID}" for the screen header.`),
+  path: z
+    .array(z.union([z.string().max(100), z.number().int().min(0)]))
+    .max(24)
+    .describe(
+      'Path to the text prop inside the element props, for example ["title"] or ["options", 2, "label"].',
+    ),
+  value: z.string().max(MAX_TEXT_EDIT_LENGTH).describe('New text value.'),
+});
+export type TextEdit = z.infer<typeof textEditSchema>;
 
 function isItem(value: unknown): value is Item {
   return (

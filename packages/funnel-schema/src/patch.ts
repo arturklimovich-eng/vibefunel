@@ -1,22 +1,96 @@
-import type { Edge, FunnelDefinition, PuckData, Screen, Theme } from './schema';
-import { applyTextEdits } from './text-edits';
-import type { TextEdit } from './text-edits';
+import { z } from 'zod';
+import { ID_PATTERN, colorSchema, edgeSchema, puckDataSchema, screenSchema } from './schema';
+import type { Edge, FunnelDefinition } from './schema';
+import { applyTextEdits, textEditSchema } from './text-edits';
 
-export type ThemePatch = Partial<Pick<Theme, 'primaryColor' | 'backgroundColor' | 'textColor'>> & {
-  font?: 'sans' | 'serif' | 'rounded';
-};
+export const MAX_PATCH_OPS = 200;
 
-export type PatchOp =
-  | { op: 'add_screen'; screen: Screen; insertAfter: string | null }
-  | { op: 'replace_screen'; screen: Screen }
-  | { op: 'insert_elements'; screenId: string; items: PuckData['content'] }
-  | { op: 'remove_screen'; screenId: string }
-  | { op: 'add_edge'; edge: Edge }
-  | { op: 'remove_edge'; edgeId: string }
-  | { op: 'set_start_screen'; screenId: string }
-  | { op: 'set_theme'; theme: ThemePatch }
-  | { op: 'set_texts'; edits: TextEdit[] };
+const screenId = z.string().regex(ID_PATTERN);
 
+export const THEME_PATCH_FONTS = ['sans', 'serif', 'rounded'] as const;
+
+export const themePatchSchema = z.object({
+  primaryColor: colorSchema.optional().describe('Accent color for buttons and highlights.'),
+  backgroundColor: colorSchema.optional().describe('Page background color.'),
+  textColor: colorSchema.optional().describe('Main text color.'),
+  font: z.enum(THEME_PATCH_FONTS).optional().describe('Font family applied to every screen.'),
+});
+export type ThemePatch = z.infer<typeof themePatchSchema>;
+
+export const patchOpSchema = z.discriminatedUnion('op', [
+  z
+    .object({
+      op: z.literal('add_screen'),
+      screen: screenSchema.describe('The full new screen. Its id must not exist yet.'),
+      insertAfter: screenId
+        .nullable()
+        .describe(
+          'Id of the screen after which the new one is linked into the main path, or null to add it unlinked.',
+        ),
+    })
+    .describe('Add a screen and, with insertAfter, splice it into the main path.'),
+  z
+    .object({
+      op: z.literal('replace_screen'),
+      screen: screenSchema.describe(
+        'The new version of an existing screen, matched by id. Its canvas position is kept.',
+      ),
+    })
+    .describe('Replace an existing screen with a new version.'),
+  z
+    .object({
+      op: z.literal('insert_elements'),
+      screenId: screenId.describe('Id of the screen that receives the elements.'),
+      items: puckDataSchema.shape.content.describe(
+        'Elements to append to the screen content, before any element attached to the bottom.',
+      ),
+    })
+    .describe('Append elements to a screen.'),
+  z
+    .object({
+      op: z.literal('remove_screen'),
+      screenId: screenId.describe('Id of the screen to remove.'),
+    })
+    .describe(
+      'Remove a screen. Incoming edges are redirected to its main next screen, other edges that reference it are dropped.',
+    ),
+  z
+    .object({
+      op: z.literal('add_edge'),
+      edge: edgeSchema.describe('The new edge. Its id must not exist yet.'),
+    })
+    .describe('Add a transition between two screens.'),
+  z
+    .object({
+      op: z.literal('remove_edge'),
+      edgeId: z.string().regex(ID_PATTERN).describe('Id of the edge to remove.'),
+    })
+    .describe('Remove a transition.'),
+  z
+    .object({
+      op: z.literal('set_start_screen'),
+      screenId: screenId.describe('Id of the screen visitors see first.'),
+    })
+    .describe('Change the first screen of the funnel.'),
+  z
+    .object({
+      op: z.literal('set_theme'),
+      theme: themePatchSchema.describe('Theme fields to change; omitted fields stay as they are.'),
+    })
+    .describe('Change theme colors or font.'),
+  z
+    .object({
+      op: z.literal('set_texts'),
+      edits: z.array(textEditSchema).max(500).describe('Text changes to apply.'),
+    })
+    .describe('Change texts of elements and screen headers.'),
+]);
+export type PatchOp = z.infer<typeof patchOpSchema>;
+
+export const funnelPatchSchema = z
+  .array(patchOpSchema)
+  .max(MAX_PATCH_OPS)
+  .describe('Operations applied in order to the funnel draft.');
 export type FunnelPatch = PatchOp[];
 
 const UNCONDITIONAL = new Set(['always', 'default']);
