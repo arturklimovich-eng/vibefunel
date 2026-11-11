@@ -13,7 +13,7 @@ import {
   ratingProps,
   sliderProps,
   textInputProps,
-} from '../element-schemas';
+} from '@funnel/schema';
 import { boxCss, number, parse, radio, select, text, textarea } from './shared';
 import type { Components } from './shared';
 import styles from './elements.module.css';

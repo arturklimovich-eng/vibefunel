@@ -586,4 +586,4 @@ export const SLOT_CHILDREN = [
   'Spinner',
 ];
 
-export { PLAN_PICKER_TYPES } from './element-schemas';
+export { PLAN_PICKER_TYPES } from '@funnel/schema';

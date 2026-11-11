@@ -1,4 +1,4 @@
-import type { PuckData, Screen } from '@funnel/schema';
+import type { PuckData, Screen } from './schema';
 
 type Item = PuckData['content'][number];
 

@@ -1,29 +1,9 @@
 import 'server-only';
+import { isPlanBound, pickerPlanKeys, usesPickerPlan } from '@funnel/schema';
 import type { FunnelDefinition } from '@funnel/schema';
 import type { PublishedReader } from '../funnel-repository';
-import { pickerPlanKeys } from '@/lib/puck/element-schemas';
 import { getPlan } from './plans';
 import type { Plan } from './plans';
-
-export const PLAN_BOUND_BLOCKS: ReadonlySet<string> = new Set([
-  'CheckoutBlock',
-  'WalletButton',
-  'Button',
-]);
-
-type ContentItem = { type: string; props: Record<string, unknown> };
-
-export function isPlanBound(item: ContentItem): boolean {
-  if (!PLAN_BOUND_BLOCKS.has(item.type)) return false;
-  return item.type !== 'Button' || item.props.action === 'purchase';
-}
-
-export function usesPickerPlan(item: ContentItem): boolean {
-  return (
-    item.props.source === 'picker' ||
-    ((item.type === 'WalletButton' || item.type === 'Button') && item.props.source !== 'fixed')
-  );
-}
 
 export type CheckoutTarget =
   | { ok: true; funnelId: string; projectId: string; plan: Plan; definition: FunnelDefinition }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ELEMENT_PROP_SCHEMAS, unknownPlanKeys } from './element-props';
 import { flattenContent } from './walk';
 import { isPaymentType, isSkipType } from './schema';
 import type { Edge, FunnelDefinition, Screen } from './schema';
@@ -30,7 +31,9 @@ export type IssueCode =
   | 'button_destination_missing'
   | 'decline_to_success'
   | 'condition_source_not_payment'
-  | 'schema_invalid';
+  | 'schema_invalid'
+  | 'unknown_plan'
+  | 'element_props_invalid';
 
 export interface ValidationIssue {
   code: IssueCode;
@@ -45,6 +48,7 @@ export type ValidateMode = 'save' | 'publish';
 export interface ValidateOptions {
   allowCycles?: boolean;
   mode?: ValidateMode;
+  planKeys?: Iterable<string>;
 }
 
 export interface ValidationResult {
@@ -548,6 +552,34 @@ export function validateFunnel(
         severity: allowCycles ? 'warning' : gateSeverity,
         message: `Screen "${id}" is part of a cycle.`,
         screenId: id,
+      });
+    }
+  }
+
+  for (const s of definition.screens) {
+    for (const item of flattenContent(s.content.content)) {
+      const schema = ELEMENT_PROP_SCHEMAS[item.type];
+      if (!schema) continue;
+      const parsed = schema.safeParse(item.props);
+      if (parsed.success) continue;
+      const detail = parsed.error.issues
+        .map((i) => (i.path.length > 0 ? `${i.path.join('.')}: ${i.message}` : i.message))
+        .join('; ');
+      issues.push({
+        code: 'element_props_invalid',
+        severity: gateSeverity,
+        message: `${item.type} on screen "${s.id}" has invalid settings: ${detail}`,
+        screenId: s.id,
+      });
+    }
+  }
+
+  if (options.planKeys !== undefined) {
+    for (const key of unknownPlanKeys(definition, options.planKeys)) {
+      issues.push({
+        code: 'unknown_plan',
+        severity: gateSeverity,
+        message: `Plan "${key}" is not in the plan catalogue of this deployment.`,
       });
     }
   }

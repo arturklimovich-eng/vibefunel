@@ -3,7 +3,7 @@
 import { memo, useMemo } from 'react';
 import { applyPatch } from '@funnel/schema';
 import type { FunnelDefinition, FunnelPatch } from '@funnel/schema';
-import { depthFromStart, longestPathFrom, previewStep } from '@/lib/progress';
+import { depthFromStart, longestPathFrom, previewStep } from '@funnel/schema';
 import { StaticScreen } from '../ScreenCanvas';
 import styles from './AssistantPanel.module.css';
 

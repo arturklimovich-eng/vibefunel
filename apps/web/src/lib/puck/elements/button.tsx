@@ -10,7 +10,7 @@ import type { ElementStyle } from '@/lib/styles';
 import { CheckoutPanel } from '../CheckoutPanel';
 import { PlanField } from '../PlanField';
 import { useEditorData } from '../editor-context';
-import { SELECTED_PLAN_KEY } from '../element-schemas';
+import { SELECTED_PLAN_KEY } from '@funnel/schema';
 import { framed, isEditingRender } from '../frame';
 import type { BlockProps } from '../frame';
 import { useRuntime } from '../runtime-context';

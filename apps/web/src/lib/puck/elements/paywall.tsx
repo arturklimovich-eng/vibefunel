@@ -13,8 +13,8 @@ import {
   totalsProps,
   trialPickerProps,
   walletProps,
-} from '../element-schemas';
-import type { PlanItem } from '../element-schemas';
+} from '@funnel/schema';
+import type { PlanItem } from '@funnel/schema';
 import type { Components } from './shared';
 import styles from './elements.module.css';
 

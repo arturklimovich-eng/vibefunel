@@ -11,7 +11,7 @@ import { randomId } from '@/lib/ids';
 import { boxStyle, textStyle } from '@/lib/styles';
 import { framed, isEditingRender } from './frame';
 import { imageField } from './image-field';
-import { SELECTED_PLAN_KEY } from './element-schemas';
+import { SELECTED_PLAN_KEY } from '@funnel/schema';
 import { allowedTypesFor } from './catalog';
 import { contentComponents } from './elements/content';
 import { flowComponents } from './elements/flow';

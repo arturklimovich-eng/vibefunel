@@ -116,10 +116,10 @@ All edits are `PatchOp`s: `add_screen`, `replace_screen`, `insert_elements`, `re
 
 ### Step: Validation
 
-`validateFunnel` returns `ValidationIssue`s with a `code`, `severity`, `message` and optional `screenId` or `edgeId`. That shape is what agents receive. Publish rules must all live here: the plan-key check (today only in the publish route) moves in, with the plan catalogue passed as an argument.
+`validateFunnel` returns `ValidationIssue`s with a `code`, `severity`, `message` and optional `screenId` or `edgeId`. That shape is what agents receive. Publish rules live here. `validateFunnel(def, { planKeys })` reports `unknown_plan` for plan keys missing from the catalogue the caller passes in (the package reads no env), and `element_props_invalid` for elements whose props fail their schema in `ELEMENT_PROP_SCHEMAS`. Both are errors in publish mode and warnings in save mode. The publish route still answers its own `unknown_plan` 400 with the known keys; the planned publish service will pass `planKeys` instead.
 
-**Code:** `packages/funnel-schema/src/validate.ts`, `apps/web/src/server/validate-definition.ts` (`checkDefinition`), `apps/web/src/app/api/funnels/[id]/publish/route.ts` (`unknownPlanKeys`).
+**Code:** `packages/funnel-schema/src/validate.ts`, `apps/web/src/server/validate-definition.ts` (`checkDefinition`), `packages/funnel-schema/src/element-props.ts` (`ELEMENT_PROP_SCHEMAS`, `unknownPlanKeys`, `isPlanBound`, `usesPickerPlan`).
 
 **Data:** the definition, plus the plan catalogue from `PAYMENT_PLANS_JSON`.
 
-**Failure modes:** element props are only loosely checked today (`puckDataSchema` keeps `props` as a record). An agent can save blocks that are structurally valid but semantically wrong until per-element prop schemas are applied.
+**Failure modes:** prop schemas cover inputs and paywall elements (Rating, Slider, TextInput, DatePicker, Checkbox, plan and trial pickers, WalletButton, Totals). Heading, Paragraph, Image, OptionList, EmailInput, PriceCard, CheckoutBlock, ResultSummary and Button still keep their schemas in `apps/web/src/lib/puck`, so their props are not checked by `validateFunnel` yet.

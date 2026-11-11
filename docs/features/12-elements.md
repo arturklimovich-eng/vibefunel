@@ -78,7 +78,7 @@ Button Action: Do Nothing, Navigate (Destination = next screen by connections, o
 
 Input values live in the runtime's `values` map keyed `screenId:elementId` (memory only, never sent to the server or persisted). Before advancing, `screenGate` checks required Inputs (and number range, phone format), Date Pickers, Checkboxes and Ratings and shows the first message. Email Form and Email + OAuth keep using the email gate and lead capture ([Lead capture](./25-lead-capture.md)).
 
-**Code:** `apps/web/src/lib/puck/gates.ts`, `apps/web/src/lib/puck/element-schemas.ts`, `apps/web/src/lib/puck/elements/inputs.tsx`.
+**Code:** `apps/web/src/lib/puck/gates.ts`, `packages/funnel-schema/src/element-props.ts`, `apps/web/src/lib/puck/elements/inputs.tsx`.
 **Failure modes:** values are lost on reload; inputs other than email do not reach the studio yet.
 
 ### Step: Plan pickers

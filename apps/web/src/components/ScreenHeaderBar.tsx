@@ -1,9 +1,9 @@
 import Image from 'next/image';
 import type { FunnelDefinition, Screen } from '@funnel/schema';
 import { isHttpsUrl } from '@funnel/schema';
-import { DEFAULT_SEGMENTS, progressFills } from '@/lib/progress';
+import { DEFAULT_SEGMENTS, progressFills } from '@funnel/schema';
 import { screenSurface } from '@/lib/styles';
-import type { StepPosition } from '@/lib/progress';
+import type { StepPosition } from '@funnel/schema';
 import styles from './ScreenHeaderBar.module.css';
 
 interface ScreenHeaderBarProps {

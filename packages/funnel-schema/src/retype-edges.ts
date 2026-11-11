@@ -1,5 +1,6 @@
-import { isPaymentType, isQuizScreen } from '@funnel/schema';
-import type { Edge, Screen, ScreenType } from '@funnel/schema';
+import { isQuizScreen } from './quiz';
+import { isPaymentType } from './schema';
+import type { Edge, Screen, ScreenType } from './schema';
 
 export interface RetypeResult {
   edges: Edge[];

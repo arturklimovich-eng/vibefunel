@@ -20,7 +20,7 @@ import type { AnswerSummaryItem, RuntimeApi } from '@/lib/puck/runtime-context';
 import { advance, retreat } from '@/lib/run-state';
 import { adoptRunId, getOrCreateRunId, loadRun, saveRun } from '@/lib/run-storage';
 import type { HistoryEntry, RunState } from '@/lib/run-state';
-import { longestPathFrom } from '@/lib/progress';
+import { longestPathFrom } from '@funnel/schema';
 import { screenSurface } from '@/lib/styles';
 import { defaultPickerPlan, hiddenBlockIds, pickerPlanKeys, screenGate } from '@/lib/puck/gates';
 import { ConsentBanner } from './ConsentBanner';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { FunnelDefinition } from '@funnel/schema';
+import type { FunnelDefinition } from './schema';
 
 export const PLAN_PICKER_TYPES: ReadonlySet<string> = new Set([
   'PlanPicker',
@@ -118,3 +118,58 @@ export const totalsProps = z.object({
   totalValue: z.string().default(''),
   note: z.string().default(''),
 });
+
+export const PLAN_BOUND_BLOCKS: ReadonlySet<string> = new Set([
+  'CheckoutBlock',
+  'WalletButton',
+  'Button',
+]);
+
+type ContentItem = { type: string; props: Record<string, unknown> };
+
+export function isPlanBound(item: ContentItem): boolean {
+  if (!PLAN_BOUND_BLOCKS.has(item.type)) return false;
+  return item.type !== 'Button' || item.props.action === 'purchase';
+}
+
+export function usesPickerPlan(item: ContentItem): boolean {
+  return (
+    item.props.source === 'picker' ||
+    ((item.type === 'WalletButton' || item.type === 'Button') && item.props.source !== 'fixed')
+  );
+}
+
+export function unknownPlanKeys(
+  definition: FunnelDefinition,
+  knownPlanKeys: Iterable<string>,
+): string[] {
+  const known = new Set(knownPlanKeys);
+  const unknown = new Set<string>();
+  for (const screen of definition.screens) {
+    for (const item of screen.content.content) {
+      const keys = pickerPlanKeys(item);
+      if (isPlanBound(item) && !usesPickerPlan(item)) {
+        const key = item.props.planKey;
+        if (typeof key === 'string' && key !== '') keys.push(key);
+      }
+      for (const key of keys) {
+        if (!known.has(key)) unknown.add(key);
+      }
+    }
+  }
+  return [...unknown];
+}
+
+export const ELEMENT_PROP_SCHEMAS: Readonly<Record<string, z.ZodType>> = {
+  Rating: ratingProps,
+  Slider: sliderProps,
+  TextInput: textInputProps,
+  DatePicker: datePickerProps,
+  Checkbox: checkboxProps,
+  PlanPicker: planPickerProps,
+  PlanPickerComposite: planPickerProps,
+  BillingPlanPicker: planPickerProps,
+  TrialPicker: trialPickerProps,
+  WalletButton: walletProps,
+  Totals: totalsProps,
+};

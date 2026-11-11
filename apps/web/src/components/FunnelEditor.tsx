@@ -49,8 +49,8 @@ import { funnelRoutes, readJson } from '@/lib/api-routes';
 import { randomId } from '@/lib/ids';
 import { STUDIO_NARROW_MEDIA_QUERY } from '@/lib/layout';
 import { getScreenOptions } from '@/lib/puck/adapters';
-import { retypeEdges } from '@/lib/retype-edges';
-import { stripScreenRefs } from '@/lib/screen-refs';
+import { retypeEdges } from '@funnel/schema';
+import { stripScreenRefs } from '@funnel/schema';
 import { allowedComponentsForScreenType } from '@/lib/puck/config';
 import { createQuizContent, createScreenContent } from '@/lib/puck/templates';
 import { parseCurrentRevision, parseIssues, useDraftSaver } from '@/lib/use-draft-saver';
@@ -82,7 +82,7 @@ import {
   longestPathFrom,
   previewStep,
   screenGroups,
-} from '@/lib/progress';
+} from '@funnel/schema';
 import {
   ChatIcon,
   ChevronDown,

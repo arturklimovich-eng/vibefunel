@@ -1,8 +1,8 @@
 import type { Screen } from '@funnel/schema';
 import { isItemShown } from '@/lib/styles';
 import { blockId } from './block-id';
-import { checkboxProps, datePickerProps, ratingProps, textInputProps } from './element-schemas';
-export { defaultPickerPlan, pickerPlanKeys } from './element-schemas';
+import { checkboxProps, datePickerProps, ratingProps, textInputProps } from '@funnel/schema';
+export { defaultPickerPlan, pickerPlanKeys } from '@funnel/schema';
 
 function valueOf(values: Record<string, string>, screenId: string, id: string): string {
   return (values[`${screenId}:${id}`] ?? '').trim();

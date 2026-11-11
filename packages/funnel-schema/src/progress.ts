@@ -1,4 +1,4 @@
-import type { FunnelDefinition, ProgressType, Screen } from '@funnel/schema';
+import type { FunnelDefinition, ProgressType, Screen } from './schema';
 
 export function longestPathFrom(definition: FunnelDefinition): Map<string, number> {
   const ids = definition.screens.map((s) => s.id);
